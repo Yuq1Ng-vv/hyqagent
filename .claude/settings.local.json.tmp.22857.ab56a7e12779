@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(kill 2475)",
+      "Bash(PORT=3001 node server/index.js)",
+      "Bash(kill -9 3967)",
+      "Bash(fuser -k 3001/tcp)",
+      "Bash(node server/index.js)",
+      "Bash(disown)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)",
+      "WebFetch(domain:ar5iv.labs.arxiv.org)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(git branch *)",
+      "Bash(git add *)"
+    ]
+  }
+}

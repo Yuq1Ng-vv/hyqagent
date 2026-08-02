@@ -1,0 +1,3757 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "generated": "2026-08-02",
+    "description": "HyqAgent Web Security Detection Capability Matrix — 200+ concrete code-level detection items",
+    "references": [
+      "OWASP ASVS V4.0.3",
+      "OWASP ASVS V5.0.0",
+      "OWASP Testing Guide V5 (WSTG)",
+      "WASC Threat Classification V2.0",
+      "CWE/SANS Top 25 2024",
+      "OWASP Cheat Sheet Series",
+      "NIST SP 800-53",
+      "Bug Bounty Platform Common Categories"
+    ],
+    "verification_methods": {
+      "deterministic": "Can be verified 100% by static pattern/rule matching without false positives",
+      "llm": "Requires LLM-level semantic understanding; patterns exist but need context",
+      "dynamic_required": "Requires runtime/DAST/dynamic testing; cannot be verified by code review alone",
+      "hybrid": "Partial static + dynamic verification needed"
+    },
+    "severity_levels": {
+      "CRITICAL": "Direct RCE, full data breach, complete system compromise",
+      "HIGH": "Account takeover, privilege escalation, significant data exposure",
+      "MEDIUM": "Limited data exposure, configuration weakness, defense-in-depth gap",
+      "LOW": "Minor information disclosure, hardening opportunity",
+      "INFO": "Best practice, no direct exploit path"
+    },
+    "language_applicability": {
+      "py": "Python",
+      "js": "JavaScript/TypeScript/Node.js",
+      "java": "Java/JVM languages"
+    }
+  },
+  "categories": [
+    {
+      "id": "INPUT",
+      "name": "输入验证层 (Input Validation)",
+      "description": "所有外部输入是否经过验证的检测项",
+      "items": [
+        {
+          "id": "INPUT-001",
+          "name": "所有用户输入是否在服务端经过验证（非仅客户端验证）",
+          "detail": "检查每个接收外部输入的端点是否在服务端执行了输入验证逻辑，而非仅依赖前端JS验证。需确认验证逻辑在控制器层/路由层而非仅存在于HTML/JS中。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-20",
+          "owasp_category": "A03:2021 - Injection / ASVS V5.1",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-002",
+          "name": "输入长度限制（最大/最小长度）",
+          "detail": "检查所有字符串输入字段是否在服务端定义了maxLength/minLength限制。检查点：@Size/@Length注解(Java)、len()检查(Python)、validator/middleware层(JS)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V5.1.4",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-003",
+          "name": "输入类型限制（整数/字符串/布尔等类型白名单）",
+          "detail": "检查是否对输入参数做了严格类型校验。数字参数不接受字符串、布尔参数只接受true/false。Java检查@NotNull/@Positive等、Python检查isinstance()/type hints+pydantic、JS检查typeof/joi/yup。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V5.1.2",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-004",
+          "name": "输入格式限制（正则/白名单验证）",
+          "detail": "检查是否对邮箱、电话、日期、UUID等格式字段使用了严格的正则或白名单验证。反模式：黑名单过滤、过于宽松的.*正则。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V5.1.3",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-005",
+          "name": "允许列表（allowlist）验证 vs 拒绝列表（denylist）",
+          "detail": "检查输入验证逻辑使用的是允许列表（白名单）还是拒绝列表（黑名单）。代码中是否出现已知危险字符/模式的黑名单过滤（如过滤<script>但不处理<ScRiPt>等变体）。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-183",
+          "owasp_category": "ASVS V5.1.5",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-006",
+          "name": "特殊字符/元字符处理（< > \" ' & ; \\x00 \\n \\r等）",
+          "detail": "检查输入中是否对HTML/XML/JSON/SQL/Shell/LDAP等上下文中的特殊字符做了适当处理（编码或拒绝）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-116",
+          "owasp_category": "A03:2021 - Injection",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-007",
+          "name": "编码/解码一致性（避免双重编码绕过）",
+          "detail": "检查是否存在多次编码/解码导致的安全绕过。典型场景：输入被URL解码两次、HTML实体解码后又被当作HTML渲染。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-174",
+          "owasp_category": "ASVS V5.1.1",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-008",
+          "name": "HTTP参数污染防护（重复参数处理）",
+          "detail": "检查当同一参数名出现多次时应用的行为是否可控。Spring MVC用数组接收、Express用qs库解析、Flask用request.args.getlist。检查是否存在参数覆盖风险。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "MEDIUM",
+          "cwe": "CWE-235",
+          "owasp_category": "WSTG-INPV-04",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-009",
+          "name": "HTTP Method验证（预期方法白名单，拒绝TRACE/OPTIONS等危险方法）",
+          "detail": "检查端点是否仅接受预期HTTP方法（GET/POST/PUT/DELETE），是否禁用了TRACE（可能泄露Cookie）、OPTIONS（信息泄露）。检查@RequestMapping/@app.route等的methods参数。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-749",
+          "owasp_category": "WSTG-CONF-06",
+          "wasc_ref": "WASC-15",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-010",
+          "name": "Content-Type验证（请求体MIME类型白名单）",
+          "detail": "检查服务端是否验证了请求Content-Type头，拒绝未预期的MIME类型。检查consumes参数(Spring)、内容协商逻辑(Express)、request.content_type检查(Flask)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V13.1.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-011",
+          "name": "文件上传MIME类型验证（Content-Type白名单）",
+          "detail": "检查文件上传处理是否仅接受预期MIME类型（如image/png, application/pdf），拒绝application/octet-stream等泛型类型。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-434",
+          "owasp_category": "ASVS V12.1.1 / WSTG-BUSL-08",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-012",
+          "name": "文件上传魔数（magic bytes）验证",
+          "detail": "检查文件上传处理是否使用magic bytes（文件头签名）而非仅扩展名或Content-Type验证文件类型。检查是否使用了python-magic/Apache Tika/file命令等库。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-434",
+          "owasp_category": "ASVS V12.1.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-013",
+          "name": "文件大小限制（服务端验证，非仅客户端）",
+          "detail": "检查文件上传是否有服务端大小限制。检查是否配置了multipart maxFileSize(Spring)、body-parser limit(Express)、MAX_CONTENT_LENGTH(Flask)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-400",
+          "owasp_category": "ASVS V12.1.3",
+          "wasc_ref": "WASC-10",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-014",
+          "name": "解压缩炸弹防护（Zip bomb / Billion laughs）",
+          "detail": "检查压缩文件解压处理是否有大小/层数/数量限制。检查是否设置了解压后总大小限制（ZipInputStream.getNextEntry检查压缩比）、XML解析器禁用实体扩展（setExpandEntityReferences(false)）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-409",
+          "owasp_category": "ASVS V12.1.1",
+          "wasc_ref": "WASC-44",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-015",
+          "name": "流式读取避免内存溢出",
+          "detail": "检查大文件/请求体是否使用流式读取(stream/passThrough)而非一次性读入内存(readAllBytes/download全部)。检查是否使用StreamingResponseBody(Spring)、fs.createReadStream(Node)、chunked reading(Python)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-400",
+          "owasp_category": "ASVS V12.1.3",
+          "wasc_ref": "WASC-10",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-016",
+          "name": "HTTP请求大小限制（body大小）",
+          "detail": "检查是否配置了整体请求体大小限制。server.max-http-header-size/max-swallow-size(Spring Boot)、limit选项(Express body-parser)、client_max_body_size(Nginx)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-770",
+          "owasp_category": "ASVS V4.1.5",
+          "wasc_ref": "WASC-10",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-017",
+          "name": "数字范围验证（最小/最大值边界检查）",
+          "detail": "检查数值参数是否在合理范围内，是否允许负数、零值。检查@Min/@Max/@Positive/@Negative(Java)、min/max属性(JS validation)、value范围检查(Python)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V5.2.1",
+          "wasc_ref": "WASC-20",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-018",
+          "name": "枚举值白名单验证",
+          "detail": "检查可枚举字段（如status/type/role/order_by）是否使用白名单约束。必须传入白名单内的值，拒绝未预期值。检查是否使用enum类型(Java)、oneOf(Literal)(Python/TypeScript)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V5.1.5",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-019",
+          "name": "空字节注入防护（Null byte injection）",
+          "detail": "检查输入处理中是否正确处理了空字节(\\x00/NUL)。在C语言底层可能导致截断。检查Java(极少受影响但JNI可能)、Python(字符串可含空字节)、Node(Buffer处理)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-158",
+          "owasp_category": "WSTG-INPV-12",
+          "wasc_ref": "WASC-28",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-020",
+          "name": "多字节/Unicode规范化一致性",
+          "detail": "检查Unicode规范化是否一致。不同规范化形式(NFC/NFD/NFKC/NFKD)可能导致绕过。检查是否使用了NFC规范化后比较、Java的java.text.Normalizer、Python的unicodedata.normalize。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "MEDIUM",
+          "cwe": "CWE-176",
+          "owasp_category": "ASVS V5.1.6",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-021",
+          "name": "URL重定向参数的目标域名白名单验证",
+          "detail": "检查redirect_uri/next/returnUrl等URL参数是否使用白名单域名/路径验证。检查是否验证Scheme(http/https)、Authority、Path。反模式：仅startsWith检查可被//evil.com绕过。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-601",
+          "owasp_category": "WSTG-CLNT-04",
+          "wasc_ref": "WASC-38",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-022",
+          "name": "XML外部实体注入(XXE)防护——禁用DTD/外部实体",
+          "detail": "检查XML解析器是否配置了禁用DTD、外部实体、外部参数实体。Java: setFeature(DISALLOW_DOCTYPE_DECL, true); Python: defusedxml库; JS: xml2js安全配置。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-611",
+          "owasp_category": "A05:2021 - Security Misconfiguration / WSTG-INPV-07",
+          "wasc_ref": "WASC-43",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-023",
+          "name": "表达式语言注入防护（EL/OGNL/SpEL/MVEL注入）",
+          "detail": "检查用户可控的输入是否被传入表达式语言引擎。Java: Spring EL(${...})、OGNL(Struts2)、MVEL; Python: eval()/exec(); JS: eval()/new Function()。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-917",
+          "owasp_category": "A03:2021 - Injection",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-024",
+          "name": "正则表达式ReDoS防护——避免evil regex",
+          "detail": "检查是否存在用户可控的正则表达式输入，或服务端正则是否存在指数级回溯风险（嵌套量词如(a+)+$）。Java: 设置超时(Matcher.usePattern); Node: safe-regex/re2库; Python: re模块设置timeout(3.11+)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-1333",
+          "owasp_category": "ASVS V5.1.1",
+          "wasc_ref": "WASC-10",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-025",
+          "name": "跨站请求参数来源验证（Origin/Referer检查）",
+          "detail": "检查对于敏感操作是否验证了请求来源(Origin/Referer头)。不能作为唯一CSRF防护，但可作为纵深防御。检查是否对Origin/Referer头为空时（如从HTTPS跳转到HTTP）有正确处理。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-352",
+          "owasp_category": "ASVS V4.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-026",
+          "name": "GraphQL查询深度/复杂度限制",
+          "detail": "检查GraphQL端点是否设置了查询深度(max_depth)和复杂度(complexity)限制，防止通过深度嵌套查询导致DoS。检查graphql-depth-limit/graphql-query-complexity等库的使用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-400",
+          "owasp_category": "ASVS V13.4.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "INPUT-027",
+          "name": "参数类型混淆/type juggling防护",
+          "detail": "检查弱类型语言的参数比较是否安全。PHP: 检查松散比较(== vs ===)；Python/JS: 检查数字字符串与数字的比较。防止通过类型混淆绕过验证(如0123==123、'0e123456'=='0e999999'的loose比较漏洞)。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-843",
+          "owasp_category": "ASVS V5.1.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "OUTPUT",
+      "name": "输出编码层 (Output Encoding)",
+      "description": "输出到客户端时的编码安全性检测项",
+      "items": [
+        {
+          "id": "OUTPUT-001",
+          "name": "HTML上下文编码（HTML实体转义 < > \" & '）",
+          "detail": "检查输出到HTML body时是否对HTML特殊字符做了实体编码。Java: OWASP Encoder/Spring HtmlUtils; JS: escape-html库/模板引擎自动转义; Python: html.escape()/Jinja2 autoescape。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "A03:2021 - Injection / ASVS V5.3.1",
+          "wasc_ref": "WASC-08",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-002",
+          "name": "JavaScript上下文编码（避免用户输入直接拼接在<script>中）",
+          "detail": "检查用户数据输出到<script>标签或JS事件处理器时是否使用了正确的JS编码（\\xHH或\\uHHHH格式）。反模式：服务端拼接JSON字符串到<script>中。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V5.3.2",
+          "wasc_ref": "WASC-08",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-003",
+          "name": "CSS上下文编码（避免用户输入输出到<style>标签中）",
+          "detail": "检查用户数据是否被输出到CSS上下文中（<style>标签、inline style属性）。需要CSS六位十六进制编码(\\HHHHHH)转义。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-79",
+          "owasp_category": "WSTG-CLNT-05",
+          "wasc_ref": "WASC-08",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-004",
+          "name": "URL上下文编码（%HH格式编码）",
+          "detail": "检查输出到URL属性（href/src/action等）或URL参数中时是否使用了URL编码。注意javascript:和data:协议的过滤。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V5.3.3",
+          "wasc_ref": "WASC-08",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-005",
+          "name": "JSON序列化安全性（避免使用拼接方式生成JSON）",
+          "detail": "检查JSON输出是否使用安全的序列化方式（json.dumps/JSON.stringify/Jackson ObjectMapper）而非手动字符串拼接。检查序列化时是否自动转义了特殊字符。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V5.3.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-006",
+          "name": "XML序列化安全性（CDATA和实体编码）",
+          "detail": "检查XML输出中是否对特殊字符(& < > \" ')使用了实体编码或CDATA包装。检查是否使用了XML解析器/序列化器的自动编码功能。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V5.3.4",
+          "wasc_ref": "WASC-23",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-007",
+          "name": "Content-Type与响应体一致性检查",
+          "detail": "检查响应的Content-Type头是否与响应体内容一致。防止XSS via content-type mismatch（如将HTML当作text/plain返回但浏览器嗅探为HTML）。检查是否设置了X-Content-Type-Options: nosniff。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-173",
+          "owasp_category": "ASVS V14.4.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-008",
+          "name": "HTTP响应头注入防护（CRLF注入）",
+          "detail": "检查用户可控的数据是否被用于构造HTTP响应头（如Location/Set-Cookie等），是否对\\r\\n做了过滤或编码。检查是否使用了response.addHeader而非直接操作原始输出流。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-113",
+          "owasp_category": "WSTG-INPV-15",
+          "wasc_ref": "WASC-25",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-009",
+          "name": "模板引擎自动转义是否开启",
+          "detail": "检查模板引擎的自动转义(autoescape)功能是否开启。Jinja2: autoescape=True; Thymeleaf: 使用th:text而非th:utext; EJS: <%= %>转义而<%- %>不转义; React: 默认转义JSX。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V5.3.1",
+          "wasc_ref": "WASC-22",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-010",
+          "name": "富文本/HTML清理（sanitizer使用检查）",
+          "detail": "检查富文本输入（如评论/文章）是否使用了成熟的HTML sanitizer库处理输出。Java: OWASP HTML Sanitizer; JS: DOMPurify/sanitize-html; Python: bleach/nh3。反模式：自己写正则过滤HTML。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V5.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "OUTPUT-011",
+          "name": "innerHTML/dangerouslySetInnerHTML安全检查",
+          "detail": "检查JavaScript代码中是否使用了innerHTML/outerHTML/document.write()/insertAdjacentHTML等接口，以及React的dangerouslySetInnerHTML，是否先经过清理(DOMPurify)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "WSTG-CLNT-02",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "OUTPUT-012",
+          "name": "SVG/mathML上载输出中的XSS防护",
+          "detail": "检查上传的SVG文件直接服务时是否移除了<script>/<foreignObject>/事件处理器等可执行内容。SVG中的XSS经常被忽略。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "ASVS V12.1.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AUTH",
+      "name": "认证层 (Authentication)",
+      "description": "用户身份验证相关的检测项",
+      "items": [
+        {
+          "id": "AUTH-001",
+          "name": "密码强度策略（最小长度、复杂度要求）",
+          "detail": "检查密码策略是否要求最小长度(>=8字符，推荐12+)、是否检查了复杂度。NIST SP 800-63B建议: 最小8字符，不强制复杂度而鼓励长度。检查是否有配置化的密码策略(PasswordEncoder/validator)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-521",
+          "owasp_category": "ASVS V2.1.1",
+          "wasc_ref": "WASC-01",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-002",
+          "name": "密码存储算法（bcrypt/argon2/scrypt，拒绝MD5/SHA-1/SHA-256直接存储密码）",
+          "detail": "检查密码哈希算法是否为bcrypt/argon2id/scrypt/PBKDF2。反模式：MD5/SHA-1/SHA-256直接哈希（无salt或无计算强度参数的哈希）。Java: BCryptPasswordEncoder; Python: bcrypt/argon2-cffi; JS: bcryptjs。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-916",
+          "owasp_category": "ASVS V2.4.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-003",
+          "name": "bcrypt/argon2的工作因子（cost factor）是否足够",
+          "detail": "检查bcrypt的logRounds(work factor)是否>=10、argon2的memory/time参数是否合理。反模式：cost=4-6(太低)、使用默认值未显式配置。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-916",
+          "owasp_category": "ASVS V2.4.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-004",
+          "name": "账户锁定机制（多次失败尝试后锁定）",
+          "detail": "检查是否有账户锁定/速率限制机制防止暴力破解。检查锁定阈值、锁定时间(递增延迟还是永久)、解锁方式。反模式：锁定机制可被枚举用户名利用（响应差异）。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "MEDIUM",
+          "cwe": "CWE-307",
+          "owasp_category": "ASVS V2.2.1 / WSTG-ATHN-03",
+          "wasc_ref": "WASC-11",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-005",
+          "name": "暴力破解防护（验证码/速率限制/IP限制）",
+          "detail": "检查登录端点是否实现了速率限制（基于IP/账户/全局）。检查是否使用了CAPTCHA（reCAPTCHA/hCaptcha）作为额外防护层。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-307",
+          "owasp_category": "ASVS V2.2.3",
+          "wasc_ref": "WASC-21",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-006",
+          "name": "多因素认证(MFA)是否正确实现（不能通过直接访问URL绕过）",
+          "detail": "检查MFA是否在服务端强制验证，不能通过跳过MFA页面的URL访问、修改API参数等方式绕过。检查MFA token的有效期、重用防护。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-308",
+          "owasp_category": "ASVS V2.8.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-007",
+          "name": "MFA TOTP种子存储安全（加密存储/不导出）",
+          "detail": "检查TOTP种子(secret key)是否加密存储（不在数据库/日志中明文）。检查TOTP种子的QR码生成URL是否在响应中暴露。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-312",
+          "owasp_category": "ASVS V2.8.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-008",
+          "name": "密码重置Token安全性（一次性、时效性、密码学随机生成、绑定用户）",
+          "detail": "检查密码重置Token是否满足：1)密码学安全随机生成(CSPRNG)；2)短期有效(<=15分钟)；3)一次性使用(使用后立即失效)；4)绑定特定用户（不能用于其他用户）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-640",
+          "owasp_category": "ASVS V2.5.1",
+          "wasc_ref": "WASC-49",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-009",
+          "name": "密码重置后的会话处理（所有活跃会话是否被失效）",
+          "detail": "检查密码重置后是否使该用户的所有现有会话全部失效（包括其他设备上的会话），强制用户用新密码重新登录。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-384",
+          "owasp_category": "ASVS V2.5.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-010",
+          "name": "邮箱验证流程安全（验证链接的token安全）",
+          "detail": "检查邮箱验证Token是否满足密码重置Token相同的安全要求。验证Token是否为一次性、密码学安全随机、有时效、绑定用户邮箱。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-640",
+          "owasp_category": "ASVS V2.3.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-011",
+          "name": "JWT签名算法验证（拒绝alg:none/不安全的算法）",
+          "detail": "检查JWT验证代码是否显式指定了允许的签名算法白名单(如仅HS256/RS256)，拒绝alg:none攻击。检查verify()调用是否强制指定了算法而非自动从header读取。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-345",
+          "owasp_category": "ASVS V9.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-012",
+          "name": "JWT密钥混淆防护（非对称算法时使用公钥签名的攻击防护）",
+          "detail": "检查使用非对称算法(RS256/ES256)验证JWT时，是否只使用公钥验证（不包括HMAC场景）。防止攻击者将公钥作为HMAC密钥签名。检查kid/jku头的安全使用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-347",
+          "owasp_category": "ASVS V9.1.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-013",
+          "name": "JWT过期时间(exp)验证是否实现",
+          "detail": "检查JWT验证逻辑是否检查了exp（过期时间）、nbf（生效时间）claim。反模式：解析Token后未检查过期、或允许过期后仍可使用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-613",
+          "owasp_category": "ASVS V9.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-014",
+          "name": "JWT audience/issuer验证",
+          "detail": "检查是否验证了JWT的aud(audience)和iss(issuer)claim。防止Token跨应用/服务重用。检查是否使用了正确的预期值进行比较。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-287",
+          "owasp_category": "ASVS V9.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-015",
+          "name": "OAuth state参数验证（防CSRF）",
+          "detail": "检查OAuth/OIDC授权请求中是否使用了state参数且服务端验证了该参数的匹配性（绑定用户会话）。反模式：state参数为空/固定值/不验证。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-352",
+          "owasp_category": "ASVS V10.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-016",
+          "name": "OAuth redirect_uri白名单验证（精确匹配，非前缀匹配）",
+          "detail": "检查回调URL验证是否为精确匹配白名单，而非前缀/子字符串匹配（可能被attacker.com.evil.com绕过）。检查是否允许localhost/127.0.0.1等特殊地址作为合法回调URL。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-601",
+          "owasp_category": "ASVS V10.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-017",
+          "name": "OAuth PKCE是否强制要求（Authorization Code Flow + PKCE）",
+          "detail": "检查SPA/移动应用等公共客户端是否使用PKCE(Proof Key for Code Exchange)防止授权码拦截攻击。检查code_verifier/code_challenge是否正确实现。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-287",
+          "owasp_category": "ASVS V10.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-018",
+          "name": "SAML签名验证是否正确实现",
+          "detail": "检查SAML断言(Assertion)和响应(Response)的XML签名是否正确验证。是否允许未签名/签名验证失败的断言。检查签名验证是否排除XML签名包装(XSW)攻击。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-287",
+          "owasp_category": "ASVS V3.6.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-019",
+          "name": "API Key管理（不在URL中传输、不在客户端代码中暴露）",
+          "detail": "检查API Key是否通过HTTP Header(Authorization)而非URL参数传输（URL会出现在日志/Referer中）。检查前端代码中是否硬编码了API Key。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-598",
+          "owasp_category": "ASVS V2.10.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTH-020",
+          "name": "认证失败响应信息是否模糊化（不区分用户不存在vs密码错误）",
+          "detail": "检查登录失败时的错误消息是否不区分「用户不存在」和「密码错误」（统一返回「用户名或密码错误」），防止用户枚举。同时检查HTTP状态码/响应时间是否一致。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-204",
+          "owasp_category": "ASVS V2.2.2 / WSTG-IDNT-04",
+          "wasc_ref": "WASC-01",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SESSION",
+      "name": "会话管理层 (Session Management)",
+      "description": "会话创建、维护、销毁全生命周期的安全检测项",
+      "items": [
+        {
+          "id": "SESS-001",
+          "name": "会话Token生成使用密码学安全随机数（CSPRNG）",
+          "detail": "检查会话ID的生成是否使用了CSPRNG而非可预测的PRNG。Java: SecureRandom而非Random; Python: secrets而非random; JS: crypto.randomBytes而非Math.random。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-330",
+          "owasp_category": "ASVS V3.1.1",
+          "wasc_ref": "WASC-18",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-002",
+          "name": "会话Cookie属性Secure/HttpOnly/SameSite设置",
+          "detail": "检查Set-Cookie中是否设置了Secure=true(仅HTTPS传输)、HttpOnly=true(防止JS读取)、SameSite=Lax或Strict(防CSRF)。检查Cookie的Domain和Path是否设得过于宽泛。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-614",
+          "owasp_category": "ASVS V3.4.1 / WSTG-SESS-02",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-003",
+          "name": "会话固定防护（登录后重新生成会话Token）",
+          "detail": "检查登录成功后是否调用session_regenerate_id()/request.changeSessionId()来重新生成会话ID，防止攻击者预设的会话ID在登录后被复用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-384",
+          "owasp_category": "ASVS V3.2.1 / WSTG-SESS-03",
+          "wasc_ref": "WASC-37",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-004",
+          "name": "会话超时设置（空闲超时+绝对超时）",
+          "detail": "检查是否设置了合理的会话空闲超时（如30分钟无活动自动登出）和绝对超时（如最长12小时后强制重新认证）。检查应用层面是否实现了超时逻辑而非仅依赖Cookie过期。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-613",
+          "owasp_category": "ASVS V3.3.2 / WSTG-SESS-07",
+          "wasc_ref": "WASC-47",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-005",
+          "name": "登出功能是否使会话在服务端完全失效",
+          "detail": "检查登出功能是否真正在服务端销毁了会话（而非仅清除客户端Cookie）。检查token/session是否在认证系统中被失效处理（JWT黑名单/Redis session删除）。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "MEDIUM",
+          "cwe": "CWE-613",
+          "owasp_category": "ASVS V3.3.1 / WSTG-SESS-06",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-006",
+          "name": "并发会话控制（多设备登录策略）",
+          "detail": "检查是否支持并发会话控制策略（如限制同时登录设备数、新旧会话踢出策略）。检查是否提供用户查看和管理活跃会话的功能。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-613",
+          "owasp_category": "ASVS V3.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-007",
+          "name": "记住我(Remember Me)功能安全性",
+          "detail": "检查「记住我」功能是否使用独立的、密码学强度足够的持久化Token（而非简单延长Session有效期）。检查Remember Me Token是否设置了httponly/secure、是否可被服务端主动撤销。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-287",
+          "owasp_category": "WSTG-ATHN-05",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-008",
+          "name": "会话Token不在URL中传输",
+          "detail": "检查会话Token是否仅通过Cookie或Authorization Header传输，而非URL参数（会出现于日志、Referer、浏览器历史中）。有些框架自动回退到URL传递session id(JSessionID)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-598",
+          "owasp_category": "ASVS V3.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-009",
+          "name": "CSRF Token检查（每个状态改变请求是否都包含并验证CSRF Token）",
+          "detail": "检查POST/PUT/DELETE等状态变更操作是否包含CSRF防护Token。检查Token是否绑定会话、是否每次请求更新、是否在服务端验证。Java: Spring Security csrf(); Node: csurf/csrf-csrf; Python: Flask-WTF CSRF。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-352",
+          "owasp_category": "ASVS V7.4.1 / WSTG-SESS-05",
+          "wasc_ref": "WASC-09",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-010",
+          "name": "Cookie Prefix __Host-或__Secure-使用",
+          "detail": "检查敏感Cookie是否使用了__Host-或__Secure-前缀来限制Cookie的作用范围(__Host-强制secure+path=/+无domain属性)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-614",
+          "owasp_category": "ASVS V3.4.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SESS-011",
+          "name": "敏感操作前重新认证（step-up authentication）",
+          "detail": "检查敏感操作（如修改密码、修改邮箱、转账、删除账户）前是否要求用户重新输入密码或进行二次认证。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-306",
+          "owasp_category": "ASVS V7.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AUTHZ",
+      "name": "授权/访问控制层 (Authorization / Access Control)",
+      "description": "确认用户只能访问被授权的资源",
+      "items": [
+        {
+          "id": "AUTHZ-001",
+          "name": "每个端点/service方法是否有授权检查",
+          "detail": "检查每个API端点/Service方法是否有显式的授权检查，是否默认拒绝。检查controller中是否有遗漏@PreAuthorize/@Secured/中间件的情况。反模式：默认允许访问、仅部分端点加了权限检查。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "CRITICAL",
+          "cwe": "CWE-862",
+          "owasp_category": "ASVS V8.2.1",
+          "wasc_ref": "WASC-02",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-002",
+          "name": "水平权限验证（用户A不能访问用户B的数据——IDOR防护）",
+          "detail": "检查资源访问时是否验证了当前用户对目标资源的所有权。如GET /api/orders/123需确认123属于当前用户。检查是否使用了直接对象引用而无所有权验证。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "CRITICAL",
+          "cwe": "CWE-639",
+          "owasp_category": "ASVS V8.1.1 / WSTG-ATHZ-04",
+          "wasc_ref": "WASC-02",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-003",
+          "name": "垂直权限验证（普通用户不能执行管理操作）",
+          "detail": "检查是否实现了角色/权限等级的严格分离。普通用户是否可通过修改URL/参数访问管理功能。检查是否使用了Web路由级+方法级的双重权限控制。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "CRITICAL",
+          "cwe": "CWE-269",
+          "owasp_category": "ASVS V8.2.2 / WSTG-ATHZ-03",
+          "wasc_ref": "WASC-02",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-004",
+          "name": "上下文权限验证（操作需要特定业务上下文中的权限）",
+          "detail": "检查更复杂的权限场景：如部门经理只能编辑本部门数据、项目成员才能访问项目文件。检查ABAC/RBAC实现是否正确。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-863",
+          "owasp_category": "ASVS V8.3.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-005",
+          "name": "CORS Access-Control-Allow-Origin是否为反射式通配符",
+          "detail": "检查CORS配置中Access-Control-Allow-Origin是否将请求中的Origin头原样反射返回（危险），或使用*。应使用白名单精确匹配。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-942",
+          "owasp_category": "WSTG-CLNT-07",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-006",
+          "name": "CORS Access-Control-Allow-Credentials为true时Origin不能为*",
+          "detail": "检查当Access-Control-Allow-Credentials: true时，Access-Control-Allow-Origin是否指定了精确域名（不能为*），否则浏览器会拒绝该CORS请求。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-942",
+          "owasp_category": "WSTG-CLNT-07",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-007",
+          "name": "敏感操作是否需要重新认证（步进认证）",
+          "detail": "检查如密码修改、邮箱变更、支付确认等敏感操作前是否要求重新输入密码或其他二次认证。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-306",
+          "owasp_category": "ASVS V7.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-008",
+          "name": "默认拒绝原则（Deny by Default）是否实现",
+          "detail": "检查授权机制是否使用默认拒绝策略（未显式授权的=拒绝访问），而非默认允许策略。检查Spring Security/httpSecurity配置中的anyRequest().permitAll()是否合理。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-276",
+          "owasp_category": "ASVS V8.1.2",
+          "wasc_ref": "WASC-02",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-009",
+          "name": "批量操作中的权限检查（批量操作中的每条记录是否都鉴权）",
+          "detail": "检查批量操作（如批量删除/批量导出）中是否对每一条记录都做了鉴权，而非仅检查列表ID参数。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-862",
+          "owasp_category": "ASVS V8.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-010",
+          "name": "GraphQL中的字段级授权检查",
+          "detail": "检查GraphQL resolver中是否对每个字段做了授权，而非仅在Query/Mutation级别做授权。敏感字段可能通过查询嵌套被非授权用户获取。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-862",
+          "owasp_category": "ASVS V13.4.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-011",
+          "name": "Mass Assignment防护（绑定属性白名单）",
+          "detail": "检查是否限制了请求中可绑定的对象属性。Java: @JsonIgnoreProperties/@JsonProperty(access=READ_ONLY); JS: 使用pick/whitelist; Python: marshmallow/pydantic的fields白名单。反模式：直接将请求body映射到ORM entity。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-915",
+          "owasp_category": "ASVS V5.1.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "AUTHZ-012",
+          "name": "多租户数据隔离验证（tenant_id gating）",
+          "detail": "检查SaaS/多租户应用中，每个数据库查询是否都包含tenant_id过滤条件，防止跨租户数据访问。检查ORM的自动租户隔离过滤器/Row-Level Security是否配置。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "CRITICAL",
+          "cwe": "CWE-284",
+          "owasp_category": "ASVS V8.3.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DATAPRO",
+      "name": "数据保护层 (Data Protection)",
+      "description": "敏感数据的全生命周期保护检测项",
+      "items": [
+        {
+          "id": "DATAPRO-001",
+          "name": "日志中对敏感数据脱敏（密码/Token/PII/支付信息）",
+          "detail": "检查日志记录中是否包含了明文密码、Token、信用卡号、身份证号等敏感数据。检查日志过滤/filter实现。检查logback/log4j的%replace或自定义Converter。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-532",
+          "owasp_category": "ASVS V7.1.2",
+          "wasc_ref": "WASC-13",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-002",
+          "name": "敏感数据传输加密（TLS/HTTPS强制）",
+          "detail": "检查敏感数据是否仅通过HTTPS传输，HTTP是否强制重定向到HTTPS。检查是否有Mixed Content风险（HTTPS页面加载HTTP资源）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-319",
+          "owasp_category": "ASVS V9.1.1",
+          "wasc_ref": "WASC-04",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-003",
+          "name": "数据库中敏感数据是否加密存储（静态数据加密）",
+          "detail": "检查数据库中存储的密码(必须哈希)、信用卡号/PII等是否使用了应用层加密（AES-256-GCM等）或透明数据加密(TDE)。检查是否明文存储了任何敏感字段。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-312",
+          "owasp_category": "ASVS V14.1.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-004",
+          "name": "内存中敏感数据是否及时清理",
+          "detail": "检查密码、密钥等敏感数据在使用完毕后是否从内存中清除。Java: char[]替代String存储密码(可被GC前覆盖); Python: 敏感变量使用后del+gc; JS: Buffer清零。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-316",
+          "owasp_category": "ASVS V14.1.5",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-005",
+          "name": "调试输出是否包含敏感信息",
+          "detail": "检查是否在生产环境的调试输出/console.log/print/System.out中暴露了敏感信息。检查printStackTrace()/dump()等。检查是否根据环境变量控制调试输出。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-489",
+          "owasp_category": "ASVS V7.4.3",
+          "wasc_ref": "WASC-13",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-006",
+          "name": "错误消息是否暴露内部信息（堆栈/路径/版本）",
+          "detail": "检查错误响应中是否包含堆栈跟踪、内部路径、数据库结构、框架版本等信息。检查是否配置了全局错误页面/通用错误响应。Java: server.error.whitelabel.enabled; Python: DEBUG=False; JS: 全局error handler。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-209",
+          "owasp_category": "ASVS V7.4.1 / WSTG-ERRH-01",
+          "wasc_ref": "WASC-13",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-007",
+          "name": "缓存中是否包含敏感数据（HTTP缓存头控制）",
+          "detail": "检查包含敏感数据的HTTP响应是否设置了正确的缓存控制头(Cache-Control: no-store, Pragma: no-cache)。检查是否使用了自动缓存敏感数据（如浏览器的back-forward缓存）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-525",
+          "owasp_category": "ASVS V14.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-008",
+          "name": "HTTP响应头中是否暴露了内部信息（Server/X-Powered-By等）",
+          "detail": "检查响应头是否泄露了Web服务器/框架/语言版本。检查Server/X-Powered-By/X-AspNet-Version等头的隐藏配置。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-200",
+          "owasp_category": "WSTG-INFO-02",
+          "wasc_ref": "WASC-45",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-009",
+          "name": "敏感数据的前端存储安全（localStorage/sessionStorage/IndexedDB）",
+          "detail": "检查前端代码中是否将JWT/Access Token/密码/信用卡等敏感数据存储在localStorage或sessionStorage中（容易受XSS攻击）。推荐使用HttpOnly Cookie或Service Worker。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-312",
+          "owasp_category": "ASVS V14.2.1 / WSTG-CLNT-12",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "DATAPRO-010",
+          "name": "发送给第三方的数据是否经过最小化处理",
+          "detail": "检查向第三方服务发送的数据是否仅包含必要字段（最小化原则）。检查分析服务/错误追踪/CDN等是否去除了PII。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-359",
+          "owasp_category": "ASVS V14.3.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DATAPRO-011",
+          "name": "非生产环境中的数据脱敏/匿名化",
+          "detail": "检查开发/测试/预发布环境是否对生产数据做了脱敏处理，防止敏感数据泄露到安全控制较弱的环境中。检查数据导出/导入流程中的脱敏步骤。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-359",
+          "owasp_category": "ASVS V8.3.4",
+          "wasc_ref": "WASC-13",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CRYPTO",
+      "name": "密码学层 (Cryptography)",
+      "description": "加密算法、密钥管理、随机数等密码学安全检测项",
+      "items": [
+        {
+          "id": "CRYPTO-001",
+          "name": "对称加密算法选择（AES-256-GCM / ChaCha20-Poly1305，拒绝ECB/CBC模式）",
+          "detail": "检查对称加密是否使用了带认证的加密模式(AEAD: GCM/CCM/ChaCha20-Poly1305)。反模式：ECB模式（确定性加密）、CBC模式无MAC。检查javax.crypto/Node crypto/Python cryptography库的cipher参数。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-327",
+          "owasp_category": "ASVS V11.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-002",
+          "name": "非对称加密密钥长度（RSA>=2048, ECDSA/ECDH>=256）",
+          "detail": "检查RSA密钥是否>=2048位(推荐3072+)、EC密钥是否>=256位。反模式：RSA-1024、EC-160。检查KeyPairGenerator.initialize参数。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-326",
+          "owasp_category": "ASVS V11.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-003",
+          "name": "随机数生成器是否为CSPRNG而非可预测PRNG",
+          "detail": "检查安全敏感场景（Token/密钥/IV/Salt生成）是否使用了CSPRNG。检查代码中是否出现Math.random()/java.util.Random/Python random模块而非SecureRandom/secrets模块/crypto.randomBytes。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-338",
+          "owasp_category": "ASVS V11.3.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-004",
+          "name": "IV/Nonce的随机性和唯一性（每次加密生成新的随机IV/Nonce）",
+          "detail": "检查加密时IV/Nonce是否每次随机生成且不重复。反模式：固定IV、IV递增、IV复用（如GCM模式下Nonce复用会导致认证密钥泄露）。检查是否使用了安全的IV生成方式（如GCMParameterSpec与随机IV）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-329",
+          "owasp_category": "ASVS V11.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-005",
+          "name": "TLS证书验证（是否跳过验证或使用自定义TrustManager）",
+          "detail": "检查HTTPS/TLS连接中是否正确验证了服务器证书。反模式：自定义TrustManager接受所有证书、verify=False(Python requests)、NODE_TLS_REJECT_UNAUTHORIZED=0、hostnameVerifier返回true。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-295",
+          "owasp_category": "ASVS V12.3.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-006",
+          "name": "哈希算法选择（SHA-256/SHA-384/SHA-512，拒绝MD5/SHA-1用于安全场景）",
+          "detail": "检查非密码存储场景（签名、HMAC、校验和等）的哈希算法。反模式：MD5/SHA-1用于签名、证书验证或完整性检查。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-328",
+          "owasp_category": "ASVS V11.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-007",
+          "name": "PBKDF2迭代次数是否足够（>=310,000 SHA-256 per NIST SP 800-132）",
+          "detail": "检查PBKDF2参数中迭代次数是否充足。NIST推荐>=10,000(OAuth)、OWASP推荐>=310,000(SHA-256)或>=600,000(SHA-512)。反模式：iteration=1000。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-916",
+          "owasp_category": "ASVS V11.4.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-008",
+          "name": "密钥管理——环境变量 vs 硬编码 vs KMS",
+          "detail": "检查密钥/API Key/密码是否硬编码在源代码中。检查是否使用了环境变量/配置文件（非Git跟踪）/KMS(AWS KMS/HashiCorp Vault/Azure Key Vault)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-798",
+          "owasp_category": "ASVS V11.4.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-009",
+          "name": "密钥轮换策略是否可操作",
+          "detail": "检查是否支持密钥轮换（加密密钥和签名密钥），旧密钥是否能正确解密/验证历史数据。检查是否使用KMS的自动轮换功能。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-324",
+          "owasp_category": "ASVS V11.4.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-010",
+          "name": "TLS版本和密码套件配置",
+          "detail": "检查TLS最低版本是否为TLS 1.2（推荐TLS 1.3）。检查密码套件是否禁用了不安全的套件（NULL/EXPORT/RC4/3DES/anon等）。检查server.ssl配置/nginx/Tomcat connector。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-326",
+          "owasp_category": "ASVS V12.1.1 / WSTG-CRVP-01",
+          "wasc_ref": "WASC-04",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-011",
+          "name": "HSTS头是否配置（Strict-Transport-Security）",
+          "detail": "检查是否设置了Strict-Transport-Security头，且max-age足够长（>=1年/31536000秒）。检查includeSubDomains和preload指令。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-523",
+          "owasp_category": "ASVS V14.4.4 / WSTG-CONF-07",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-012",
+          "name": "HSTS preload是否已注册",
+          "detail": "检查域名是否已提交到HSTS preload列表（https://hstspreload.org），确保首次访问也通过HTTPS。检查preload指令是否已设置。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-319",
+          "owasp_category": "ASVS V14.4.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CRYPTO-013",
+          "name": "Padding Oracle防护措施",
+          "detail": "检查加密/解密实现是否使用了AEAD模式避免Padding Oracle。如果使用CBC模式，是否对错误返回统一响应（不区分padding错误和MAC错误）。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "CRITICAL",
+          "cwe": "CWE-696",
+          "owasp_category": "WSTG-CRVP-02",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SQL",
+      "name": "SQL/数据库层 (SQL/Database Security)",
+      "description": "数据库查询和连接的安全检测项",
+      "items": [
+        {
+          "id": "SQL-001",
+          "name": "参数化查询/预编译语句使用（拒绝字符串拼接SQL）",
+          "detail": "检查所有SQL查询是否使用了参数化查询(PreparedStatement/JdbcTemplate)而非字符串拼接。检查代码中是否有「SELECT * FROM 」+ input或 f「SELECT {col}」等模式。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-89",
+          "owasp_category": "A03:2021 - Injection / WSTG-INPV-05 / ASVS V5.3.5",
+          "wasc_ref": "WASC-19",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-002",
+          "name": "ORM安全使用（无raw SQL/Native Query拼接用户输入）",
+          "detail": "检查ORM使用时是否避免了将用户输入拼接到原生SQL/Native Query中。检查JPA nativeQuery、Django raw()、Sequelize query()等方法的使用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-89",
+          "owasp_category": "ASVS V5.3.5",
+          "wasc_ref": "WASC-19",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-003",
+          "name": "动态表名/列名/ORDER BY/GROUP BY的来源验证",
+          "detail": "检查动态SQL中用于表名、列名、排序字段、分组字段的用户输入是否使用了白名单映射验证（而非直接拼入SQL）。这些参数无法用参数化查询防护。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-89",
+          "owasp_category": "ASVS V5.3.5",
+          "wasc_ref": "WASC-19",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-004",
+          "name": "存储过程中的动态SQL是否安全（避免SP中拼接用户输入）",
+          "detail": "检查存储过程(Stored Procedure)中是否将用户输入拼接到动态SQL(EXEC/sp_executesql)中。即使是存储过程，动态SQL也需要参数化。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-89",
+          "owasp_category": "ASVS V5.3.5",
+          "wasc_ref": "WASC-19",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-005",
+          "name": "数据库连接权限最小化（应用账户不应有DDL/admin权限）",
+          "detail": "检查数据库连接字符串中的用户是否具有超出必要的最小权限（如仅需SELECT/INSERT/UPDATE，不应有DROP/CREATE/ALTER/GRANT权限）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-250",
+          "owasp_category": "ASVS V5.2.5",
+          "wasc_ref": "WASC-15",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-006",
+          "name": "数据库连接字符串安全（不在代码中硬编码密码）",
+          "detail": "检查数据库连接字符串/配置中是否硬编码了数据库密码。检查是否使用了环境变量/Secret Manager/Config Server来管理数据库凭据。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-798",
+          "owasp_category": "ASVS V11.4.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-007",
+          "name": "NoSQL注入防护（MongoDB $where/$regex等操作符检查）",
+          "detail": "检查NoSQL查询中用户输入是否被作为操作符解析。MongoDB: 检查$where/$regex/$ne/$gt的注入；检查是否对用户输入做了类型验证（确保字符串输入不被解析为对象/操作符）。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-943",
+          "owasp_category": "ASVS V5.3.5",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-008",
+          "name": "LIKE子句/通配符的转义处理",
+          "detail": "检查LIKE查询中是否对用户提供的搜索模式进行了%和_的转义处理，防止用户通过通配符进行搜索引擎查询枚举或DoS。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-89",
+          "owasp_category": "ASVS V5.3.5",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-009",
+          "name": "数据库连接使用TLS加密",
+          "detail": "检查数据库连接是否使用了TLS/SSL加密传输。检查连接字符串中的useSSL/ssl=true参数。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-319",
+          "owasp_category": "ASVS V12.1.2",
+          "wasc_ref": "WASC-04",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SQL-010",
+          "name": "SQL注入中的Second-Order注入防护",
+          "detail": "检查是否考虑了二次注入（存储时不安全的输入在执行时产生SQL注入）。如用户名在注册时无害，但在查询时拼接导致SQL注入。需要输出时也做参数化。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-89",
+          "owasp_category": "WSTG-INPV-14",
+          "wasc_ref": "WASC-19",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FILE",
+      "name": "文件系统层 (File System Security)",
+      "description": "文件操作和存储的安全检测项",
+      "items": [
+        {
+          "id": "FILE-001",
+          "name": "路径穿越防护（Path Traversal）",
+          "detail": "检查文件路径拼接中是否使用了用户输入且未做规范化/验证。检查是否对../、..\\\\、URL编码变体、Unicode变体做了防护。检查文件操作前是否规范化并验证了路径在允许的基准目录内。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-22",
+          "owasp_category": "WSTG-ATHZ-01",
+          "wasc_ref": "WASC-33",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-002",
+          "name": "文件路径规范化（getCanonicalPath vs getAbsolutePath，realpath）",
+          "detail": "检查文件路径在使用前是否规范化(去除.././符号链接)。Java: getCanonicalPath()而非getAbsolutePath(); Python: os.path.realpath(); JS: path.resolve()。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-23",
+          "owasp_category": "ASVS V5.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-003",
+          "name": "符号链接(软链接symlink)处理安全性",
+          "detail": "检查文件操作中是否考虑了符号链接攻击。攻击者通过上传一个指向/etc/passwd的符号链接来读取敏感文件。检查是否使用了Files.isSymbolicLink()或lstat()检测，或在解压时禁用符号链接。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-61",
+          "owasp_category": "ASVS V12.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-004",
+          "name": "临时文件安全（随机文件名、temp目录、权限设置）",
+          "detail": "检查临时文件是否使用了安全的创建方式。Java: Files.createTempFile(); Python: tempfile.NamedTemporaryFile(); Node: tmp库。检查文件权限是否为600/owner-only。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-377",
+          "owasp_category": "ASVS V12.4.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-005",
+          "name": "文件权限设置（umask设置，最小权限原则）",
+          "detail": "检查创建的文件权限是否符合最小权限原则。配置文件/密钥文件应为600（仅owner读写），上传文件应为640/644（拒绝执行权限）。检查umask设置。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-732",
+          "owasp_category": "WSTG-CONF-09",
+          "wasc_ref": "WASC-17",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-006",
+          "name": "上传目录的执行权限禁用",
+          "detail": "检查文件上传的存储目录是否禁用了脚本执行权限。如Apache/nginx配置中上传目录不应有执行权限或脚本处理器关联。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-434",
+          "owasp_category": "ASVS V12.3.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-007",
+          "name": "上传文件名安全处理（重命名、清除特殊字符）",
+          "detail": "检查上传文件的文件名是否经过处理：1)随机重命名存储；2)清除../和特殊字符；3)保留原始扩展名前的清理。检查是否使用用户提供的文件名直接作为存储名。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-434",
+          "owasp_category": "ASVS V12.1.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-008",
+          "name": "ZIP Slip防护（解压时路径穿越）",
+          "detail": "检查解压操作是否处理了包含../路径的恶意压缩包(ZIP Slip attack)。Java: 使用ZipInputStream并检查每个条目的getCanonicalPath; Python: ZipFile.infolist()并检查成员路径; JS: unzipper/compressing并验证路径。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-22",
+          "owasp_category": "ASVS V12.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-009",
+          "name": "文件下载的用户输入路径验证",
+          "detail": "检查文件下载功能中用户提供的文件路径/文件名参数是否经过严格的路径穿越验证和白名单限制。检查是否可直接下载/etc/passwd或其他系统文件。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-22",
+          "owasp_category": "ASVS V12.5.1",
+          "wasc_ref": "WASC-33",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "FILE-010",
+          "name": "文件操作中的TOCTOU竞态条件(Time-of-check Time-of-use)",
+          "detail": "检查文件操作是否先检查条件再执行操作（如先检查文件存在、路径安全再打开），存在检查与使用之间的竞态窗口。检查是否使用了原子操作（如open(O_CREAT|O_EXCL)）替代check-then-use模式。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-367",
+          "owasp_category": "ASVS V5.2.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NETWORK",
+      "name": "网络/HTTP层 (Network / HTTP Security)",
+      "description": "网络请求和HTTP协议层的安全检测项",
+      "items": [
+        {
+          "id": "NET-001",
+          "name": "SSRF防护——URL白名单/协议/域名限制",
+          "detail": "检查服务端发起的HTTP请求中，URL是否来自用户输入且未做白名单限制。检查是否限制了协议(仅http/https)、域名白名单、禁用内网IP(127.0.0.1/10.0.0.0/8/172.16.0.0/12/192.168.0.0/16/169.254.169.254)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-918",
+          "owasp_category": "WSTG-INPV-19 / ASVS V12.6.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-002",
+          "name": "SSRF——DNS Rebinding防护",
+          "detail": "检查是否防范了DNS Rebinding攻击（首次DNS解析返回合法IP、第二次返回内网IP）。检查是否在每次DNS解析和连接前验证IP，或使用固定DNS解析结果。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-918",
+          "owasp_category": "ASVS V12.6.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-003",
+          "name": "外部HTTP请求的超时设置（连接超时+读取超时）",
+          "detail": "检查所有服务端发起的HTTP请求是否设置了合理的connect timeout和read timeout。Java: RestTemplate的connectTimeout/readTimeout; Python: requests timeout; JS: axios/fetch的timeout/signal。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-400",
+          "owasp_category": "ASVS V5.5.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-004",
+          "name": "HTTP重定向跟随控制（禁止自动跟随重定向到用户可控的URL）",
+          "detail": "检查HTTP客户端是否禁用了自动重定向跟随或限制了重定向目标。Java: RestTemplate的ClientHttpRequestFactory不要自动跟随; Python: requests allow_redirects=False; Node: axios maxRedirects: 0。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-918",
+          "owasp_category": "ASVS V12.6.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-005",
+          "name": "HTTP重定向参数验证（Open Redirect防护）",
+          "detail": "检查HTTP重定向的目标URL参数是否使用了白名单验证。检查redirect_uri/next/callback/return等参数的处理逻辑。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-601",
+          "owasp_category": "WSTG-CLNT-04",
+          "wasc_ref": "WASC-38",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-006",
+          "name": "Host Header验证（防止Host Header注入攻击）",
+          "detail": "检查应用是否依赖Host Header构造链接/密码重置URL等。检查是否有Host Header白名单验证。检查密码重置/邮箱验证等功能中的URL构造是否使用了可被污染的Host头。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-74",
+          "owasp_category": "WSTG-INPV-17",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-007",
+          "name": "X-Forwarded-For等代理头的安全处理",
+          "detail": "检查是否正确处理了X-Forwarded-For/X-Real-IP等代理头。IP白名单允许列表应处理最原始的客户端IP，需确保代理链中的IP传递是可信的。检查速率限制是否基于这些经过处理的IP。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-290",
+          "owasp_category": "ASVS V14.5.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-008",
+          "name": "HTTP Request Smuggling防护",
+          "detail": "检查反向代理和应用的Content-Length/Transfer-Encoding解析是否一致。检查是否存在CL.TE或TE.CL走私风险。检查HTTP/2降级时的走私风险。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-444",
+          "owasp_category": "WSTG-INPV-15",
+          "wasc_ref": "WASC-26",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-009",
+          "name": "WebSocket连接中的Origin验证",
+          "detail": "检查WebSocket服务器端是否验证了Origin头，防止跨站WebSocket劫持(Cross-Site WebSocket Hijacking, CSWSH)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-346",
+          "owasp_category": "WSTG-CLNT-10",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-010",
+          "name": "请求大小限制（防止大请求DoS）",
+          "detail": "检查HTTP服务器（Nginx/Apache/Tomcat/Express/Flask）是否配置了请求体大小限制，防止超大数据包耗竭内存/磁盘。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-770",
+          "owasp_category": "ASVS V4.1.3",
+          "wasc_ref": "WASC-10",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "NET-011",
+          "name": "连接池/并发连接数限制",
+          "detail": "检查数据库连接池、HTTP连接池是否有合理的最大连接数限制，防止连接耗尽。检查maxPoolSize、maxConnections等参数。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-400",
+          "owasp_category": "ASVS V4.1.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CONFIG",
+      "name": "配置/部署层 (Configuration / Deployment)",
+      "description": "应用配置和部署环境的检测项",
+      "items": [
+        {
+          "id": "CONFIG-001",
+          "name": "DEBUG模式在生产环境是否关闭",
+          "detail": "检查生产环境是否关闭了调试模式。Django: DEBUG=False; Spring Boot: debug: false; Express: NODE_ENV=production; Flask: debug=False。检查是否泄漏了调试路由(如/debug/pprof、/actuator等仅内部可访问)。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-489",
+          "owasp_category": "ASVS V13.2.3",
+          "wasc_ref": "WASC-15",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-002",
+          "name": "CSP (Content-Security-Policy) 是否配置",
+          "detail": "检查是否设置了Content-Security-Policy头，是否配置了合理的指令限制（default-src 'self'; script-src; style-src; img-src等）。反模式：default-src 'unsafe-inline' 'unsafe-eval'或CSP headers缺失。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-1021",
+          "owasp_category": "ASVS V14.4.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-003",
+          "name": "X-Frame-Options 或 CSP frame-ancestors 是否设置",
+          "detail": "检查是否设置了X-Frame-Options: DENY或SAMEORIGIN，或CSP frame-ancestors 'none'/'self'指令，防止Clickjacking攻击。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-1021",
+          "owasp_category": "ASVS V14.4.3 / WSTG-CLNT-09",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-004",
+          "name": "X-Content-Type-Options: nosniff 是否设置",
+          "detail": "检查是否设置了X-Content-Type-Options: nosniff头，防止浏览器MIME类型嗅探导致的XSS。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-173",
+          "owasp_category": "ASVS V14.4.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-005",
+          "name": "Referrer-Policy 是否设置",
+          "detail": "检查是否设置了Referrer-Policy头（如strict-origin-when-cross-origin或no-referrer-when-downgrade），防止Referer头泄露敏感URL（如密码重置token）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-200",
+          "owasp_category": "ASVS V14.4.5",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-006",
+          "name": "Permissions-Policy 是否设置",
+          "detail": "检查是否设置了Permissions-Policy头（原Feature-Policy），限制浏览器特性的使用（如camera/microphone/geolocation等）。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-693",
+          "owasp_category": "ASVS V14.4.6",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-007",
+          "name": "HTTPS强制（HTTP到HTTPS重定向，HSTS）",
+          "detail": "检查是否强制HTTPS：1)HTTP请求自动301重定向到HTTPS；2)HSTS头确保浏览器层面的强制。检查是否有HTTP端口仍开放并直接服务内容。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-319",
+          "owasp_category": "ASVS V9.1.1",
+          "wasc_ref": "WASC-04",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-008",
+          "name": "默认账户/密码是否已更改或禁用",
+          "detail": "检查是否仍使用框架/平台默认的管理员账户和密码（如admin/admin、tomcat/tomcat、postgres/postgres）。检查是否修改了Spring Boot Actuator的默认端点安全配置。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-1392",
+          "owasp_category": "WSTG-ATHN-02",
+          "wasc_ref": "WASC-14",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-009",
+          "name": "测试后门/调试接口是否在生产环境移除",
+          "detail": "检查代码中是否遗留了开发/测试用的后门接口（如/test-login、/admin-debug、/api/v1/dev-reset-db等）。检查Spring Boot Actuator端点是否对外暴露(/actuator/env、/actuator/heapdump)。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-489",
+          "owasp_category": "ASVS V13.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-010",
+          "name": "不必要的HTTP方法是否禁用（TRACE/OPTIONS/PUT/DELETE等）",
+          "detail": "检查Web服务器/应用层是否禁用了业务不需要的HTTP方法。TRACE可能用于XST攻击、OPTIONS可能泄露信息、PUT/DELETE在没有WebDAV需求时应禁用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-749",
+          "owasp_category": "WSTG-CONF-06",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-011",
+          "name": "管理接口/内部接口的IP访问控制",
+          "detail": "检查管理接口（如/admin、/actuator、/swagger、/graphiql）是否有正确的IP访问控制或认证要求，是否对公网暴露。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-200",
+          "owasp_category": "WSTG-CONF-05",
+          "wasc_ref": "WASC-14",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-012",
+          "name": "Cross-Origin-Opener-Policy (COOP) 和 Cross-Origin-Embedder-Policy (COEP) 设置",
+          "detail": "检查是否设置了COOP和COEP头以启用跨域隔离(Cross-Origin Isolation)，防护Spectre等侧信道攻击。检查是否支持SharedArrayBuffer等高级特性需要的安全上下文。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-693",
+          "owasp_category": "ASVS V14.4.7",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "CONFIG-013",
+          "name": "Cross-Origin-Resource-Policy (CORP) 设置",
+          "detail": "检查是否设置了Cross-Origin-Resource-Policy头（same-origin/same-site/cross-origin），限制跨源加载资源。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-693",
+          "owasp_category": "ASVS V14.4.7",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BUSINESS",
+      "name": "业务逻辑层 (Business Logic)",
+      "description": "业务逻辑安全的检测项",
+      "items": [
+        {
+          "id": "BUS-001",
+          "name": "多步骤操作的事务完整性验证",
+          "detail": "检查多步操作（如支付流程、注册流程、密码重置流程）各步骤是否必须按顺序执行，不能跳过步骤或回退到历史步骤。检查是否有服务端状态机控制。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-841",
+          "owasp_category": "ASVS V2.1.3 / WSTG-BUSL-06",
+          "wasc_ref": "WASC-40",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-002",
+          "name": "价格/数量参数是否在服务端验证（拒绝客户端提交的价格）",
+          "detail": "检查订单/支付流程中，单价、总价、数量等敏感参数是否仅在服务端计算/验证，而非直接信任客户端提交的值。经典案例：修改POST请求price=1购买高价商品。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-602",
+          "owasp_category": "WSTG-BUSL-01",
+          "wasc_ref": "WASC-42",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-003",
+          "name": "优惠券/折扣的服务端验证（使用次数、适用范围、金额上限）",
+          "detail": "检查优惠券/折扣码是否仅由客户端验证。检查服务端是否验证：1)折扣金额上限；2)使用次数限制；3)适用范围（商品/用户/时间段）；4)不可叠加的优惠券。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-841",
+          "owasp_category": "WSTG-BUSL-01",
+          "wasc_ref": "WASC-42",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-004",
+          "name": "负数/零值输入的业务逻辑验证",
+          "detail": "检查所有数值输入（金额、数量、库存、积分等）是否允许负值或零值，是否有服务端下限检查。经典案例：输入-100数量使总价为负、0元购买商品。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-682",
+          "owasp_category": "WSTG-BUSL-01",
+          "wasc_ref": "WASC-03",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-005",
+          "name": "竞态条件防护（数据库事务隔离/悲观锁/乐观锁）",
+          "detail": "检查并发操作是否有适当的并发控制。检查：1)库存扣减使用SELECT FOR UPDATE/乐观锁；2)余额检查使用原子操作；3)优惠券领取防重复。TOCTOU(Time-of-check Time-of-use)模式检查。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-362",
+          "owasp_category": "WSTG-BUSL-04",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-006",
+          "name": "幂等性/重复提交防护（Idempotency Key）",
+          "detail": "检查支付/下单等关键操作是否有重复提交防护（Idempotency Key/去重Token）。检查是否使用了客户端生成的请求ID并在服务端做去重处理。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-841",
+          "owasp_category": "ASVS V2.3.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-007",
+          "name": "操作频率限制（功能滥用防护）",
+          "detail": "检查关键业务操作是否有频率/次数限制：如投票/抽奖/发送验证码/邀请注册/领取奖励等。每条限制10-20次/天或类似的规则。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-799",
+          "owasp_category": "WSTG-BUSL-05",
+          "wasc_ref": "WASC-21",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-008",
+          "name": "API限速 (Rate Limiting)",
+          "detail": "检查API是否有全局/端点级/用户级的速率限制。检查是否使用了成熟的限流库（bucket4j/express-rate-limit/flask-limiter）而不是自行实现。检查限流状态是否持久化（Redis）而非仅内存。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-770",
+          "owasp_category": "ASVS V4.1.1",
+          "wasc_ref": "WASC-21",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-009",
+          "name": "批量操作的原子性/事务性",
+          "detail": "检查批量操作（如批量转账、批量导入导出）是否支持事务回滚和失败状态追踪，防止部分成功导致的数据不一致。检查@Transactional注解覆盖范围。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-841",
+          "owasp_category": "ASVS V2.3.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-010",
+          "name": "用户账户生命周期安全（注册、激活、冻结、注销流程完整性）",
+          "detail": "检查账户注册是否有验证码/邮件验证、账户注销后数据是否按法规删除、账户冻结机制是否合理。检查是否存在通过重复注册绕过限制的逻辑。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-287",
+          "owasp_category": "WSTG-IDNT-02",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-011",
+          "name": "业务约束条件验证（如最低购买金额、最大购买数量等）",
+          "detail": "检查业务规则是否在服务端全面验证：最低充值金额、最大购买数量、库存不可超卖、会员等级对应的折扣上限等。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "MEDIUM",
+          "cwe": "CWE-841",
+          "owasp_category": "WSTG-BUSL-03",
+          "wasc_ref": "WASC-40",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "BUS-012",
+          "name": "工作流步骤绕过检测（跳过必要的业务流程步骤）",
+          "detail": "检查多步流程是否可以跳过中间步骤直接访问后续步骤（如跳过支付直接访问确认页、跳过邮箱验证直接激活账户）。检查是否有服务端状态机强制步骤完整性。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "HIGH",
+          "cwe": "CWE-841",
+          "owasp_category": "WSTG-BUSL-06",
+          "wasc_ref": "WASC-40",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LOGGING",
+      "name": "日志/监控层 (Logging / Monitoring)",
+      "description": "安全日志记录和监控检测项",
+      "items": [
+        {
+          "id": "LOG-001",
+          "name": "安全事件日志记录（认证失败/授权失败/输入验证失败/敏感操作）",
+          "detail": "检查是否记录了关键安全事件：1)登录成功/失败；2)权限拒绝；3)输入验证失败/WAF拦截；4)敏感操作（密码修改/权限变更/数据导出）。检查日志格式是否结构化(JSON)便于分析。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-778",
+          "owasp_category": "ASVS V7.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "LOG-002",
+          "name": "日志注入防护（用户输入写入日志前做清理/编码）",
+          "detail": "检查用户可控的数据写入日志时是否做了处理，防止日志注入（如插入换行\\n伪造日志条目、插入CRLF扰乱日志解析）。检查是否使用了日志库的参数化接口而非字符串拼接。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-117",
+          "owasp_category": "ASVS V7.2.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "LOG-003",
+          "name": "日志中敏感信息泄漏（密码/Token/信用卡号）检查",
+          "detail": "检查日志输出中是否包含明文密码、Authorization header、Session ID、信用卡号、身份证号等。检查过滤器/Appender配置中是否有自动脱敏逻辑。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-532",
+          "owasp_category": "ASVS V7.1.2",
+          "wasc_ref": "WASC-13",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "LOG-004",
+          "name": "日志完整性保护（防篡改/防删除）",
+          "detail": "检查日志是否有完整性保护措施：1)日志写入后不可修改（append-only/只追加文件系统）；2)日志备份是否有校验机制；3)日志是否传输到集中式日志系统（ELK/Loki/Splunk）防止本地被清除。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-354",
+          "owasp_category": "ASVS V7.3.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "LOG-005",
+          "name": "审计追踪（用户操作的可追溯性）",
+          "detail": "检查关键操作是否有完整审计日志：谁(用户ID/IP)、什么时候(时间戳)、做了什么(操作类型)、操作了什么(资源ID)、从哪里来(user-agent/origin)。检查是否满足法规要求（如GDPR/PCI-DSS/HIPAA）。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-778",
+          "owasp_category": "ASVS V7.1.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "LOG-006",
+          "name": "日志存储安全（访问控制、加密）",
+          "detail": "检查日志文件/日志服务的访问控制。日志文件目录权限是否为仅应用账户可写、管理员可读。敏感日志是否加密存储。检查日志轮转策略是否安全。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-532",
+          "owasp_category": "ASVS V7.3.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "LOG-007",
+          "name": "分布式追踪ID注入（Trace/Span ID关联）",
+          "detail": "检查日志中是否包含分布式追踪ID（Trace ID/Span ID），以便在微服务架构中关联请求的全链路日志。检查OpenTelemetry/Jaeger/Zipkin的集成情况。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "INFO",
+          "cwe": "CWE-778",
+          "owasp_category": "ASVS V7.1.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DESERIALIZE",
+      "name": "反序列化安全 (Deserialization Security)",
+      "description": "反序列化操作的安全性检测项",
+      "items": [
+        {
+          "id": "DESER-001",
+          "name": "不可信数据的反序列化（Java ObjectInputStream安全使用）",
+          "detail": "检查是否从不可信来源反序列化了Java对象。检查是否使用了ObjectInputStream.readObject()且未配置allowed类白名单。检查是否使用了ValidatingObjectInputStream或设置了serialization filter。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-502",
+          "owasp_category": "A08:2021 - Software and Data Integrity Failures / ASVS V5.5.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "java"
+          ]
+        },
+        {
+          "id": "DESER-002",
+          "name": "Python pickle/load/cPickle 不可信数据反序列化",
+          "detail": "检查Python代码中是否使用pickle.load/loads反序列化来自网络/用户的不可信数据。pickle可以执行任意代码。应该使用JSON/MessagePack等安全替代格式。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-502",
+          "owasp_category": "ASVS V5.5.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py"
+          ]
+        },
+        {
+          "id": "DESER-003",
+          "name": "Node.js insecure deserialization（node-serialize/js-yaml等）",
+          "detail": "检查Node.js代码中是否在反序列化时使用了不安全的库。node-serialize的unserialize可执行任意代码、js-yaml的load(而非load+loadAll+safeLoad)可以执行函数。检查是否使用安全的JSON.parse。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-502",
+          "owasp_category": "ASVS V5.5.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "DESER-004",
+          "name": "JSON反序列化类型安全（polymorphic deserialization）",
+          "detail": "检查JSON反序列化配置是否允许任意类型实例化。Jackson: enableDefaultTyping()或@JsonTypeInfo可能导致多态反序列化攻击；Gson: 允许任意类反序列化。检查是否有类型白名单。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-502",
+          "owasp_category": "ASVS V5.5.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "java",
+            "py",
+            "js"
+          ]
+        },
+        {
+          "id": "DESER-005",
+          "name": "YAML反序列化安全（使用safe_load替代load）",
+          "detail": "检查YAML解析时是否使用了safe_load/Parser而非load/load_all/unsafe_load。Python: yaml.safe_load(); Java: SnakeYAML safe constructor; JS: js-yaml safeLoad。反模式：使用默认load接口解析用户可控的YAML。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-502",
+          "owasp_category": "ASVS V5.5.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "DESER-006",
+          "name": "XMLDecoder/XStream不安全性检查",
+          "detail": "检查Java中是否使用了java.beans.XMLDecoder（可以执行任意Java方法调用）或XStream默认配置（允许任意类反序列化）。检查是否设置了XStream安全框架/白名单。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-502",
+          "owasp_category": "ASVS V5.5.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SUPPLY",
+      "name": "依赖/供应链层 (Dependency / Supply Chain)",
+      "description": "第三方依赖和供应链安全的检测项",
+      "items": [
+        {
+          "id": "SUPPLY-001",
+          "name": "第三方依赖的已知漏洞扫描（CVE）",
+          "detail": "检查项目是否运行了依赖漏洞扫描工具（OWASP Dependency-Check/Snyk/Trivy/npm audit/pip-audit）且结果已处理。检查是否有未修复的Critical/High CVE。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-1104",
+          "owasp_category": "ASVS V14.2.1 / A06:2021 - Vulnerable and Outdated Components",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SUPPLY-002",
+          "name": "过期/废弃依赖（end-of-life/unmaintained packages）",
+          "detail": "检查项目是否使用了已停止维护的依赖（EOL框架版本、unmaintained npm包、deprecated PyPI包）。检查Spring Boot/EOL版本、Django长期支持状态。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-1104",
+          "owasp_category": "ASVS V14.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SUPPLY-003",
+          "name": "依赖最小化原则（移除无用依赖、防止依赖混淆攻击）",
+          "detail": "检查项目是否引入了不必要的依赖（import但未使用的库）。检查是否存在依赖混淆( Dependency Confusion)风险：私有包名可能与公共注册表中的包名冲突。检查NPM scope/PyPI private index配置。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-427",
+          "owasp_category": "ASVS V14.1.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "SUPPLY-004",
+          "name": "依赖锁定文件完整性（package-lock.json/yarn.lock/pipfile.lock在版本控制中）",
+          "detail": "检查锁文件是否在版本控制中管理，确保依赖版本固定。检查是否使用npm ci而非npm install（尊重lock文件）。检查hash校验是否启用。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-1104",
+          "owasp_category": "ASVS V14.1.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js"
+          ]
+        },
+        {
+          "id": "SUPPLY-005",
+          "name": "CDN/外部资源完整性校验（SRI Subresource Integrity）",
+          "detail": "检查从CDN/外部加载的JS/CSS文件是否有integrity属性(SRI hash)，防止CDN被劫持后注入恶意代码。检查是否使用crossorigin=「anonymous」属性。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-353",
+          "owasp_category": "ASVS V14.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "SUPPLY-006",
+          "name": "SBOM（软件物料清单）是否生成和维护",
+          "detail": "检查项目是否有SBOM生成流程（CycloneDX/SPDX格式）。是否有自动化的SBOM更新CI/CD步骤。是否定期review SBOM中的依赖变更。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "INFO",
+          "cwe": "CWE-1104",
+          "owasp_category": "ASVS V14.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CLIENT",
+      "name": "客户端安全层 (Client-Side Security)",
+      "description": "浏览器/前端特定安全检测项",
+      "items": [
+        {
+          "id": "CLIENT-001",
+          "name": "DOM-based XSS source→sink检查（location.hash→innerHTML等）",
+          "detail": "检查前端JS代码中不可信数据源(DOM source: location.*、document.referrer、window.name、postMessage等)是否未经处理流入了危险sink(eval/innerHTML/document.write/setTimeout(string)/setAttribute)。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-79",
+          "owasp_category": "WSTG-CLNT-01",
+          "wasc_ref": "WASC-08",
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-002",
+          "name": "postMessage安全（origin检查、数据验证）",
+          "detail": "检查postMessage接收端是否验证了event.origin（精确匹配白名单而非通配符/startsWith）。检查接收的数据是否做了结构化验证（typeof/JSON Schema）防止类型混淆。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-346",
+          "owasp_category": "WSTG-CLNT-11",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-003",
+          "name": "客户端URL重定向（来自location.hash/open redirect sink）",
+          "detail": "检查前端JS中是否将不可信数据源直接用于location.href/location.replace/window.open。检查React Router/SPA路由中是否对跳转目标做了白名单验证。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-601",
+          "owasp_category": "WSTG-CLNT-04",
+          "wasc_ref": "WASC-38",
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-004",
+          "name": "客户端存储敏感数据处理（Cookie vs localStorage vs sessionStorage）",
+          "detail": "检查前端代码中对认证Token/敏感数据的存储方式。优先HTTPOnly Cookie > sessionStorage（标签页级隔离） > localStorage（持久化XSS风险）。检查是否使用了Web Crypto API加密敏感localStorage数据。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-312",
+          "owasp_category": "ASVS V14.2.1 / WSTG-CLNT-12",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-005",
+          "name": "CSP在SPA中的script-src是否避免了unsafe-inline/unsafe-eval",
+          "detail": "检查SPA的CSP配置中script-src是否避免了'unsafe-inline'（阻碍内联JS）和'unsafe-eval'（阻碍eval），是否使用了nonce/hash方式加载合法脚本。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-1021",
+          "owasp_category": "ASVS V14.4.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-006",
+          "name": "第三方JS脚本供应链安全（Third-party JavaScript）",
+          "detail": "检查是否加载了来自第三方源的JS脚本（如广告/分析/聊天插件等），这些脚本有完全访问页面的权限。检查是否使用了SRI/subresource integrity、CSP限制第三方脚本能力。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-1104",
+          "owasp_category": "ASVS V14.2.3",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-007",
+          "name": "前端输入验证再确认（客户端验证+服务端验证双重防护）",
+          "detail": "检查前端输入验证是否可以完全被绕过（如用curl/Postman直接发送请求）。前端验证是UX层防御，不能作为唯一安全控制。检查Service Worker中是否有额外的输入验证。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": true,
+          "hybrid": true,
+          "severity": "MEDIUM",
+          "cwe": "CWE-20",
+          "owasp_category": "ASVS V5.1.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-008",
+          "name": "Web Worker中的安全数据传递",
+          "detail": "检查Web Worker通信中是否使用了postMessage传递了敏感Token/密码数据。检查Worker代码和主线程代码的来源一致性。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "LOW",
+          "cwe": "CWE-359",
+          "owasp_category": "WSTG-CLNT-02",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        },
+        {
+          "id": "CLIENT-009",
+          "name": "Service Worker缓存的安全数据清理",
+          "detail": "检查Service Worker是否缓存了含认证Token/敏感数据的响应。检查SW更新/注销时是否清理了缓存中的敏感数据。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-525",
+          "owasp_category": "ASVS V14.2.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MISC",
+      "name": "其他/纵深防御 (Defense in Depth / Miscellaneous)",
+      "description": "跨层面的防御性安全检测项",
+      "items": [
+        {
+          "id": "MISC-001",
+          "name": "安全敏感代码中的eval()/exec()/new Function()使用检查",
+          "detail": "检查生产代码中是否使用了eval()/exec()/new Function()等动态代码执行函数且参数包含用户输入。即使有输入验证也应尽量避免此类高危函数。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-95",
+          "owasp_category": "A03:2021 - Injection",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-002",
+          "name": "基于时间的侧信道攻击防护（常量时间比较）",
+          "detail": "检查敏感数据比较（Token/密码/签名验证）是否使用了常量时间比较(hash_equals/timingSafeEqual/MessageDigest.isEqual)而非普通==，防止时序攻击泄露Token/密码信息。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-208",
+          "owasp_category": "ASVS V2.4.1",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-003",
+          "name": "错误处理中区分内部错误和用户可见错误",
+          "detail": "检查try-catch块中是否区分了内部异常(记录并返回通用错误信息)和业务异常(返回对用户有用的信息)。内部异常不应暴露堆栈/数据库细节。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-209",
+          "owasp_category": "ASVS V7.4.1",
+          "wasc_ref": "WASC-13",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-004",
+          "name": "SSH/Shell命令执行中的命令注入防护",
+          "detail": "检查是否通过shell=True/subprocess.call with string/child_process.exec等方式执行了包含用户输入的系统命令。应使用参数数组形式(exec(list)/ProcessBuilder)而非字符串形式。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-78",
+          "owasp_category": "WSTG-INPV-12",
+          "wasc_ref": "WASC-31",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-005",
+          "name": "Server-Side Template Injection (SSTI) sink检查",
+          "detail": "检查模板引擎的render调用中是否包含了用户可控的字符串。检查Jinja2的render_template_string、Twig的render with user input、Freemarker的Template(输入)等。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-1336",
+          "owasp_category": "WSTG-INPV-18",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-006",
+          "name": "LDAP注入防护（查询过滤器参数化/特殊字符转义）",
+          "detail": "检查LDAP查询中是否使用了参数化过滤或对特殊字符(* ( ) \\ NUL)做了正确转义。Java: Spring LDAP的LdapQueryBuilder; Python: ldap3的safe搜索。反模式：字符串拼接构建LDAP过滤器。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-90",
+          "owasp_category": "WSTG-INPV-06",
+          "wasc_ref": "WASC-29",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-007",
+          "name": "XPath注入防护",
+          "detail": "检查XPath查询中是否对用户输入中的特殊字符(' \" / * [ ] ( ))做了转义或使用了参数化XPath。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-643",
+          "owasp_category": "WSTG-INPV-09",
+          "wasc_ref": "WASC-39",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-008",
+          "name": "进程/线程安全——共享资源访问的同步控制",
+          "detail": "检查多线程/多进程环境中共享资源的访问是否有同步控制（synchronized/lock/threading.Lock）。检查是否存在不安全的双重检查锁定(DCL)模式。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "MEDIUM",
+          "cwe": "CWE-362",
+          "owasp_category": "ASVS V5.2.4",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-009",
+          "name": "安全反射/动态类加载的输入白名单验证",
+          "detail": "检查Java中Class.forName()/ClassLoader.loadClass()的类名参数、Python中getattr()/importlib的模块参数、JS中require()的动态参数是否来自用户输入且使用白名单验证。",
+          "deterministic": true,
+          "llm": false,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "CRITICAL",
+          "cwe": "CWE-470",
+          "owasp_category": "ASVS V5.2.2",
+          "wasc_ref": null,
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        },
+        {
+          "id": "MISC-010",
+          "name": "整数溢出安全检查",
+          "detail": "检查数值计算中是否考虑了整数溢出风险。Java: 整数溢出静默回绕；Python: 大整数自动扩展但边界处需检查；JS: Number.MAX_SAFE_INTEGER(2^53-1)以上精度丢失。检查数组索引/内存分配/金额计算的溢出风险。",
+          "deterministic": false,
+          "llm": true,
+          "dynamic_required": false,
+          "hybrid": false,
+          "severity": "HIGH",
+          "cwe": "CWE-190",
+          "owasp_category": "ASVS V5.1.4",
+          "wasc_ref": "WASC-03",
+          "applicable_languages": [
+            "py",
+            "js",
+            "java"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_items": 200,
+    "category_counts": {
+      "输入验证层 (Input Validation)": 27,
+      "输出编码层 (Output Encoding)": 12,
+      "认证层 (Authentication)": 20,
+      "会话管理层 (Session Management)": 11,
+      "授权/访问控制层 (Authorization / Access Control)": 12,
+      "数据保护层 (Data Protection)": 11,
+      "密码学层 (Cryptography)": 13,
+      "SQL/数据库层 (SQL/Database Security)": 10,
+      "文件系统层 (File System Security)": 10,
+      "网络/HTTP层 (Network / HTTP Security)": 11,
+      "配置/部署层 (Configuration / Deployment)": 13,
+      "业务逻辑层 (Business Logic)": 12,
+      "日志/监控层 (Logging / Monitoring)": 7,
+      "反序列化安全 (Deserialization Security)": 6,
+      "依赖/供应链层 (Dependency / Supply Chain)": 6,
+      "客户端安全层 (Client-Side Security)": 9,
+      "其他/纵深防御 (Defense in Depth / Miscellaneous)": 10
+    },
+    "severity_distribution": {
+      "CRITICAL": 35,
+      "HIGH": 65,
+      "MEDIUM": 81,
+      "LOW": 17,
+      "INFO": 2
+    },
+    "verification_coverage": {
+      "deterministic_only": 134,
+      "llm_assisted": 43,
+      "dynamic_required": 0,
+      "hybrid_static_dynamic": 23
+    }
+  }
+}

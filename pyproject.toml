@@ -1,0 +1,126 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hyqagent"
+version = "0.1.0"
+description = "白盒代码审计Agent — 基于CPG+多模型级联的CLI工具"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "HyqAgent Team" }]
+keywords = ["security", "code-audit", "sast", "vulnerability-detection", "agent"]
+
+dependencies = [
+    "tree-sitter>=0.23,<0.25",
+    "networkx>=3.4",
+    "langgraph>=0.3",
+    "anthropic>=0.45",
+    "structlog>=24.0",
+    "tenacity>=9.0",
+    "circuitbreaker>=2.1",
+    "pydantic-settings>=2.7",
+    "click>=8.1",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "httpx>=0.28",
+    "prometheus-client>=0.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.14",
+    "mypy>=1.14",
+    "pre-commit>=4.1",
+    "pip-audit>=2.8",
+]
+eval = [
+    "deepeval>=2.0",
+]
+vector = [
+    "chromadb>=0.6",
+]
+all = ["hyqagent[dev,eval,vector]"]
+
+[project.scripts]
+hyqagent = "hyqagent.api.cli:main"
+
+[project.urls]
+Documentation = "https://github.com/hyqagent/hyqagent"
+Repository = "https://github.com/hyqagent/hyqagent"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hyqagent"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [".git", "__pycache__", ".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "W",     # pycodestyle warnings
+    "B",     # flake8-bugbear
+    "I",     # isort
+    "N",     # pep8-naming
+    "D",     # pydocstyle
+    "UP",    # pyupgrade
+    "S",     # flake8-bandit (security)
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+    "RUF",   # Ruff-specific
+]
+ignore = [
+    "D100",  # Missing docstring in public module
+    "D104",  # Missing docstring in public package
+    "D107",  # Missing docstring in __init__
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hyqagent"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: 单元测试 (deterministic, fast)",
+    "integration: 集成测试 (may use mocks)",
+    "eval: Eval测试 (probabilistic, slow)",
+    "slow: 慢速测试，跳过pre-commit",
+]
+
+[tool.coverage.run]
+source = ["src/hyqagent"]
+omit = ["tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "class .*\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

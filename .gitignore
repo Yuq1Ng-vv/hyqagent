@@ -1,0 +1,43 @@
+# 密钥
+.env
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 审计输出
+audit_cache/
+audit_output/
+
+# SQLite
+*.db-journal
+*.db-wal
+
+# 日志
+*.log
+logs/
+
+# 测试
+.coverage
+htmlcov/
+.pytest_cache/
+
+# uv
+uv.lock
