@@ -46,8 +46,23 @@ src/hyqagent/
 - 被审计代码只读取分析，不执行
 - 审计报告的密钥值脱敏
 
-## 关键设计文档
-- `DESIGN-IMPLEMENTATION.md` — 12 章实现蓝图（接口/数据流/阶段划分）
-- `DEVELOPMENT-STANDARDS.md` — 生产级规范（测试/可观测性/Prompt 管理）
-- `PLAN.md` — 原始设计方案（CPG/扫描流水线/Model Router）
-- `ARCHITECTURE_OVERVIEW.md` — 项目白皮书
+## 文档导航
+
+### 根目录（日常开发必读）
+- `ARCHITECTURE_OVERVIEW.md` — 项目白皮书，架构全景，**推荐首次阅读**
+- `DESIGN-IMPLEMENTATION.md` — 12 章实现蓝图（接口/数据流/阶段划分），**开发时最常用**
+- `AGENTS.md` — AI Agent 项目文档标准
+- `progress.md` — 开发进度追踪，**每次 Session 开始必读**
+
+### docs/ 目录（深度参考，按需查阅）
+- `docs/RESEARCH.md` — 原始研究：20+论文、15+系统对比
+- `docs/PLAN.md` — 原始设计方案（CPG/扫描流水线/Model Router）
+- `docs/COVERAGE-GAP-ANALYSIS.md` — 覆盖盲区分析 + 七种缓解方案
+- `docs/severity_based_vulnerability_mining_framework.md` — 五级危害 × 七层挖掘阶梯
+- `docs/detection_matrix.json` — 200 项 ASVS 对齐的结构化检测项
+- `docs/WEB-VULN-FULL-MATRIX.md` — 180+ 漏洞类型全量覆盖矩阵
+- `docs/LONG-RUNNING-AGENT-ARCHITECTURE.md` — 长任务持续运行架构
+- `docs/IMPLEMENTATION-GUIDE.md` — 实现前必读（关键风险 + 多 Agent 决策）
+- `docs/DEVELOPMENT-STANDARDS.md` — 生产级开发规范
+- `docs/CLAUDE-CODE-DEVELOPMENT-GUIDE.md` — 用 Claude Code 开发的实操指南
+- `docs/README.md` — 文档目录索引
