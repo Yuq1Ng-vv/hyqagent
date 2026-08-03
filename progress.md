@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.1 完成后
+> 上次更新: Session 1.2 完成后
 
 ## Phase 1: CPG Foundation — 进行中
 - [x] **Session 1.1** — 项目骨架初始化 (commit: 4ba65f7)
@@ -8,7 +8,12 @@
   - CLAUDE.md, AGENTS.md, README.md, progress.md
   - core/protocols.py (6个核心协议), core/state.py, core/events.py (12种事件类型)
   - docs/ 目录整理 (10份参考文档移入，docs/README.md 索引)
-- [ ] **Session 1.2** — tree-sitter 安装和单文件解析 (cpg/parser.py)
+- [x] **Session 1.2** — tree-sitter 安装和单文件解析 (cpg/parser.py)
+  - 安装 tree-sitter 0.26.0 + Python/JS/Java 语法包
+  - 实现 `cpg/parser.py` — Parser 类支持 parse_file/parse_code
+  - 支持 extract_functions/extract_classes/extract_imports（三种语言）
+  - 44 个 pytest 测试全部通过
+  - ruff/mypy 零错误
 - [ ] Session 1.3 — AST 遍历器
 - [ ] Session 1.4 — 单文件调用图
 - [ ] Session 1.5 — 跨文件调用图（⚠️ P0 风险：反射/DI/动态import）
@@ -24,5 +29,5 @@
 - 无
 
 ## 下次 Session 目标
-- **Session 1.2**: 安装 tree-sitter (Python/JS/Java grammars)，实现单文件解析器 `cpg/parser.py`
-- 产出标准: 能解析单个 Python 文件，提取函数名、类名、导入语句
+- **Session 1.3**: 实现 AST 遍历器 `cpg/traversal.py`
+- 产出标准: 基于 tree-sitter TreeCursor 的通用 AST 遍历工具，支持三种语言的节点类型过滤和深度优先遍历
