@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.2 完成后
+> 上次更新: Session 1.3 完成后
 
 ## Phase 1: CPG Foundation — 进行中
 - [x] **Session 1.1** — 项目骨架初始化 (commit: 4ba65f7)
@@ -14,7 +14,12 @@
   - 支持 extract_functions/extract_classes/extract_imports（三种语言）
   - 44 个 pytest 测试全部通过
   - ruff/mypy 零错误
-- [ ] Session 1.3 — AST 遍历器
+- [x] **Session 1.3** — AST 遍历器 (cpg/traversal.py + 59 tests)
+  - Traverser 类: TreeCursor 实现的 DFS 前序/后序遍历
+  - 节点类型过滤、named_only 模式、子树遍历
+  - 导航工具: get_children/parent/ancestors/ancestor_of_type
+  - 工具方法: find_first/find_all/count/node_type_path
+  - 103 个 pytest 测试全部通过，ruff/mypy 零错误
 - [ ] Session 1.4 — 单文件调用图
 - [ ] Session 1.5 — 跨文件调用图（⚠️ P0 风险：反射/DI/动态import）
 - [ ] Session 1.6 — 数据流图构建
@@ -29,5 +34,5 @@
 - 无
 
 ## 下次 Session 目标
-- **Session 1.3**: 实现 AST 遍历器 `cpg/traversal.py`
-- 产出标准: 基于 tree-sitter TreeCursor 的通用 AST 遍历工具，支持三种语言的节点类型过滤和深度优先遍历
+- **Session 1.4**: 实现单文件调用图 `cpg/callgraph.py`
+- 产出标准: 基于 Traverser 遍历 AST，识别函数内调用表达式，构建 caller→callee 关系图，支持三种语言
