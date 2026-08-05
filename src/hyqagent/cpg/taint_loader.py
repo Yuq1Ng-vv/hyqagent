@@ -98,22 +98,45 @@ class TaintRuleLoader:
         return sorted(set(result))
 
     def match_source(self, language: str, text: str) -> str | None:
-        """Return the category name if *text* matches a source pattern, else None."""
+        """Return the most specific category matching *text*, else None.
+
+        When multiple patterns match, the longest (most specific) pattern wins.
+        """
         rules = self.rules_for(language)
+        best_len = 0
+        best_cat: str | None = None
+        for cat_name, cat in rules.categories.items():
+            for pat in cat.sources:
+                if pat in text and len(pat) > best_len:
+                    best_len = len(pat)
+                    best_cat = cat_name
+        return best_cat
+
+    def match_all_sources(self, language: str, text: str) -> list[str]:
+        """Return ALL category names whose source patterns match *text*."""
+        rules = self.rules_for(language)
+        matches: list[str] = []
         for cat_name, cat in rules.categories.items():
             for pat in cat.sources:
                 if pat in text:
-                    return cat_name
-        return None
+                    matches.append(cat_name)
+                    break
+        return matches
 
     def match_sink(self, language: str, text: str) -> str | None:
-        """Return the category name if *text* matches a sink pattern, else None."""
+        """Return the most specific category matching *text*, else None.
+
+        When multiple patterns match, the longest (most specific) pattern wins.
+        """
         rules = self.rules_for(language)
+        best_len = 0
+        best_cat: str | None = None
         for cat_name, cat in rules.categories.items():
             for pat in cat.sinks:
-                if pat in text:
-                    return cat_name
-        return None
+                if pat in text and len(pat) > best_len:
+                    best_len = len(pat)
+                    best_cat = cat_name
+        return best_cat
 
     @property
     def available_languages(self) -> list[str]:
