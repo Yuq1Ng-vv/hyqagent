@@ -224,8 +224,15 @@ src/hyqagent/
 ├── cpg/                           ← 🔵 CPG 引擎（进行中，Sessions 1.2-1.9）
 │   ├── parser.py                  ← ✅ tree-sitter 解析器（支持 Python/JS/Java）
 │   ├── traversal.py               ← ✅ AST 遍历器（DFS 前序/后序）
-│   ├── callgraph.py               ← 🔜 调用图构建（Session 1.4）
-│   ├── data_flow.py               ← ⬜ 数据流图（Session 1.6）
+│   ├── types.py                   ← ✅ 共享数据类（FunctionNode/ClassNode/ImportNode）
+│   ├── callgraph.py               ← ✅ 单文件调用图（Session 1.4）
+│   ├── callgraph_builder.py       ← ✅ 跨文件调用图构建器（Session 1.5）
+│   ├── languages/                 ← ✅ LanguageProvider 策略模式（Session 1.5）
+│   │   ├── base.py                ←   抽象基类（14个抽象成员）
+│   │   ├── python.py              ←   PythonAdapter
+│   │   ├── javascript.py          ←   JavaScriptAdapter
+│   │   └── java.py                ←   JavaAdapter
+│   ├── data_flow.py               ← 🔜 数据流图（Session 1.6）
 │   ├── query.py                   ← ⬜ CPG 查询接口（Session 1.7）
 │   ├── taint_rules.yaml           ← ⬜ 污点源/汇的配置文件
 │   ├── sanitizers.yaml            ← ⬜ 过滤函数的配置文件
@@ -301,22 +308,25 @@ CLI (api/cli.py)          ← 用户入口，唯一做"依赖注入"的地方
 ### 5.3 实现顺序
 
 ```
-protocols.py（定义所有抽象，无依赖）
-    → cpg/parser.py（tree-sitter 解析，无依赖）
-    → cpg/traversal.py（AST 遍历，依赖 parser）
-    → cpg/callgraph.py（调用图，依赖 traversal）
-    → cpg/data_flow.py（数据流，依赖 callgraph）
-    → cpg/frameworks/（框架提取器，依赖 parser）
-    → cpg/query.py（查询接口，依赖以上全部）
-    → scanner/deterministic.py（Phase 1，依赖 query）
-    → models/（LLM 提供者 + 路由 + 预算）
-    → scanner/mapper.py → scanner/hypothesis.py → scanner/validator.py
-    → session/（数据库 + 信念系统 + 检查点）
-    → observability/（追踪 + 指标 + 审计）
-    → memory/（上下文 + 结晶 + 检索）
-    → scanner/orchestrator.py（组装一切）
-    → api/cli.py（唯一做依赖注入的地方）
-    → report/（最后实现，纯组装）
+protocols.py（定义所有抽象，无依赖）✅
+    → cpg/types.py（共享数据类，打破循环依赖）✅
+    → cpg/languages/（LanguageProvider 抽象基类 + 三种语言适配器）✅
+    → cpg/parser.py（tree-sitter 解析，委托给 Provider）✅
+    → cpg/traversal.py（AST 遍历，依赖 parser）✅
+    → cpg/callgraph.py（单文件调用图，依赖 parser + languages）✅
+    → cpg/callgraph_builder.py（跨文件调用图，依赖 callgraph）✅
+    → cpg/data_flow.py（数据流，依赖 callgraph）📋
+    → cpg/frameworks/（框架提取器，依赖 parser）📋
+    → cpg/query.py（查询接口，依赖以上全部）📋
+    → scanner/deterministic.py（Phase 1，依赖 query）📋
+    → models/（LLM 提供者 + 路由 + 预算）📋
+    → scanner/mapper.py → scanner/hypothesis.py → scanner/validator.py 📋
+    → session/（数据库 + 信念系统 + 检查点）📋
+    → observability/（追踪 + 指标 + 审计）📋
+    → memory/（上下文 + 结晶 + 检索）📋
+    → scanner/orchestrator.py（组装一切）📋
+    → api/cli.py（唯一做依赖注入的地方）📋
+    → report/（最后实现，纯组装）📋
 ```
 
 ---
@@ -437,10 +447,13 @@ Phase 1: CPG Foundation（代码属性图基础层）
      支持 Python/JavaScript/Java 三种语言
   ✅ Session 1.3 — AST 遍历器
      DFS 前序/后序遍历、节点过滤、导航搜索工具
+  ✅ Session 1.4 — 单文件调用图
+     支持 Python/JS/Java，已解析/未解析分类
+  ✅ Session 1.5 — LanguageProvider 重构 + 跨文件调用图
+     策略模式可扩展架构（添加语言=1文件+1行注册）
+     CallGraphBuilder 支持相对/绝对导入解析
 
-  🔜 Session 1.4 — 单文件调用图          ← 下一步
-  ⬜ Session 1.5 — 跨文件调用图
-  ⬜ Session 1.6 — 数据流图构建
+  🔜 Session 1.6 — 数据流图构建          ← 下一步
   ⬜ Session 1.7 — CPG 查询接口
   ⬜ Session 1.8 — Flask 框架提取器
   ⬜ Session 1.9 — 端到端 CPG 测试
@@ -452,7 +465,7 @@ Phase 4: 长任务能力（未开始）
 Phase 5: 质量与发布（未开始）
 ```
 
-**质量门禁**：103 个 pytest 测试全部通过，ruff 零警告，mypy strict 模式零错误。
+**质量门禁**：240 个 pytest 测试全部通过，ruff 零警告，mypy strict 模式零错误。
 
 ---
 

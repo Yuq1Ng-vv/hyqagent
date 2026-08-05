@@ -2,7 +2,9 @@
 
 > 基于9份源文档综合编制：`RESEARCH.md`、`PLAN.md`、`COVERAGE-GAP-ANALYSIS.md`、`severity_based_vulnerability_mining_framework.md`、`detection_matrix.json`、`WEB-VULN-FULL-MATRIX.md`、`LONG-RUNNING-AGENT-ARCHITECTURE.md`、`IMPLEMENTATION-GUIDE.md`、`DEVELOPMENT-STANDARDS.md`
 >
-> **用途**：作为后续开发和维护测试的可执行蓝图。当前项目处于文档设计阶段，无任何代码。
+> **用途**：作为后续开发和维护测试的可执行蓝图。
+>
+> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.5 + 基础加固，CPG 模块已实现 ~2,700 行代码、240 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
 
 ---
 
@@ -19,69 +21,79 @@
 ```
 hyqagent/
 ├── src/hyqagent/              # 源码根目录
-│   ├── core/                  # 领域层 — 纯业务逻辑，零外部依赖
-│   │   ├── protocols.py       # ⭐ 核心抽象接口（最重要文件，详见DEVELOPMENT-STANDARDS.md 1.4节）
-│   │   ├── state.py           # AgentState类型定义
-│   │   └── events.py          # 事件类型定义（ESAA模式）
-│   ├── cpg/                   # CPG Engine（详见PLAN.md 第三章）
-│   │   ├── builder.py         # CPG构建主流程
-│   │   ├── parser.py          # tree-sitter封装
-│   │   ├── call_graph.py      # 调用图构建
-│   │   ├── data_flow.py       # 数据流+污点追踪
-│   │   ├── query.py           # CPG查询接口
-│   │   ├── taint_rules.yaml   # Taint source/sink配置
-│   │   ├── sanitizers.yaml    # Sanitizer函数配置
-│   │   └── frameworks/        # 框架特定提取器（flask.py, django.py等）
-│   ├── scanner/               # 扫描引擎（详见PLAN.md 第四章）
+│   ├── core/                  # ✅ 已实现 — 领域层，纯业务逻辑，零外部依赖
+│   │   ├── protocols.py       # ⭐ 核心抽象接口（6个协议：BaseTool/CpgAnalyzer/AuditRepository/LlmProvider）
+│   │   ├── state.py           # AgentState + AuditState 类型定义
+│   │   └── events.py          # 12种事件类型定义（ESAA模式）
+│   ├── cpg/                   # ✅ 部分实现 — CPG Engine（详见下方标注）
+│   │   ├── parser.py          # ✅ tree-sitter多语言解析器（通过LanguageProvider委托到语言适配器）
+│   │   ├── traversal.py       # ✅ AST遍历器（DFS前序/后序、节点过滤、导航工具）
+│   │   ├── callgraph.py       # ✅ 单文件调用图（SingleFileCallGraph，支持Python/JS/Java）
+│   │   ├── callgraph_builder.py # ✅ 跨文件调用图构建器（索引→导入解析→跨文件调用边）
+│   │   ├── types.py           # ✅ 共享数据类（FunctionNode/ClassNode/ImportNode/CallEdge）
+│   │   ├── languages/         # ✅ LanguageProvider策略模式（base.py + python/js/java适配器）
+│   │   │   ├── __init__.py    #    Provider注册表 + 懒加载 + 扩展名检测
+│   │   │   ├── base.py        #    LanguageProvider抽象基类（14个抽象成员）
+│   │   │   ├── python.py      #    PythonAdapter
+│   │   │   ├── javascript.py  #    JavaScriptAdapter
+│   │   │   └── java.py        #    JavaAdapter
+│   │   ├── data_flow.py       # 📋 计划中 — 数据流+污点追踪（Session 1.6）
+│   │   ├── query.py           # 📋 计划中 — CPG查询接口（Session 1.7）
+│   │   ├── taint_rules.yaml   # 📋 计划中 — Taint source/sink配置
+│   │   ├── sanitizers.yaml    # 📋 计划中 — Sanitizer函数配置
+│   │   └── frameworks/        # 📋 计划中 — 框架特定提取器（flask.py等，Session 1.8）
+│   ├── scanner/               # 📋 设计阶段 — 扫描引擎（详见PLAN.md 第四章）
 │   │   ├── orchestrator.py    # 扫描流水线编排
 │   │   ├── deterministic.py   # Phase 1: 确定性规则
 │   │   ├── mapper.py          # Phase 2: 攻击面映射
 │   │   ├── hypothesis.py      # Phase 3: 假设生成
 │   │   ├── validator.py       # Phase 4: 验证(L1+L2)
-│   │   └── rules/             # 确定性规则（secrets.yaml, dangerous_calls.yaml, config_issues.yaml）
-│   ├── models/                # 模型路由（详见PLAN.md 第六章）
+│   │   └── rules/             # 确定性规则
+│   ├── models/                # 📋 设计阶段 — 模型路由（详见PLAN.md 第六章）
 │   │   ├── router.py          # 模型路由
 │   │   ├── budget.py          # 预算管理
-│   │   └── providers/         # LLM Provider适配（anthropic.py, openai_compat.py）
-│   ├── session/               # 会话与信念系统（详见PLAN.md 第五章 + LONG-RUNNING-AGENT-ARCHITECTURE.md 第三/五章）
+│   │   └── providers/         # LLM Provider适配
+│   ├── session/               # 📋 设计阶段 — 会话与信念系统
 │   │   ├── manager.py         # 会话CRUD
 │   │   ├── belief.py          # 信念系统
 │   │   ├── checkpoint.py      # 检查点管理
 │   │   └── schema.sql         # 数据库Schema
-│   ├── memory/                # 上下文与记忆管理（详见LONG-RUNNING-AGENT-ARCHITECTURE.md 第二章）
+│   ├── memory/                # 📋 设计阶段 — 上下文与记忆管理
 │   │   ├── context.py         # 三区段上下文模型
 │   │   ├── crystallizer.py    # 上下文结晶协议
-│   │   └── retriever.py       # 代码检索（ripgrep+tree-sitter+Qdrant+Joern）
-│   ├── observability/         # 可观测性（详见DEVELOPMENT-STANDARDS.md 第二章）
+│   │   └── retriever.py       # 代码检索
+│   ├── observability/         # 📋 设计阶段 — 可观测性
 │   │   ├── tracer.py          # OTel集成
 │   │   ├── cost_tracker.py    # 成本追踪
 │   │   ├── metrics.py         # Prometheus指标
-│   │   └── audit_trail.py     # ESAA决策追踪（SHA-256链式验证）
-│   ├── prompts/               # ⭐ Prompt模板（版本控制，YAML+Jinja2）
-│   │   ├── system/            # 系统提示词（语义版本，如vulnerability_scanner_v1.0.0.yaml）
+│   │   └── audit_trail.py     # ESAA决策追踪
+│   ├── prompts/               # 📋 骨架 — Prompt模板
+│   │   ├── system/            # 系统提示词
 │   │   ├── few_shot/          # Few-shot示例
-│   │   └── shared/            # 共享模板（output_format.yaml）
-│   ├── api/                   # CLI接口（详见PLAN.md 第七章）
+│   │   └── shared/            # 共享模板
+│   ├── api/                   # 📋 骨架 — CLI接口
 │   │   ├── cli.py             # CLI入口（click框架）
 │   │   └── config.py          # 配置管理（pydantic-settings）
-│   └── report/                # 报告生成
+│   └── report/                # 📋 骨架 — 报告生成
 │       ├── json_report.py
 │       ├── markdown_report.py
 │       └── sarif_report.py
-├── tests/                     # 镜像src/结构
-│   ├── test_cpg/              # fixtures/目录放测试用代码样本
+├── tests/                     # ✅ 镜像src/结构，240个测试
+│   ├── test_cpg/              # CPG模块测试（parser/traversal/callgraph/callgraph_builder）
 │   ├── test_scanner/
 │   ├── test_models/
 │   └── test_session/
-├── evals/                     # Eval数据集和指标（详见DEVELOPMENT-STANDARDS.md 3.5节）
-│   ├── golden_dataset.yaml    # Golden Dataset（dev集+test集分离）
+├── evals/                     # 📋 计划中 — Eval数据集
+│   ├── golden_dataset.yaml
 │   └── adversarial_cases.yaml
 ├── pyproject.toml
 ├── .env.example
 ├── .pre-commit-config.yaml
-├── AGENTS.md                  # AI Agent项目文档标准（150-300行）
+├── AGENTS.md
 └── README.md
 ```
+
+> **图例**：✅ 已实现　📋 设计/计划阶段
 
 **关键依赖清单**:
 
@@ -239,47 +251,137 @@ def main(target_path: str):
 
 **模块职责**: 解析源码构建Code Property Graph（AST+CALLS+DATA_FLOW+CTRL_FLOW+HTTP_ROUTE五层图），提供结构化查询接口，使LLM无需直接阅读全量代码。
 
-### 2.1 tree-sitter集成
+### 2.1 tree-sitter集成 ✅ 已实现
 
-**公开接口**:
+**公开接口**（Session 1.2 实现，Session 1.5 通过 LanguageProvider 重构）:
 
 ```python
 class Parser:
-    """多语言tree-sitter解析器封装。"""
-    def __init__(self, languages: list[str] = ["python", "javascript", "java"]): ...
+    """多语言tree-sitter解析器封装。
+    
+    通过 LanguageProvider 策略模式委托语言特定操作。
+    添加新语言 = 新增一个 LanguageProvider 子类 + 一行注册，Parser 零改动。
+    """
+    def __init__(self, languages: list[str] | None = None): ...
     def parse_file(self, file_path: str) -> Tree: ...
     def parse_code(self, code: str, language: str) -> Tree: ...
-    def extract_functions(self, tree: Tree) -> list[FunctionNode]: ...
-    def extract_classes(self, tree: Tree) -> list[ClassNode]: ...
-    def extract_imports(self, tree: Tree) -> list[ImportNode]: ...
+    def extract_functions(self, tree: Tree, language: str) -> list[FunctionNode]: ...
+    def extract_classes(self, tree: Tree, language: str) -> list[ClassNode]: ...
+    def extract_imports(self, tree: Tree, language: str) -> list[ImportNode]: ...
+    def get_language(self, file_path: str) -> str: ...        # 公开方法
+    def get_provider(self, language: str) -> LanguageProvider: ...  # 公开方法
 ```
+
+**LanguageProvider 策略模式**（`cpg/languages/`，Session 1.5 新增）:
+
+```python
+class LanguageProvider(ABC):
+    """每种语言实现此接口。添加 Go 只需新增一个文件。"""
+    name: str              # "python", "javascript", ...
+    extensions: list[str]  # [".py", ".pyi"]
+    
+    # 语法（懒加载 — cached_property）
+    _ts_module              # tree_sitter 语法包（首次访问才 import）
+    
+    # 查询字符串
+    function_query / class_query / import_query
+    
+    # 节点解析
+    extract_function_name / extract_parameters / extract_decorators
+    extract_base_classes / build_import_node
+    build_function_node / build_class_node
+    
+    # 调用图支持
+    call_node_type / func_def_types
+    extract_callee_info
+```
+
+**重构数据**（Session 1.5）：parser.py 671→260 行（-61%），callgraph.py 382→260 行（-32%），删除 ~250 行语言特定硬编码。
 
 **关键踩坑**: 锁定tree-sitter版本，`v0.23.1`在复杂查询时segfault率约7-9%。Workaround: 查询外围包重试循环。详见 `IMPLEMENTATION-GUIDE.md` 第6.1节。
 
 **依赖**: 无（纯CPU密集型，sync调用）
 
-### 2.2 调用图构建
+### 2.2 调用图构建 ✅ 已实现
 
-**公开接口**:
+**单文件调用图**（`cpg/callgraph.py`，Session 1.4 实现，Session 1.5 重构）:
+
+```python
+class SingleFileCallGraph:
+    """单文件调用图。支持 Python/JS/Java 三种语言。
+    通过 LanguageProvider 委托语言特定的调用提取。"""
+    def __init__(self, parser: Parser): ...
+    def build(self, file_path: str) -> SingleFileCallGraph: ...
+    
+    # 查询接口
+    def get_callees(self, func_id: str) -> list[str]: ...
+    def get_callers(self, func_id: str) -> list[str]: ...
+    def has_edge(self, caller: str, callee: str) -> bool: ...
+    
+    # 属性
+    functions: dict[str, FunctionNode]   # 文件中所有函数
+    calls: list[CallEdge]                # 已解析的调用边
+    unresolved: list[UnresolvedCall]     # 未解析调用（供跨文件使用）
+```
+
+**跨文件调用图**（`cpg/callgraph_builder.py`，Session 1.5 新增）:
 
 ```python
 class CallGraphBuilder:
     """跨文件调用图构建。"""
     def __init__(self, parser: Parser): ...
-    def add_file(self, file_path: str) -> None: ...
-    def resolve_imports(self) -> dict[str, str]: ...
-    """返回 {import_name: resolved_file_path}"""
-    def build_calls(self) -> list[CallEdge]: ...
-    """返回 (caller_func_id, callee_func_id, call_site_location) 列表"""
-    def resolve_method_call(self, obj_expr: str, method_name: str) -> str | None: ...
-    """解析 obj.method() 的实际目标函数，失败返回None"""
+    def add_directory(self, dir_path: str) -> None: ...   # 递归遍历项目
+    def add_file(self, file_path: str) -> None: ...       # 单文件索引
+    def resolve_imports(self) -> dict[str, str]: ...       # 返回 {import_name: resolved_file_path}
+    def build_calls(self) -> list[CallEdge]: ...           # 跨文件调用边列表
 ```
+
+**支持的导入模式**（Python）:
+- `from utils import helper` → 查找 `utils.py` 中的 `helper`
+- `from ..utils import helper` → 相对导入，向上查找
+- `from models import create_user` → 查找 `models.py`
+- `import os` → 标准库，不解析
+
+**已知局限**：Java 导入解析（`import com.example.Foo`）需在 Session 1.8 框架提取器中处理；循环导入未检测；同名函数使用 first-definition-wins。
 
 **最大风险**: 跨文件调用图是P0级阻塞风险（详见 `IMPLEMENTATION-GUIDE.md` 第2章）。策略：先支持无反射/无DI的Python项目；动态import直接丢弃调用边（GitLab Orbit实践）；Spring DI暂缓。
 
 **依赖**: `Parser`（注入）
 
-### 2.3 数据流图构建
+### 2.3 AST 遍历器 ✅ 已实现
+
+**公开接口**（`cpg/traversal.py`，Session 1.3 实现）:
+
+```python
+class Traverser:
+    """基于 tree-sitter TreeCursor 的 AST 遍历器。"""
+    def __init__(self, tree: Tree, language: str): ...
+    
+    # 遍历模式
+    def traverse_pre_order(self) -> Iterator[Node]: ...    # DFS 前序遍历
+    def traverse_post_order(self) -> Iterator[Node]: ...   # DFS 后序遍历
+    def traverse_subtree(self, root: Node) -> Iterator[Node]: ...  # 子树遍历
+    
+    # 过滤选项
+    named_only: bool           # 仅具名节点（跳过标点/括号等）
+    node_types: set[str] | None  # 按节点类型过滤
+    
+    # 导航工具
+    def get_children(self, node: Node) -> list[Node]: ...
+    def get_parent(self, node: Node) -> Node | None: ...
+    def get_ancestors(self, node: Node) -> list[Node]: ...
+    def ancestor_of_type(self, node: Node, *types: str) -> Node | None: ...
+    
+    # 搜索工具
+    def find_first(self, node_type: str) -> Node | None: ...
+    def find_all(self, node_type: str) -> list[Node]: ...
+    def count(self, node_type: str) -> int: ...
+
+**依赖**: `Parser`（注入）
+
+### 2.4 数据流图构建 📋 计划中
+
+> ⏳ Session 1.6 目标
 
 **公开接口**:
 
@@ -296,7 +398,7 @@ class DataFlowBuilder:
 
 **依赖**: `CallGraphBuilder`（注入）
 
-### 2.4 框架特定提取器
+### 2.5 框架特定提取器
 
 **公开接口**:
 
@@ -316,7 +418,7 @@ class BaseFrameworkExtractor(ABC):
 
 **依赖**: `Parser`（注入）
 
-### 2.5 污点源/汇配置
+### 2.6 污点源/汇配置
 
 **`taint_rules.yaml`格式**:
 
@@ -342,7 +444,7 @@ sanitizers:
 
 **`sanitizers.yaml`格式**: 同上结构，按sanitizer函数→可防护的漏洞类型映射。
 
-### 2.6 CPG查询接口
+### 2.7 CPG查询接口
 
 **公开接口**（详见 `PLAN.md` 第3.6节）:
 
@@ -948,19 +1050,25 @@ class SignalHandler:
 
 ## 十、实现阶段划分
 
-### Phase 1: CPG Foundation（目标3-4周）
+### Phase 1: CPG Foundation（目标3-4周）🔄 进行中
 
 > 详见 `PLAN.md` 第八章 Phase 1 + `IMPLEMENTATION-GUIDE.md` 第1.1节。
 
 **产出标准**: 能对Python Flask项目做完整CPG分析（调用图+数据流图+框架路由提取+查询接口）。
 
 **任务分解**:
-1. tree-sitter集成：安装Python/JS/Java语法，实现AST遍历工具类
-2. 调用图构建：import解析、calls边构建、跨文件引用、方法调用解析
-3. 数据流图构建：def-use chain分析、跨函数数据流追踪、基础污点传播
-4. 框架提取器：Flask路由提取器 + 扩展接口、Flask认证注解检测
-5. Taint配置：taint_rules.yaml初版（Python+Flask 5种漏洞的source/sink）
-6. CPG查询接口：find_path, find_sources, find_sinks, get_sanitizers, slice_path
+1. ✅ tree-sitter集成：安装Python/JS/Java语法，实现Parser + Traverser（Session 1.2-1.3）
+2. ✅ 单文件调用图：SingleFileCallGraph，支持Python/JS/Java（Session 1.4）
+3. ✅ LanguageProvider可扩展架构：策略模式重构，添加语言=1文件+1行注册（Session 1.5）
+4. ✅ 跨文件调用图：CallGraphBuilder，import解析+跨文件调用边（Session 1.5）
+5. ✅ 基础加固：边界测试+性能基线+契约验证，240 tests（Session 1.5后续）
+6. 📋 数据流图构建：def-use chain分析、跨函数数据流追踪、基础污点传播（Session 1.6）
+7. 📋 框架提取器：Flask路由提取器 + 扩展接口（Session 1.8）
+8. 📋 Taint配置：taint_rules.yaml初版（Python+Flask 5种漏洞的source/sink）
+9. 📋 CPG查询接口：find_path, find_sources, find_sinks, get_sanitizers, slice_path（Session 1.7）
+10. 📋 端到端CPG测试：用已知CVE项目验证（Session 1.9）
+
+> 图例：✅ 已完成　📋 计划中
 
 ### Phase 2: 确定性扫描器（目标1-2周）
 
@@ -1032,7 +1140,7 @@ class SignalHandler:
 CLI (api/cli.py)
   ├── Config (api/config.py) —— pydantic-settings
   ├── Orchestrator (scanner/orchestrator.py)
-  │     ├── CPGQuery (cpg/query.py) ← CPGBuilder (cpg/builder.py) ← [Parser, CallGraphBuilder, DataFlowBuilder, FrameworkExtractor]
+  │     ├── CPGQuery (cpg/query.py) ← [Parser, Traverser, SingleFileCallGraph, CallGraphBuilder, DataFlowBuilder, FrameworkExtractor]
   │     ├── DeterministicScanner (scanner/deterministic.py) ← CPGQuery
   │     ├── AttackSurfaceMapper (scanner/mapper.py) ← LlmProvider, CPGQuery
   │     ├── HypothesisGenerator (scanner/hypothesis.py) ← LlmProvider, CPGQuery
@@ -1044,44 +1152,61 @@ CLI (api/cli.py)
   └── ObservabilityManager (observability/tracer.py) ← [CostTracker, MetricsCollector, DecisionTraceStore]
 ```
 
+> ✅ 已实现: Parser, Traverser, SingleFileCallGraph, CallGraphBuilder, LanguageProvider, types, core/protocols|state|events
+> 📋 计划中: DataFlowBuilder, CPGQuery, FrameworkExtractor, 及 scanner/models/session/memory/observability 全部模块
+
 ### 模块接口快速索引
 
-| 模块 | 路径 | 核心公开接口 | 注入依赖 |
-|:-----|:-----|:-----------|:--------|
-| CPG查询 | `cpg/query.py` | `CPGQuery.find_path/sources/sinks/sanitizers/slice_path` | `nx.MultiDiGraph` |
-| 确定性扫描 | `scanner/deterministic.py` | `scan_secrets/dangerous_calls/cpg_taint/missing_auth/config_issues` | `CPGQuery` |
-| 攻击面映射 | `scanner/mapper.py` | `classify_endpoint`, `filter_high_priority` | `LlmProvider`, `CPGQuery` |
-| 假设生成 | `scanner/hypothesis.py` | `generate_for_endpoint`, `assess_complexity` | `LlmProvider`, `CPGQuery` |
-| 分层验证 | `scanner/validator.py` | `validate_deterministic`, `validate_llm`, `reverse_sink_analysis`, `blind_scan`, `completeness_critic` | `LlmProvider`, `CPGQuery` |
-| 模型路由 | `models/router.py` | `ModelRouter.route`, `BudgetManager.check_and_route` | 无 |
-| 会话管理 | `session/manager.py` | `create/load/save/delete_session` | 数据库连接 |
-| 信念系统 | `session/belief.py` | `update_confidence`, `add_dependency`, `propagate_confidence` | 数据库连接 |
-| 检查点 | `session/checkpoint.py` | `save/load_checkpoint`, `verify_integrity`, `generate_recovery_summary` | 数据库连接 |
-| 上下文管理 | `memory/context.py` | `build_context`, `estimate_usage` | 无 |
-| 上下文结晶 | `memory/crystallizer.py` | `should_crystallize`, `crystallize` | 无 |
-| 代码检索 | `memory/retriever.py` | `index_file`, `semantic_search`, `hybrid_search` | `chromadb`/`qdrant` |
-| 成本追踪 | `observability/cost_tracker.py` | `record_call`, `get_cost_by_finding/phase` | 数据库连接 |
-| 审计追踪 | `observability/audit_trail.py` | `append_event`, `verify_integrity`, `replay_session` | 数据库连接 |
+| 模块 | 路径 | 核心公开接口 | 注入依赖 | 状态 |
+|:-----|:-----|:-----------|:--------|:-----|
+| 核心协议 | `core/protocols.py` | `BaseTool`, `CpgAnalyzer`, `AuditRepository`, `LlmProvider`, `ToolResult` | 无 | ✅ |
+| 解析器 | `cpg/parser.py` | `Parser.parse_file/code`, `extract_functions/classes/imports`, `get_language/provider` | `LanguageProvider` | ✅ |
+| AST遍历 | `cpg/traversal.py` | `Traverser.traverse_pre/post_order/subtree`, `find_first/all`, `get_children/parent/ancestors` | `Tree` | ✅ |
+| 语言适配器 | `cpg/languages/` | `LanguageProvider` 抽象基类 + `PythonAdapter`/`JSAdapter`/`JavaAdapter` | `tree-sitter` 语法包 | ✅ |
+| 共享类型 | `cpg/types.py` | `FunctionNode`, `ClassNode`, `ImportNode`, `CallEdge`, `UnresolvedCall` | 无 | ✅ |
+| 单文件调用图 | `cpg/callgraph.py` | `SingleFileCallGraph.build`, `get_callees/callers`, `has_edge` | `Parser` | ✅ |
+| 跨文件调用图 | `cpg/callgraph_builder.py` | `CallGraphBuilder.add_directory/file`, `resolve_imports`, `build_calls` | `Parser` | ✅ |
+| 数据流 | `cpg/data_flow.py` | `DataFlowBuilder.build_def_use_chains`, `trace_cross_function`, `propagate_taint` | `CallGraphBuilder` | 📋 |
+| CPG查询 | `cpg/query.py` | `CPGQuery.find_path/sources/sinks/sanitizers/slice_path` | `nx.MultiDiGraph` | 📋 |
+| 确定性扫描 | `scanner/deterministic.py` | `scan_secrets/dangerous_calls/cpg_taint/missing_auth/config_issues` | `CPGQuery` | 📋 |
+| 攻击面映射 | `scanner/mapper.py` | `classify_endpoint`, `filter_high_priority` | `LlmProvider`, `CPGQuery` | 📋 |
+| 假设生成 | `scanner/hypothesis.py` | `generate_for_endpoint`, `assess_complexity` | `LlmProvider`, `CPGQuery` | 📋 |
+| 分层验证 | `scanner/validator.py` | `validate_deterministic`, `validate_llm`, `reverse_sink_analysis`, `blind_scan`, `completeness_critic` | `LlmProvider`, `CPGQuery` | 📋 |
+| 模型路由 | `models/router.py` | `ModelRouter.route`, `BudgetManager.check_and_route` | 无 | 📋 |
+| 会话管理 | `session/manager.py` | `create/load/save/delete_session` | 数据库连接 | 📋 |
+| 信念系统 | `session/belief.py` | `update_confidence`, `add_dependency`, `propagate_confidence` | 数据库连接 | 📋 |
+| 检查点 | `session/checkpoint.py` | `save/load_checkpoint`, `verify_integrity`, `generate_recovery_summary` | 数据库连接 | 📋 |
+| 上下文管理 | `memory/context.py` | `build_context`, `estimate_usage` | 无 | 📋 |
+| 上下文结晶 | `memory/crystallizer.py` | `should_crystallize`, `crystallize` | 无 | 📋 |
+| 代码检索 | `memory/retriever.py` | `index_file`, `semantic_search`, `hybrid_search` | `chromadb`/`qdrant` | 📋 |
+| 成本追踪 | `observability/cost_tracker.py` | `record_call`, `get_cost_by_finding/phase` | 数据库连接 | 📋 |
+| 审计追踪 | `observability/audit_trail.py` | `append_event`, `verify_integrity`, `replay_session` | 数据库连接 | 📋 |
 
 ### 关键集成顺序
 
-1. `protocols.py` （定义所有抽象，无依赖）
-2. `cpg/parser.py` （tree-sitter基础封装，无依赖）
-3. `cpg/call_graph.py` （依赖parser）
-4. `cpg/data_flow.py` （依赖call_graph）
-5. `cpg/frameworks/flask.py` （依赖parser）
-6. `cpg/builder.py` （组装所有CPG组件）
-7. `cpg/query.py` （依赖builder产出的MultiDiGraph）
-8. `scanner/deterministic.py` （依赖query）
-9. `models/providers/anthropic.py` （实现LlmProvider协议）
-10. `models/router.py` + `models/budget.py`
-11. `scanner/mapper.py` → `scanner/hypothesis.py` → `scanner/validator.py` （依赖LlmProvider+CPGQuery）
-12. `session/schema.sql` → `session/manager.py` → `session/belief.py` → `session/checkpoint.py`
-13. `observability/tracer.py` + `observability/cost_tracker.py` + `observability/audit_trail.py`
-14. `memory/context.py` → `memory/crystallizer.py` → `memory/retriever.py`
-15. `scanner/orchestrator.py` （组装所有组件，依赖注入）
-16. `api/cli.py` （唯一做DI的地方）
-17. `report/*.py` （纯组装，最后实现）
+1. ✅ `core/protocols.py` — 定义所有抽象（Session 1.1）
+2. ✅ `cpg/types.py` — 共享数据类，打破循环依赖（Session 1.5）
+3. ✅ `cpg/languages/base.py` — LanguageProvider 抽象基类（Session 1.5）
+4. ✅ `cpg/languages/{python,js,java}.py` — 语言适配器（Session 1.5）
+5. ✅ `cpg/parser.py` — tree-sitter 封装，委托给 Provider（Session 1.2, 1.5 重构）
+6. ✅ `cpg/traversal.py` — AST 遍历器（Session 1.3）
+7. ✅ `cpg/callgraph.py` — 单文件调用图（Session 1.4, 1.5 重构）
+8. ✅ `cpg/callgraph_builder.py` — 跨文件调用图（Session 1.5）
+9. 📋 `cpg/data_flow.py` — 数据流+污点追踪（依赖 callgraph，Session 1.6）
+10. 📋 `cpg/frameworks/flask.py` — 框架提取器（依赖 parser，Session 1.8）
+11. 📋 `cpg/query.py` — CPG 查询接口（依赖以上所有 CPG 组件，Session 1.7）
+12. 📋 `scanner/deterministic.py` — 确定性扫描（依赖 query）
+13. 📋 `models/providers/anthropic.py` — LlmProvider 协议实现
+14. 📋 `models/router.py` + `models/budget.py`
+15. 📋 `scanner/mapper.py` → `scanner/hypothesis.py` → `scanner/validator.py`
+16. 📋 `session/schema.sql` → `session/manager.py` → `session/belief.py` → `session/checkpoint.py`
+17. 📋 `observability/` — tracer, cost_tracker, audit_trail
+18. 📋 `memory/context.py` → `memory/crystallizer.py` → `memory/retriever.py`
+19. 📋 `scanner/orchestrator.py` — 组装所有组件，依赖注入
+20. 📋 `api/cli.py` — CLI 入口
+21. 📋 `report/*.py` — 报告生成
+
+> 图例：✅ 已完成　📋 计划中
 
 ---
 

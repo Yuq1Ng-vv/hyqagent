@@ -157,16 +157,20 @@ graph TB
     C --> K
 ```
 
+> **实现进度**（2026-08-05）：CPG Engine 的 Parser/Traverser/CallGraph/LanguageProvider 已实现（~2,700行，240 tests）。Core Runtime 的 protocols.py/state.py/events.py 已实现。其余模块（Scan Engine、Model Router、Context Manager、Infrastructure）为设计阶段，仅 `__init__.py` 骨架。详见 `progress.md`。
+
 ### 3.2 模块划分
 
-| 模块 | 职责 | 核心组件 |
-|:-----|:-----|:--------|
-| **CPG Engine** | 代码属性图构建与查询 | tree-sitter解析、跨文件调用图、数据流追踪、框架提取器（Flask/Django/FastAPI/Express/Spring） |
-| **Scan Engine** | 五阶段流水线执行 | Phase1确定性→Phase2攻击面映射→Phase3假设生成→Phase4验证→Phase5报告 |
-| **Model Router** | 三级模型按任务类型路由 | cheap/mid/strong分级，预算自动降级，成本追踪 |
-| **Session Manager** | 信念系统与假设生命周期 | SQLite持久化，贝叶斯置信度更新，状态机（proposed→confirmed/rejected） |
-| **Context Manager** | 三区段上下文+向量检索 | Prompt Caching、上下文结晶协议、Qdrant语义检索 |
-| **Orchestrator** | 工作流编排+事件溯源 | ESAA六条审计不变量，Temporal/Prefect工作流引擎，检查点与恢复 |
+| 模块 | 职责 | 核心组件 | 状态 |
+|:-----|:-----|:--------|:----|
+| **CPG Engine** | 代码属性图构建与查询 | ✅ tree-sitter多语言解析（Parser）、AST遍历器（Traverser）、LanguageProvider策略模式（`languages/`包）、单文件调用图（SingleFileCallGraph）、跨文件调用图（CallGraphBuilder）<br>📋 数据流追踪、CPG查询接口、框架提取器（Flask/Django/FastAPI/Express/Spring） | 🔄 部分实现 |
+| **Scan Engine** | 五阶段流水线执行 | Phase1确定性→Phase2攻击面映射→Phase3假设生成→Phase4验证→Phase5报告 | 📋 设计阶段 |
+| **Model Router** | 三级模型按任务类型路由 | cheap/mid/strong分级，预算自动降级，成本追踪 | 📋 设计阶段 |
+| **Session Manager** | 信念系统与假设生命周期 | SQLite持久化，贝叶斯置信度更新，状态机（proposed→confirmed/rejected） | 📋 设计阶段 |
+| **Context Manager** | 三区段上下文+向量检索 | Prompt Caching、上下文结晶协议、Qdrant语义检索 | 📋 设计阶段 |
+| **Orchestrator** | 工作流编排+事件溯源 | ESAA六条审计不变量，工作流引擎，检查点与恢复 | 📋 设计阶段 |
+
+> 图例：✅ 已实现　📋 设计/计划阶段　🔄 部分实现
 
 ### 3.3 数据流与状态管理
 
@@ -297,6 +301,19 @@ CPG由五种图组成，存储在同一个NetworkX MultiDiGraph中：
 | DATA_FLOW | 数据从表达式A流向表达式B | 污点追踪的核心 |
 | CTRL_FLOW | 控制流（分支/循环） | 可达性分析 |
 | HTTP_ROUTE | HTTP路由信息 | Web入口点识别 |
+
+**已实现组件**（Session 1.2-1.5）：
+
+| 组件 | 文件 | 说明 |
+|:-----|:-----|:-----|
+| Parser | `cpg/parser.py` | 多语言 tree-sitter 解析器，通过 LanguageProvider 委托语言特定操作 |
+| Traverser | `cpg/traversal.py` | AST 遍历器，支持 DFS 前序/后序、节点过滤、导航工具 |
+| SingleFileCallGraph | `cpg/callgraph.py` | 单文件调用图，支持 Python/JS/Java |
+| CallGraphBuilder | `cpg/callgraph_builder.py` | 跨文件调用图构建器，索引→导入解析→跨文件调用边 |
+| LanguageProvider | `cpg/languages/` | **策略模式可扩展架构**：添加新语言=1个文件+1行注册，核心零改动 |
+| types | `cpg/types.py` | 共享数据类（FunctionNode/ClassNode/ImportNode/CallEdge） |
+
+**LanguageProvider 可扩展架构**：每种语言实现一个 `LanguageProvider` 子类（14个抽象成员），注入到 Parser 和 SingleFileCallGraph。当前支持 Python/JavaScript/Java。添加 Go：只需新增 `languages/go.py` + 在 `__init__.py` 中注册一行。
 
 **关键性能数据**（LLMxCPG论文）：CPG精确切片后→LLM，F1 > 99%（Juliet数据集），对比全量代码→LLM的F1 ~40%。
 
