@@ -48,7 +48,7 @@ class Parser:
         imports = parser.extract_imports(tree)
 
         # Access the language provider:
-        prov = parser.get_provider(tree)
+        prov = parser.get_provider("python")
         print(prov.name)  # "python"
     """
 

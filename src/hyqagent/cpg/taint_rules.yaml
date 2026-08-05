@@ -132,6 +132,8 @@ python:
       - .is_authenticated
       - .has_permission(
       - .check_password(
+      - bcrypt.checkpw(
+      - werkzeug.security.check_password_hash(
 
   sanitizers:
     sql_injection:
@@ -168,6 +170,12 @@ python:
     deserialization:
       - yaml.safe_load(
       - json.loads(
+    code_injection:
+      - ast.literal_eval(
+      - isinstance(
+    open_redirect:
+      - urlparse(
+      - url_has_allowed_host_and_scheme(
 
 # ═══════════════════════════════════════════════════════════════════════════
 # JavaScript / TypeScript
@@ -222,6 +230,10 @@ javascript:
       - req.query
       - req.body
       - req.params
+    auth_bypass:
+      - req.cookies
+      - req.headers
+      - req.query
 
   sinks:
     sql_injection:
@@ -280,6 +292,10 @@ javascript:
       - vm.run(
       - vm.runInNewContext(
       - vm.runInThisContext(
+    auth_bypass:
+      - req.isAuthenticated(
+      - req.user
+      - req.session
 
   sanitizers:
     sql_injection:
@@ -308,6 +324,9 @@ javascript:
     path_traversal:
       - path.basename(
       - path.normalize(
+    auth_bypass:
+      - bcrypt.compare(
+      - jwt.verify(
     ssrf:
       - url.parse(
       - new URL(
@@ -369,6 +388,10 @@ java:
       - request.getParameter(
       - request.getHeader(
       - "@RequestParam"
+    auth_bypass:
+      - request.getCookies(
+      - request.getHeader("Authorization"
+      - "@RequestHeader"
 
   sinks:
     sql_injection:
@@ -426,6 +449,10 @@ java:
       - GroovyShell.evaluate(
       - GroovyShell.parse(
       - javax.script.ScriptEngine
+    auth_bypass:
+      - SecurityContext.getAuthentication(
+      - .isAuthenticated(
+      - .hasRole(
 
   sanitizers:
     sql_injection:
@@ -452,6 +479,9 @@ java:
       - Path.normalize(
       - Path.toAbsolutePath(
       - FilenameUtils.getName(
+    auth_bypass:
+      - BCryptPasswordEncoder
+      - PasswordEncoder.matches(
     ssrf:
       - new URI(
       - URLValidator

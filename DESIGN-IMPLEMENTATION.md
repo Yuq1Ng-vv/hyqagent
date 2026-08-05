@@ -4,7 +4,7 @@
 >
 > **用途**：作为后续开发和维护测试的可执行蓝图。
 >
-> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.6，CPG 模块已实现 ~5,300 行代码、372 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析、CPG 图构建与查询、YAML 污点规则、五种框架提取器。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
+> **当前状态**：Phase 1 (CPG Foundation) ✅ 完成。Sessions 1.1-1.12 全部完成，CPG 模块已实现 ~5,300 行代码、372 个 pytest、0 已知 bug，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析、CPG 图构建与查询、YAML 污点规则（9类别×3语言）、五种框架提取器。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
 
 ---
 
@@ -37,7 +37,7 @@ hyqagent/
 │   │   │   ├── python.py      #    PythonAdapter
 │   │   │   ├── javascript.py  #    JavaScriptAdapter
 │   │   │   └── java.py        #    JavaAdapter
-│   │   ├── data_flow.py       # ✅ 数据流分析 — def-use chain + 跨函数追踪 + BFS 污点传播
+│   │   ├── dataflow.py       # ✅ 数据流分析 — def-use chain + 跨函数追踪 + BFS 污点传播
 │   │   ├── graph.py           # ✅ CPG图构建器 — NetworkX MultiDiGraph (AST/CALLS/DATA_FLOW)
 │   │   ├── query.py           # ✅ CPG查询接口 — find_path/sources/sinks/call_chain/slice_path
 │   │   ├── taint_rules.yaml   # ✅ 污点规则 — Python/JS/Java × 9 种漏洞类别
@@ -79,7 +79,7 @@ hyqagent/
 │       ├── json_report.py
 │       ├── markdown_report.py
 │       └── sarif_report.py
-├── tests/                     # ✅ 镜像src/结构，361个测试
+├── tests/                     # ✅ 镜像src/结构，372个测试
 │   ├── test_cpg/              # CPG模块测试（parser/traversal/callgraph/callgraph_builder/dataflow）
 │   ├── test_scanner/
 │   ├── test_models/
@@ -312,16 +312,18 @@ class SingleFileCallGraph:
     """单文件调用图。支持 Python/JS/Java 三种语言。
     通过 LanguageProvider 委托语言特定的调用提取。"""
     def __init__(self, parser: Parser): ...
-    def build(self, file_path: str) -> SingleFileCallGraph: ...
+    def build_from_file(self, file_path: str) -> None: ...
+    def build_from_tree(self, tree: Tree, language: str, file_path: str = "") -> None: ...
     
     # 查询接口
-    def get_callees(self, func_id: str) -> list[str]: ...
-    def get_callers(self, func_id: str) -> list[str]: ...
+    def get_callees(self, func_name: str) -> list[CallEdge]: ...
+    def get_callers(self, func_name: str) -> list[CallEdge]: ...
     def has_edge(self, caller: str, callee: str) -> bool: ...
     
     # 属性
-    functions: dict[str, FunctionNode]   # 文件中所有函数
-    calls: list[CallEdge]                # 已解析的调用边
+    edges: list[CallEdge]                # 所有调用边
+    resolved_edges: list[CallEdge]       # 已解析的调用边（本地函数）
+    function_names: set[str]             # 文件中定义的函数名
     unresolved: list[UnresolvedCall]     # 未解析调用（供跨文件使用）
 ```
 
@@ -356,22 +358,22 @@ class CallGraphBuilder:
 ```python
 class Traverser:
     """基于 tree-sitter TreeCursor 的 AST 遍历器。"""
-    def __init__(self, tree: Tree, language: str): ...
+    def __init__(self, tree: Tree): ...
     
-    # 遍历模式
-    def traverse_pre_order(self) -> Iterator[Node]: ...    # DFS 前序遍历
-    def traverse_post_order(self) -> Iterator[Node]: ...   # DFS 后序遍历
-    def traverse_subtree(self, root: Node) -> Iterator[Node]: ...  # 子树遍历
+    # 统一遍历方法（替代文档初版的三独立方法）
+    def traverse(self, node_types: set[str] | None = None,
+                 order: Order = Order.PRE, named_only: bool = False,
+                 root: Node | None = None) -> Iterator[Node]: ...
     
-    # 过滤选项
-    named_only: bool           # 仅具名节点（跳过标点/括号等）
-    node_types: set[str] | None  # 按节点类型过滤
-    
-    # 导航工具
-    def get_children(self, node: Node) -> list[Node]: ...
-    def get_parent(self, node: Node) -> Node | None: ...
-    def get_ancestors(self, node: Node) -> list[Node]: ...
-    def ancestor_of_type(self, node: Node, *types: str) -> Node | None: ...
+    # 导航工具（静态方法）
+    @staticmethod
+    def get_children(node: Node) -> list[Node]: ...
+    @staticmethod
+    def get_parent(node: Node) -> Node | None: ...
+    @staticmethod
+    def get_ancestors(node: Node) -> list[Node]: ...
+    @staticmethod
+    def ancestor_of_type(node: Node, *types: str) -> Node | None: ...
     
     # 搜索工具
     def find_first(self, node_type: str) -> Node | None: ...
@@ -389,10 +391,15 @@ class Traverser:
 ```python
 class DataFlowBuilder:
     """def-use chain分析 + 跨函数数据流追踪 + 基础污点传播。"""
-    def __init__(self, call_graph: CallGraphBuilder): ...
-    def build_def_use_chains(self, func_id: str) -> list[DefUsePair]: ...
-    def trace_cross_function(self, var_name: str, from_func: str, to_func: str) -> list[DataFlowStep]: ...
-    def propagate_taint(self, source_node: Node, max_depth: int = 10) -> list[TaintPath]: ...
+    def __init__(self, parser: Parser, call_graph: CallGraphBuilder | None = None): ...
+    def build_def_use_chains(self, tree: Tree, func_node: Node,
+                              language: str, file_path: str = "") -> list[DefUsePair]: ...
+    def trace_cross_function(self, var_name: str, from_func: str,
+                              to_func: str, file_path: str = "") -> list[DataFlowStep]: ...
+    def propagate_taint(self, source_pattern: str = "", sink_pattern: str = "",
+                         max_depth: int = 10) -> list[TaintPath]: ...
+    def set_taint_config(self, sources: list[str], sinks: list[str],
+                          sanitizers: list[str] | None = None) -> None: ...
 ```
 
 **已知局限**: Joern Lambda数据流断裂（已知bug，不在roadmap）。CPG内Lambda引用外部变量时数据流丢失。详见 `IMPLEMENTATION-GUIDE.md` 第2.1节。
@@ -405,14 +412,17 @@ class DataFlowBuilder:
 
 ```python
 class BaseFrameworkExtractor(ABC):
-    """框架提取器基类。新框架只需继承并实现extract_routes。"""
+    """框架提取器基类。新框架只需继承并实现三个抽象成员。"""
+    @property
+    @abstractmethod
+    def framework_name(self) -> str: ...
+    @abstractmethod
+    def detect(self, file_path: str) -> bool: ...
     @abstractmethod
     def extract_routes(self, file_path: str) -> list[HttpEndpoint]: ...
-    """返回: [{route, methods, handler_func, params, decorators}]"""
-    @abstractmethod
-    def extract_auth_requirements(self, endpoint: HttpEndpoint) -> AuthInfo: ...
 
 # 具体实现: FlaskExtractor, DjangoExtractor, FastAPIExtractor, ExpressExtractor, SpringExtractor
+# extract_auth_requirements (AuthInfo) 为 Phase 2 规划功能，Phase 1 通过 endpoint.auth_required 布尔值覆盖
 ```
 
 **扩展方式**: 实现`BaseFrameworkExtractor`，注册到`FRAMEWORK_EXTRACTORS`字典。每个提取器是纯确定性的（tree-sitter或正则即可），详见 `PLAN.md` 第3.4节。
@@ -453,13 +463,15 @@ sanitizers:
 class CPGQuery:
     """CPG上层查询接口。底层可切换Joern/tree-sitter+NetworkX后端。"""
     def __init__(self, graph: nx.MultiDiGraph): ...
-    def find_path(self, source_node: str, sink_node: str) -> list[Path]: ...
-    def find_sources(self, sink_node: str) -> list[Node]: ...
-    def find_sinks(self, source_node: str) -> list[Node]: ...
-    def get_sanitizers(self, path: Path) -> list[Node]: ...
-    def get_call_chain(self, func_a: str, func_b: str) -> Path | None: ...
-    def slice_path(self, path: Path, context_lines: int = 3) -> str: ...
-    """提取路径上关键节点的代码片段（仅相关行！不是整个函数）"""
+    def find_path(self, source_pattern: str, sink_pattern: str,
+                   max_depth: int = 20) -> list[GraphPath]: ...
+    def find_sources(self, sink_pattern: str, max_depth: int = 15) -> list[GraphNode]: ...
+    def find_sinks(self, source_pattern: str, max_depth: int = 15) -> list[GraphNode]: ...
+    def get_call_chain(self, func_a: str, func_b: str) -> GraphPath | None: ...
+    def get_sanitizers(self, path: GraphPath,
+                        taint_loader: object | None = None) -> list[str]: ...
+    def slice_path(self, path: GraphPath, context_lines: int = 3) -> str: ...
+    """渲染路径的人类可读摘要（完整的 context_lines 切片功能待 Phase 2）"""
 ```
 
 **依赖**: `networkx.MultiDiGraph`（由builder.py构建后注入）
@@ -1028,7 +1040,7 @@ class SignalHandler:
 **测试要点**:
 - `test_cpg/test_parser.py`: 验证tree-sitter解析正确性（已知fixture代码样本）
 - `test_cpg/test_call_graph.py`: 验证跨文件调用边正确性
-- `test_cpg/test_data_flow.py`: 验证source→sink数据流路径完整性
+- `test_cpg/test_dataflow.py`: 验证source→sink数据流路径完整性
 - `test_scanner/test_deterministic.py`: 验证Phase 1各规则产出正确（mock CPGQuery）
 - `test_session/test_belief.py`: 验证贝叶斯更新数学正确性
 - `test_models/test_router.py`: 验证路由决策矩阵逻辑
@@ -1194,7 +1206,7 @@ CLI (api/cli.py)
 6. ✅ `cpg/traversal.py` — AST 遍历器（Session 1.3）
 7. ✅ `cpg/callgraph.py` — 单文件调用图（Session 1.4, 1.5 重构）
 8. ✅ `cpg/callgraph_builder.py` — 跨文件调用图（Session 1.5）
-9. ✅ `cpg/data_flow.py` — 数据流+污点追踪（依赖 callgraph，Session 1.6）
+9. ✅ `cpg/dataflow.py` — 数据流+污点追踪（依赖 callgraph，Session 1.6）
 10. 📋 `cpg/frameworks/flask.py` — 框架提取器（依赖 parser，Session 1.8）
 11. ✅ `cpg/query.py` + `cpg/graph.py` — CPG 图构建 + 查询接口（Session 1.7）
 12. 📋 `scanner/deterministic.py` — 确定性扫描（依赖 query）
