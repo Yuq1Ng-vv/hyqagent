@@ -257,6 +257,4 @@ class Traverser:
     @staticmethod
     def _accept(node: Node, node_types: set[str] | None, named_only: bool) -> bool:
         """Return True if *node* passes the filter criteria."""
-        return (not named_only or node.is_named) and (
-            node_types is None or node.type in node_types
-        )
+        return (not named_only or node.is_named) and (node_types is None or node.type in node_types)

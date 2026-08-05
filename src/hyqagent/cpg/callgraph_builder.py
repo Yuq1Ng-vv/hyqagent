@@ -1,0 +1,280 @@
+"""cpg/callgraph_builder.py — Cross-file call graph builder.
+
+Extends :class:`SingleFileCallGraph` to span multiple files.  Parses an
+entire project directory, resolves imports between files, and produces
+cross-file caller→callee edges.
+
+See DESIGN-IMPLEMENTATION.md Section 2.2 for the interface specification.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import ClassVar
+
+from hyqagent.cpg.callgraph import CallEdge, SingleFileCallGraph
+from hyqagent.cpg.languages import detect_by_extension
+from hyqagent.cpg.parser import Parser
+
+
+class CallGraphBuilder:
+    """Build a cross-file call graph for a project.
+
+    Usage::
+
+        parser = Parser()
+        builder = CallGraphBuilder(parser)
+        builder.add_directory("./myapp")
+        builder.resolve_imports()
+        cross_edges = builder.build_calls()
+
+        for edge in cross_edges:
+            print(f"[{edge.file_path}] {edge.caller} -> {edge.callee}")
+    """
+
+    # Extensions we know how to parse (populated from provider registry)
+    _KNOWN_EXTS: ClassVar[set[str]]
+
+    def __init__(self, parser: Parser) -> None:
+        self._parser = parser
+        self._graphs: dict[str, SingleFileCallGraph] = {}
+        self._imports: dict[str, list[_ResolvedImport]] = {}
+        self._all_functions: dict[str, str] = {}  # func_name → file_path
+        self._file_funcs: dict[str, set[str]] = {}  # file_path → {func_names}
+
+    # ── File management ─────────────────────────────────────────────────
+
+    def add_file(self, file_path: str | Path) -> None:
+        """Parse a single file and index its functions and imports.
+
+        Raises:
+            FileNotFoundError: If *file_path* does not exist.
+            ValueError: If the file's language is unsupported.
+
+        """
+        path = str(Path(file_path).resolve())
+        if path in self._graphs:
+            return
+
+        cg = SingleFileCallGraph(self._parser)
+        cg.build_from_file(path)
+        self._graphs[path] = cg
+
+        # Index functions: which file defines each function
+        self._file_funcs[path] = cg.function_names
+        for name in cg.function_names:
+            # First definition wins (arbitrary but deterministic)
+            if name not in self._all_functions:
+                self._all_functions[name] = path
+
+        # Extract imports for later resolution
+        tree = self._parser.parse_file(path)
+        language = self._parser.get_language(tree)
+        imports = self._parser.extract_imports(tree, language)
+        self._imports[path] = [
+            _ResolvedImport(
+                module=imp.module,
+                names=imp.names,
+                is_relative=imp.is_relative,
+                file_path=path,
+            )
+            for imp in imports
+        ]
+
+    def add_directory(self, dir_path: str | Path) -> None:
+        """Recursively add all source files in *dir_path*.
+
+        Only files whose extension matches a registered language provider
+        are included.  Hidden directories and ``__pycache__`` are skipped.
+        """
+        root = Path(dir_path).resolve()
+        for entry in sorted(root.rglob("*")):
+            if not entry.is_file():
+                continue
+            # Skip hidden dirs and __pycache__
+            if any(p.startswith(".") or p == "__pycache__" for p in entry.parts):
+                continue
+            lang = detect_by_extension(str(entry))
+            if lang is not None:
+                self.add_file(str(entry))
+
+    # ── Import resolution ───────────────────────────────────────────────
+
+    def resolve_imports(self) -> dict[str, str]:
+        """Resolve imports across all added files.
+
+        Returns a mapping ``{qualified_name: file_path}`` for all
+        successfully-resolved imports.  Currently handles:
+
+        * **Relative imports** (``from .module import X``) — resolved
+          relative to the importing file's directory.
+        * **Direct name matches** (``from mymodule import X`` where
+          ``mymodule.py`` exists in the project).
+
+        Third-party and standard-library imports are left unresolved.
+
+        """
+        resolved: dict[str, str] = {}
+
+        for file_path, imp_list in self._imports.items():
+            base_dir = str(Path(file_path).parent)
+
+            for imp in imp_list:
+                if not imp.module:
+                    continue
+
+                target = self._resolve_module_path(imp.module, base_dir)
+                if target is not None and target in self._graphs:
+                    # Map each imported name to the target file
+                    for name in imp.names:
+                        if name == "*":
+                            # Wildcard — resolve all exports from target
+                            continue
+                        qualified = f"{imp.module}.{name}"
+                        resolved[qualified] = target
+                        # Also register bare name for direct import style
+                        resolved[name] = target
+
+                    # Also resolve the module itself
+                    resolved[imp.module] = target
+
+        return resolved
+
+    # ── Cross-file call resolution ──────────────────────────────────────
+
+    def build_calls(self) -> list[CallEdge]:
+        """Build cross-file call edges.
+
+        For each file's unresolved calls, checks whether the callee is
+        defined in another file that the caller imports.  Returns a flat
+        list of all cross-file resolved call edges.
+
+        """
+        resolved_imports = self.resolve_imports()
+        cross_edges: list[CallEdge] = []
+
+        for file_path, cg in self._graphs.items():
+            imports_for_file = self._imports.get(file_path, [])
+            imported_modules = {imp.module for imp in imports_for_file}
+
+            for uc in cg.unresolved:
+                callee = uc.callee
+
+                # Check if callee is defined in another indexed file
+                if callee not in self._all_functions:
+                    continue
+                target_file = self._all_functions[callee]
+                if target_file == file_path:
+                    continue  # already resolved as intra-file
+
+                # Check if there's an import path to the target file
+                if not self._is_reachable(
+                    file_path, target_file, imported_modules, resolved_imports
+                ):
+                    continue
+
+                cross_edges.append(
+                    CallEdge(
+                        caller=uc.caller,
+                        callee=callee,
+                        call_line=uc.call_line,
+                        full_expression=uc.full_expression,
+                        is_resolved=True,
+                        is_method_call=uc.is_method_call,
+                        file_path=file_path,
+                    )
+                )
+
+        return cross_edges
+
+    # ── Query helpers ───────────────────────────────────────────────────
+
+    @property
+    def files(self) -> set[str]:
+        """All file paths currently indexed."""
+        return set(self._graphs.keys())
+
+    @property
+    def all_functions(self) -> dict[str, list[str]]:
+        """Mapping ``{file_path: [function_names]}`` for all indexed files."""
+        return {fp: sorted(fns) for fp, fns in self._file_funcs.items()}
+
+    def find_definition(self, func_name: str) -> str | None:
+        """Return the file path where *func_name* is defined, or None."""
+        return self._all_functions.get(func_name)
+
+    # ── Internal helpers ────────────────────────────────────────────────
+
+    @staticmethod
+    def _resolve_module_path(module: str, base_dir: str) -> str | None:
+        """Convert a Python module name to a file path.
+
+        ``".utils"`` → ``base_dir/../utils.py``
+        ``"app.models"`` → ``root/app/models.py``
+        """
+        if module.startswith("."):
+            # Relative import: count leading dots
+            dots = len(module) - len(module.lstrip("."))
+            rest = module.lstrip(".")
+            parent = Path(base_dir)
+            for _ in range(dots - 1):
+                parent = parent.parent
+            if rest:
+                target = parent / (rest.replace(".", "/") + ".py")
+            else:
+                # Single-dot: `from . import X` — module is current package
+                target = parent / "__init__.py"
+            return str(target.resolve())
+        else:
+            # Absolute import: try common root patterns
+            # Simple case: module.py exists relative to some project root
+            parts = module.split(".")
+            # Walk up from base_dir looking for the module
+            current = Path(base_dir)
+            while current != current.parent:
+                candidate = current / (str(Path(*parts)) + ".py")
+                if candidate.exists():
+                    return str(candidate.resolve())
+                # Also try package/__init__.py
+                candidate_init = current / str(Path(*parts)) / "__init__.py"
+                if candidate_init.exists():
+                    return str(candidate_init.resolve())
+                current = current.parent
+            return None
+
+    @staticmethod
+    def _is_reachable(
+        caller_file: str,
+        target_file: str,
+        imported_modules: set[str],
+        resolved_imports: dict[str, str],
+    ) -> bool:
+        """Check if *caller_file* can reach *target_file* via imports."""
+        # Direct resolution: check if any resolved import points to target
+        for qualified, resolved_path in resolved_imports.items():
+            if resolved_path == target_file:
+                # Check if the caller imports some part of this module
+                for mod in imported_modules:
+                    if qualified.startswith(mod) or mod == qualified:
+                        return True
+        return False
+
+
+# ─── Internal data type ──────────────────────────────────────────────────
+
+class _ResolvedImport:
+    """Internal: a single import statement, resolved to a file path."""
+
+    __slots__ = ("file_path", "is_relative", "module", "names")
+
+    def __init__(
+        self,
+        module: str,
+        names: list[str],
+        is_relative: bool,
+        file_path: str,
+    ) -> None:
+        self.module = module
+        self.names = names
+        self.is_relative = is_relative
+        self.file_path = file_path

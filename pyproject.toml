@@ -90,7 +90,9 @@ ignore = [
 known-first-party = ["hyqagent"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D101", "D102", "D103", "D104", "S101"]  # Docstrings + assert are normal in pytest tests
+"tests/**/*.py" = ["D101", "D102", "D103", "D104", "S101"]  # Docstrings + assert normal in tests
+"tests/test_cpg/fixtures/*.py" = ["D100", "D101", "D102", "D103", "D104", "D400", "D401", "D415", "F401", "F403", "F821", "I001", "S101", "S108", "UP045"]  # Fixtures are parsed (not executed) — many names intentionally undefined
+"src/hyqagent/cpg/languages/*.py" = ["D102"]  # ABC overrides — docstrings on base class
 
 [tool.ruff.format]
 quote-style = "double"
@@ -110,12 +112,13 @@ disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --strict-markers"
+addopts = "-v --tb=short --strict-markers --benchmark-disable"
 markers = [
     "unit: 单元测试 (deterministic, fast)",
     "integration: 集成测试 (may use mocks)",
     "eval: Eval测试 (probabilistic, slow)",
     "slow: 慢速测试，跳过pre-commit",
+    "benchmark: 性能基准测试，默认跳过 (手动运行: pytest --benchmark-only)",
 ]
 
 [tool.coverage.run]
@@ -129,4 +132,9 @@ exclude_also = [
     "raise NotImplementedError",
     "class .*\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-benchmark>=5.2.3",
 ]
