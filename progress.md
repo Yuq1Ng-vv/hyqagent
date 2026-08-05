@@ -45,8 +45,12 @@
   - DataFlowBuilder 类: `build_def_use_chains()` 函数内 def-use、`trace_cross_function()` 跨函数追踪、`propagate_taint()` 基础污点传播
   - 新增 4 个 dataclass: DefUsePair/DataFlowStep/TaintPath/TaintConfig
   - 269 个 pytest 测试全部通过，ruff/mypy 零错误
-- [ ] Session 1.7 — CPG 查询接口 (cpg/query.py)
-- [ ] Session 1.8 — Flask 框架提取器
+- [x] **Session 1.7** — CPG 图构建 + 查询接口 + Taint 规则 (cpg/graph.py + query.py + 33 tests)
+  - CPGGraphBuilder: NetworkX MultiDiGraph 统一索引 AST/CALLS/DATA_FLOW
+  - CPGQuery: find_path/find_sources/find_sinks/get_call_chain/slice_path
+  - taint_rules.yaml: Python/JS/Java 三种语言 × 9 种漏洞类别完整规则
+  - 302 个 pytest 测试全部通过，ruff 零错误
+- [ ] Session 1.8 — 框架提取器 (Flask/Django/FastAPI/Express/Spring)
 - [ ] Session 1.9 — 端到端 CPG 测试（用已知 CVE 项目验证）
 - [ ] Session 1.10-1.12 — 边界情况修复
 
@@ -77,19 +81,20 @@
 ## 当前阻塞
 - 无
 
-> 上次更新: Session 1.6 完成后 (2026-08-05)
+> 上次更新: Session 1.7 完成后 (2026-08-05)
 
 ## 当前状态
-- **269 个测试**，ruff/mypy 零错误
-- **14 个源模块**，~3,200 行
-- **下一个**: Session 1.7 — CPG 查询接口
+- **302 个测试**，ruff 零错误
+- **16 个源模块**，~3,800 行
+- **下一个**: Session 1.8 — 框架提取器
 
 ## 下次 Session 目标
-- **Session 1.7**: 实现 CPG 查询接口 `cpg/query.py`
-  - `find_path(source, sink)` / `find_sources(sink)` / `find_sinks(source)` / `slice_path()`
-  - 将 DefUsePair + TaintPath 索引到查询接口
-  - Taint 配置从 Python dict 迁移到 `taint_rules.yaml`
-  - 产出标准: `CPGQuery` 类支持 5 种查询 + YAML 驱动污点规则
+- **Session 1.8**: 实现框架提取器 `cpg/frameworks/`
+  - BaseFrameworkExtractor 抽象基类
+  - Flask/Django/FastAPI/Express/Spring 五种框架提取器
+  - HTTP_ROUTE 边接入 CPG 图
+  - TaintRuleLoader: 从 taint_rules.yaml 读取规则驱动分析
+  - 产出标准: 提取器能准确识别每种框架的路由/参数/认证装饰器
 
 ## 文档索引
 

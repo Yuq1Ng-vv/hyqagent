@@ -136,5 +136,7 @@ exclude_also = [
 
 [dependency-groups]
 dev = [
+    "mypy>=2.3.0",
     "pytest-benchmark>=5.2.3",
+    "ruff>=0.16.1",
 ]

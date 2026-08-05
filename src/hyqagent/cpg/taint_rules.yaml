@@ -1,0 +1,439 @@
+# taint_rules.yaml — Taint source / sink / sanitizer patterns
+#
+# Each language section defines patterns matched against AST node source
+# text.  Grouped by vulnerability category for clarity.  Patterns use
+# substring matching — no regex.
+#
+# Vulnerability categories:
+#   sql_injection, command_injection, xss, path_traversal,
+#   ssrf, deserialization, open_redirect, code_injection, auth_bypass
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Python
+# ═══════════════════════════════════════════════════════════════════════════
+
+python:
+  sources:
+    # HTTP request input vectors
+    sql_injection:
+      - request.args.get
+      - request.args[
+      - request.form.get
+      - request.form[
+      - request.json.get
+      - request.json[
+      - request.get_json(
+      - request.data
+      - request.values.get
+      - request.cookies.get
+      - request.headers.get
+    command_injection:
+      - request.args.get
+      - request.form.get
+      - request.json.get
+      - sys.argv
+      - os.environ
+    xss:
+      - request.args.get
+      - request.form.get
+      - request.json.get
+      - request.data
+    path_traversal:
+      - request.args.get
+      - request.form.get
+      - request.files
+      - os.environ
+    ssrf:
+      - request.args.get
+      - request.form.get
+      - request.json.get
+    deserialization:
+      - request.data
+      - request.get_data(
+      - request.json
+      - pickle.loads
+      - yaml.load
+    open_redirect:
+      - request.args.get
+      - request.args[
+      - request.headers.get
+    code_injection:
+      - request.args.get
+      - request.form.get
+      - request.json.get
+    auth_bypass:
+      - request.args.get
+      - request.cookies.get
+      - request.headers.get
+
+  sinks:
+    sql_injection:
+      - .execute(
+      - .executemany(
+      - .executescript(
+      - .raw(
+      - .extra(
+      - cursor.execute
+      - session.execute
+      - connection.execute
+      - .raw_query
+      - RawSQL(
+    command_injection:
+      - os.system(
+      - os.popen(
+      - subprocess.call(
+      - subprocess.Popen(
+      - subprocess.run(
+      - subprocess.check_output(
+      - subprocess.getoutput(
+      - os.exec
+      - commands.getoutput(
+      - eval(
+      - exec(
+    xss:
+      - Markup(
+      - render_template
+      - Response(
+      - .html
+      - jinja2.Template
+    path_traversal:
+      - open(
+      - os.path.join
+      - pathlib.Path(
+      - send_file(
+      - send_from_directory(
+    ssrf:
+      - requests.get(
+      - requests.post(
+      - httpx.get(
+      - httpx.post(
+      - urllib.request.urlopen(
+      - urlopen(
+    deserialization:
+      - pickle.loads(
+      - pickle.load(
+      - yaml.load(
+      - yaml.full_load(
+      - marshal.loads(
+      - dill.loads(
+      - joblib.load(
+      - torch.load(
+    open_redirect:
+      - redirect(
+      - url_for(
+      - HttpResponseRedirect(
+    code_injection:
+      - eval(
+      - exec(
+      - compile(
+      - __import__(
+      - importlib.import_module(
+    auth_bypass:
+      - .is_authenticated
+      - .has_permission(
+      - .check_password(
+
+  sanitizers:
+    sql_injection:
+      - int(
+      - float(
+      - re.escape(
+      - .filter(
+      - .filter_by(
+      - .parametrize(
+      - .bindparams(
+      - .escape(
+      - bleach.clean(
+      - django.utils.html.escape
+      - markupsafe.escape
+    command_injection:
+      - shlex.quote(
+      - shlex.split(
+      - pipes.quote(
+    xss:
+      - escape(
+      - bleach.clean(
+      - django.utils.html.escape
+      - markupsafe.escape
+      - jinja2.escape
+      - html.escape(
+    path_traversal:
+      - os.path.basename(
+      - os.path.realpath(
+      - os.path.abspath(
+      - sanitize_filename(
+    ssrf:
+      - urlparse(
+      - urllib.parse.urlparse(
+    deserialization:
+      - yaml.safe_load(
+      - json.loads(
+
+# ═══════════════════════════════════════════════════════════════════════════
+# JavaScript / TypeScript
+# ═══════════════════════════════════════════════════════════════════════════
+
+javascript:
+  sources:
+    sql_injection:
+      - req.query
+      - req.body
+      - req.params
+      - req.cookies
+      - req.headers
+      - request.query
+      - request.body
+      - request.params
+      - .query.
+      - .params.
+      - location.search
+      - URLSearchParams
+    command_injection:
+      - req.query
+      - req.body
+      - req.params
+      - process.argv
+      - process.env
+    xss:
+      - req.query
+      - req.body
+      - req.params
+      - .innerHTML
+      - document.URL
+      - location.href
+      - location.hash
+    path_traversal:
+      - req.query
+      - req.params
+      - req.body
+      - req.files
+    ssrf:
+      - req.query
+      - req.body
+      - req.params
+    deserialization:
+      - req.body
+      - JSON.parse
+      - .serialize(
+    open_redirect:
+      - req.query
+      - req.params
+    code_injection:
+      - req.query
+      - req.body
+      - req.params
+
+  sinks:
+    sql_injection:
+      - .query(
+      - .execute(
+      - .raw(
+      - .sequelize.query(
+      - knex.raw(
+      - .createQueryBuilder(
+    command_injection:
+      - child_process.exec(
+      - child_process.spawn(
+      - child_process.execFile(
+      - child_process.fork(
+      - exec(
+      - spawn(
+      - eval(
+    xss:
+      - .innerHTML =
+      - document.write(
+      - .outerHTML =
+      - insertAdjacentHTML(
+      - dangerouslySetInnerHTML
+      - React.createElement(
+      - res.send(
+    path_traversal:
+      - fs.readFile(
+      - fs.readFileSync(
+      - fs.createReadStream(
+      - path.join(
+      - path.resolve(
+      - res.sendFile(
+      - res.download(
+    ssrf:
+      - fetch(
+      - axios.get(
+      - axios.post(
+      - request(
+      - http.get(
+      - https.get(
+      - node-fetch
+      - got(
+    deserialization:
+      - eval(
+      - new Function(
+      - vm.runInNewContext(
+      - vm.run(
+      - serialize.unserialize(
+    open_redirect:
+      - res.redirect(
+      - window.location =
+      - location.replace(
+    code_injection:
+      - eval(
+      - new Function(
+      - vm.run(
+      - vm.runInNewContext(
+      - vm.runInThisContext(
+
+  sanitizers:
+    sql_injection:
+      - parseInt(
+      - parseFloat(
+      - Number(
+      - String(
+      - .escape(
+      - .bind(
+      - validator.escape(
+      - sanitize(
+      - escape(
+      - encodeURI(
+      - encodeURIComponent(
+    command_injection:
+      - shellescape(
+      - String(
+    xss:
+      - escape(
+      - encodeURI(
+      - encodeURIComponent(
+      - DOMPurify.sanitize(
+      - validator.escape(
+      - sanitizeHtml(
+      - escapeHtml(
+    path_traversal:
+      - path.basename(
+      - path.normalize(
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Java
+# ═══════════════════════════════════════════════════════════════════════════
+
+java:
+  sources:
+    sql_injection:
+      - request.getParameter(
+      - request.getParameterValues(
+      - request.getQueryString(
+      - request.getHeader(
+      - request.getCookies(
+      - @RequestParam
+      - @PathVariable
+      - @RequestBody
+      - @RequestHeader
+      - @CookieValue
+    command_injection:
+      - request.getParameter(
+      - request.getHeader(
+      - System.getenv(
+      - System.getProperty(
+    xss:
+      - request.getParameter(
+      - request.getParameterValues(
+      - request.getHeader(
+      - @RequestParam
+    path_traversal:
+      - request.getParameter(
+      - request.getHeader(
+      - @RequestParam
+    ssrf:
+      - request.getParameter(
+      - request.getHeader(
+      - @RequestParam
+    deserialization:
+      - request.getInputStream(
+      - request.getReader(
+      - @RequestBody
+      - ObjectInputStream
+    open_redirect:
+      - request.getParameter(
+      - request.getHeader(
+    code_injection:
+      - request.getParameter(
+      - request.getHeader(
+      - @RequestParam
+
+  sinks:
+    sql_injection:
+      - .executeQuery(
+      - .executeUpdate(
+      - .execute(
+      - Statement.
+      - PreparedStatement.
+      - createNativeQuery(
+      - createQuery(
+      - .createSQLQuery(
+      - jdbcTemplate.query(
+      - jdbcTemplate.update(
+      - jdbcTemplate.execute(
+      - EntityManager.createNativeQuery(
+    command_injection:
+      - Runtime.exec(
+      - Runtime.getRuntime().exec(
+      - ProcessBuilder(
+      - .start(
+    xss:
+      - response.getWriter(
+      - .print(
+      - .println(
+      - response.setHeader(
+      - response.addHeader(
+    path_traversal:
+      - new FileInputStream(
+      - new FileReader(
+      - new File(
+      - Files.read(
+      - Files.newInputStream(
+      - Paths.get(
+    ssrf:
+      - new URL(
+      - URL.openConnection(
+      - HttpClient.send(
+      - HttpURLConnection
+      - RestTemplate.
+      - WebClient.
+    deserialization:
+      - ObjectInputStream.readObject(
+      - new ObjectInputStream(
+      - XMLDecoder(
+      - SnakeYAML.load(
+      - Jackson ObjectMapper.readValue(
+      - Gson.fromJson(
+    open_redirect:
+      - response.sendRedirect(
+      - response.setHeader("Location"
+      - ModelAndView("redirect:"
+      - "redirect:"
+    code_injection:
+      - ScriptEngine.eval(
+      - GroovyShell.evaluate(
+      - GroovyShell.parse(
+      - javax.script.ScriptEngine
+
+  sanitizers:
+    sql_injection:
+      - PreparedStatement
+      - setString(
+      - setInt(
+      - setLong(
+      - setBoolean(
+      - .setParameter(
+      - StringEscapeUtils.escapeSql(
+      - ESAPI.encoder(
+    command_injection:
+      - ProcessBuilder(
+    xss:
+      - StringEscapeUtils.escapeHtml4(
+      - ESAPI.encoder(
+      - ESAPI.validator(
+      - HtmlUtils.htmlEscape(
+      - Jsoup.clean(
+      - encodeForHTML(
+    path_traversal:
+      - Path.normalize(
+      - Path.toAbsolutePath(
+      - FilenameUtils.getName(
