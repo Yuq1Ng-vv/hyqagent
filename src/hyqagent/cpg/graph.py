@@ -138,8 +138,6 @@ class CPGGraphBuilder:
             # If resolved locally: call site → callee function
             if edge.is_resolved:
                 callee_fid = func_nodes.get(edge.callee)
-                if callee_fid is None:
-                    callee_fid = func_nodes.get(edge.callee)
                 if callee_fid:
                     self.graph.add_edge(cid, callee_fid, edge_type=EDGE_CALLS)
 
@@ -210,7 +208,7 @@ class CPGGraphBuilder:
         # Add each file's local information to the graph
         import contextlib
         for file_path in sorted(self._call_graph_builder.files):
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError, FileNotFoundError):
                 self.add_file(file_path)
 
         # Add cross-file CALLS edges

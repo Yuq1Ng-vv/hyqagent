@@ -150,8 +150,6 @@ class FastAPIExtractor(BaseFrameworkExtractor):
         if params_node is None:
             return params
 
-        provider.extract_parameters(func_node)  # verify available
-
         for child in params_node.children:
             if child.type in (
                     "identifier", "typed_parameter",

@@ -127,9 +127,9 @@ class CPGQuery:
             if ntype in (NODE_SOURCE, NODE_ASSIGNMENT):
                 source_nodes.append(self._to_graph_node(node_id, node_data))
 
-            # Reverse: follow predecessors
+            # Reverse: follow predecessors (DATA_FLOW + CALLS edges only)
             for pred in self._graph.predecessors(node_id):
-                if pred not in visited:
+                if pred not in visited and self._has_valid_edge(pred, node_id):
                     queue.append((pred, depth + 1))
 
         return source_nodes
@@ -155,9 +155,9 @@ class CPGQuery:
             if ntype == NODE_SINK:
                 sink_nodes.append(self._to_graph_node(node_id, node_data))
 
-            # Forward: follow successors
+            # Forward: follow successors (DATA_FLOW + CALLS edges only)
             for succ in self._graph.successors(node_id):
-                if succ not in visited:
+                if succ not in visited and self._has_valid_edge(node_id, succ):
                     queue.append((succ, depth + 1))
 
         return sink_nodes
@@ -246,6 +246,16 @@ class CPGQuery:
         return sanitizers
 
     # ── Internal helpers ─────────────────────────────────────────────────
+
+    def _has_valid_edge(self, u: str, v: str) -> bool:
+        """Return True if there is a DATA_FLOW or CALLS edge from *u* to *v*."""
+        edge_data = self._graph.get_edge_data(u, v)
+        if not edge_data:
+            return False
+        return any(
+            d.get("edge_type") in {EDGE_DATA_FLOW, EDGE_CALLS}
+            for d in edge_data.values()
+        )
 
     def _find_nodes(self, pattern: str, max_results: int = 200) -> list[str]:
         """Find node ids where *pattern* appears in any attribute value.

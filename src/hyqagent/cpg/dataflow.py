@@ -239,11 +239,7 @@ class DataFlowBuilder:
             break  # First positional parameter
 
         # Trace parameter through callee body
-        callee_ts_node = (
-            self._fn_to_node(callee_node, callee_tree)
-            if hasattr(self, '_fn_to_node')
-            else None
-        )
+        callee_ts_node = self._fn_to_node(callee_node, callee_tree)
         if callee_ts_node is not None:
             def_use = self.build_def_use_chains(
                 callee_tree,

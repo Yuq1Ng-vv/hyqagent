@@ -156,10 +156,18 @@ class DjangoExtractor(BaseFrameworkExtractor):
     # ── View analysis ───────────────────────────────────────────────────
 
     def _find_source_lines(self, tree, fn) -> list[str]:
-        """Scan function body for Django-specific taint sources."""
+        """Scan the target function body for Django-specific taint sources."""
         lines: list[str] = []
+        provider = self._parser.get_provider(self._parser.get_language(tree))
         for node in Traverser(tree).traverse():
             if node.type in ("function_definition", "decorated_definition"):
+                name = provider.extract_function_name(
+                    node if node.type == "function_definition"
+                    else next((c for c in node.children
+                               if c.type == "function_definition"), node)
+                )
+                if name != fn.name:
+                    continue
                 text = self._source(node)
                 for pat in _DJANGO_SOURCE_PATTERNS:
                     if pat in text:

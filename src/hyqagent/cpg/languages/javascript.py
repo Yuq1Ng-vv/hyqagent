@@ -268,6 +268,7 @@ class JavaScriptAdapter(LanguageProvider):
         return {
             "function_declaration",
             "method_definition",
+            "arrow_function",
         }
 
     def extract_callee_info(self, node: Node) -> tuple[str, str, bool] | None:
