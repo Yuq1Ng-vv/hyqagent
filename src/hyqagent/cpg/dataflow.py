@@ -341,8 +341,31 @@ class DataFlowBuilder:
                     src_node, encl_func, du_map.get(encl_func, []), tree, provider
                 )
                 if tainted_var is None:
-                    # Source itself is the tainted expression
-                    tainted_var = src_text
+                    # Inline source (no intermediate variable): check if the
+                    # source expression itself hits a sink.  This handles
+                    # patterns like os.system(request.args.get("cmd")).
+                    for sink_node in sinks:
+                        if self._node_in_range(src_node, sink_node) or _source(
+                            sink_node
+                        ) in src_text:
+                            paths.append(
+                                TaintPath(
+                                    source=src_text,
+                                    sink=_source(sink_node),
+                                    variable=src_text,
+                                    steps=[
+                                        DataFlowStep(
+                                            location=_loc(src_node, file_path),
+                                            expression=src_text,
+                                            enclosing_function=encl_func,
+                                            kind="call_arg",
+                                        )
+                                    ],
+                                    sanitized=False,
+                                )
+                            )
+                            break
+                    continue
 
                 # BFS from this source
                 path = self._bfs_taint(
@@ -448,14 +471,26 @@ class DataFlowBuilder:
         src_node: Node,
         sinks: list[Node],
         du_map: dict[str, list[DefUsePair]],
-        provider: LanguageProvider,
+        provider: "LanguageProvider",
         file_path: str,
         language: str,
         max_depth: int,
         src_text: str,
     ) -> TaintPath | None:
         """BFS from *var_name* through assignments and calls to find a sink."""
-        visited: set[tuple[str, str]] = set()  # (var, location)
+        # Pre-compute sink locations for O(1) lookup
+        sink_locations: set[str] = {_loc(s, file_path) for s in sinks}
+
+        # Build a map from location → DefUsePair for quick sanitizer checking
+        def_map: dict[str, DefUsePair] = {}
+        for chains in du_map.values():
+            for du in chains:
+                def_map[du.def_location] = du
+                for use_loc in du.use_locations:
+                    if use_loc not in def_map:
+                        def_map[use_loc] = du
+
+        visited: set[tuple[str, str]] = set()
         queue: deque[tuple[str, str, list[DataFlowStep], int]] = deque()
         start_loc = _loc(src_node, file_path)
         queue.append((var_name, start_loc, [], 0))
@@ -464,22 +499,32 @@ class DataFlowBuilder:
         sanitizers_found: list[str] = []
 
         while queue:
-            cur_var, _cur_loc, steps, depth = queue.popleft()
+            cur_var, cur_loc, steps, depth = queue.popleft()
             if depth > max_depth:
                 continue
 
-            # Check if we've hit a sink
-            for sink_node in sinks:
-                sink_text = _source(sink_node)
-                if cur_var in sink_text or sink_text in cur_var:
-                    return TaintPath(
-                        source=src_text,
-                        sink=sink_text,
-                        variable=var_name,
-                        steps=steps,
-                        sanitized=len(sanitizers_found) > 0,
-                        sanitizers=list(sanitizers_found),
-                    )
+            # Check if current location hits a sink
+            if cur_loc in sink_locations:
+                sink_text = ""
+                for s in sinks:
+                    if _loc(s, file_path) == cur_loc:
+                        sink_text = _source(s)[:120]
+                        break
+                return TaintPath(
+                    source=src_text,
+                    sink=sink_text,
+                    variable=var_name,
+                    steps=steps,
+                    sanitized=len(sanitizers_found) > 0,
+                    sanitizers=list(sanitizers_found),
+                )
+
+            # Check sanitizers against the current def-use expression
+            du_entry = def_map.get(cur_loc)
+            if du_entry and du_entry.def_expression:
+                for sanitizer in self._taint_config.sanitizers:
+                    if sanitizer in du_entry.def_expression:
+                        sanitizers_found.append(sanitizer)
 
             # Follow the variable through def-use chains
             for func_name, chains in du_map.items():
@@ -497,11 +542,6 @@ class DataFlowBuilder:
                                 kind="assignment",
                             )]
                             queue.append((cur_var, use_loc, new_steps, depth + 1))
-
-            # Check for sanitizers
-            for sanitizer in self._taint_config.sanitizers:
-                if sanitizer in cur_var:
-                    sanitizers_found.append(sanitizer)
 
         return None
 
