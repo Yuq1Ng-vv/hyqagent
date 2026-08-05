@@ -49,7 +49,7 @@ class SpringExtractor(BaseFrameworkExtractor):
         path = str(Path(file_path).resolve())
         try:
             tree = self._parser.parse_file(path)
-        except Exception:
+        except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
         return any(ann in source for ann in _SPRING_METHOD_ANNOTATIONS) and (
@@ -140,7 +140,7 @@ class SpringExtractor(BaseFrameworkExtractor):
                 name = child.child_by_field_name("name")
                 if name and self._source(name) == "value":
                     val = child.child_by_field_name("value")
-                    if val and hasattr(val, 'type') and val.type in ("string_literal", "string"):
+                    if val is not None and hasattr(val, 'type') and val.type in ("string_literal", "string"):
                         return self._source(val).strip("\"'")
         return None
 

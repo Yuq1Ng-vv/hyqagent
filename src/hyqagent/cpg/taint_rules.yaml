@@ -140,8 +140,8 @@ python:
       - re.escape(
       - .filter(
       - .filter_by(
-      - .parametrize(
-      - .bindparams(
+      - .params(
+      - .bindparam(
       - .escape(
       - bleach.clean(
       - django.utils.html.escape

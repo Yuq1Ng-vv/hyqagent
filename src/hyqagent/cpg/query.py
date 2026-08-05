@@ -226,12 +226,17 @@ class CPGQuery:
 
     # ── Internal helpers ─────────────────────────────────────────────────
 
-    def _find_nodes(self, pattern: str) -> list[str]:
-        """Find node ids where *pattern* appears in any attribute value."""
+    def _find_nodes(self, pattern: str, max_results: int = 200) -> list[str]:
+        """Find node ids where *pattern* appears in any attribute value.
+
+        Stops early after *max_results* to prevent O(n) blowup on large graphs.
+        """
         if not pattern:
             return []
         matches: list[str] = []
         for nid, data in self._graph.nodes(data=True):
+            if len(matches) >= max_results:
+                break
             for val in data.values():
                 if isinstance(val, str) and pattern in val:
                     matches.append(nid)
@@ -273,9 +278,7 @@ class CPGQuery:
                     continue
                 # Filter by edge type
                 edge_data = self._graph.get_edge_data(cur, succ)
-                if edge_data is None:
-                    continue
-                # MultiDiGraph: edge_data is a dict keyed by edge index
+                # MultiDiGraph: edge_data is a dict keyed by edge index (never None)
                 valid = False
                 etype = ""
                 for _key, ed in edge_data.items():

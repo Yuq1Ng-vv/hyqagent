@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from tree_sitter import Node, Tree
 
-from hyqagent.cpg.traversal import Traverser
+from hyqagent.cpg.traversal import Traverser, _loc, _source
 
 if TYPE_CHECKING:
     from hyqagent.cpg.callgraph_builder import CallGraphBuilder
@@ -28,17 +28,8 @@ from hyqagent.cpg.types import DataFlowStep, DefUsePair, TaintConfig, TaintPath
 # ─── Helper: location string ───────────────────────────────────────────────
 
 
-def _loc(node: Node, file_path: str = "") -> str:
-    """Return a ``"file:line"`` location string for *node*."""
-    line = node.start_point[0] + 1
-    if file_path:
-        return f"{file_path}:{line}"
-    return f"<string>:{line}"
 
 
-def _source(node: Node) -> str:
-    """Decode *node* text safely."""
-    return node.text.decode("utf-8") if node.text else ""
 
 
 # ─── Core class ────────────────────────────────────────────────────────────
@@ -245,12 +236,20 @@ class DataFlowBuilder:
             break  # First positional parameter
 
         # Trace parameter through callee body
-        def_use = self.build_def_use_chains(
-            callee_tree,
-            callee_node._node if hasattr(callee_node, '_node') else callee_node,  # type: ignore[arg-type]
-            callee_lang,
-            target_file,
+        callee_ts_node = (
+            self._fn_to_node(callee_node, callee_tree)
+            if hasattr(self, '_fn_to_node')
+            else None
         )
+        if callee_ts_node is not None:
+            def_use = self.build_def_use_chains(
+                callee_tree,
+                callee_ts_node,
+                callee_lang,
+                target_file,
+            )
+        else:
+            return steps
 
         for du in def_use:
             # Find def-use for the matched parameter
@@ -264,9 +263,7 @@ class DataFlowBuilder:
                             kind="assignment",
                         )
                     )
-                # If the parameter is returned
-                for _node in Traverser(callee_tree).traverse():
-                    pass  # Complex return tracking — simplified for now
+                # TODO: Complex return tracking — trace return value back to caller
 
         return steps
 

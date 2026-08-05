@@ -258,3 +258,16 @@ class Traverser:
     def _accept(node: Node, node_types: set[str] | None, named_only: bool) -> bool:
         """Return True if *node* passes the filter criteria."""
         return (not named_only or node.is_named) and (node_types is None or node.type in node_types)
+
+
+# ─── Shared helpers (used by multiple CPG modules) ───────────────────────
+
+def _source(node: Node) -> str:
+    """Decode a tree-sitter node's text safely.  Shared across all CPG modules."""
+    return node.text.decode("utf-8") if node.text else ""
+
+
+def _loc(node: Node, file_path: str = "") -> str:
+    """Return a ``"file:line"`` location string for *node*."""
+    line = node.start_point[0] + 1
+    return f"{file_path}:{line}" if file_path else f"<string>:{line}"

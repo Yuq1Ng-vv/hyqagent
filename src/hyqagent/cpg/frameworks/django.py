@@ -50,7 +50,7 @@ class DjangoExtractor(BaseFrameworkExtractor):
         path = str(Path(file_path).resolve())
         try:
             tree = self._parser.parse_file(path)
-        except Exception:
+        except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
         return "django" in source.lower() and (
@@ -63,6 +63,10 @@ class DjangoExtractor(BaseFrameworkExtractor):
         language = self._parser.get_language(tree)
         provider = self._parser.get_provider(language)
         endpoints: list[HttpEndpoint] = []
+
+        # Lazily scan for URL configs on first call
+        if not self._url_configs:
+            self._scan_url_dir(str(Path(path).parent))
 
         # Detect URL config files
         if self._is_url_config(path):
@@ -128,6 +132,17 @@ class DjangoExtractor(BaseFrameworkExtractor):
             view = match.group(2)
             entries.append({"route": route, "view": view})
         return entries
+
+    def _scan_url_dir(self, dir_path: str) -> None:
+        """Scan directory for ``*urls*.py`` files and pre-parse URL configs."""
+        root = Path(dir_path)
+        for entry in sorted(root.rglob("*urls*.py")):
+            if entry.is_file():
+                try:
+                    t = self._parser.parse_file(str(entry))
+                    self._url_configs[str(entry)] = self._parse_url_config(t)
+                except Exception:
+                    pass
 
     def _find_route_for_view(self, func_name: str) -> dict | None:
         for _file_path, entries in self._url_configs.items():

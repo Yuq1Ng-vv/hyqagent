@@ -50,8 +50,11 @@ class TaintRuleLoader:
         self._load()
 
     def _load(self) -> None:
-        with open(self._path, encoding="utf-8") as fh:
-            self._data = yaml.safe_load(fh) or {}
+        try:
+            with open(self._path, encoding="utf-8") as fh:
+                self._data = yaml.safe_load(fh) or {}
+        except FileNotFoundError:
+            self._data = {}
 
     def rules_for(self, language: str) -> LanguageTaintRules:
         """Return all taint rules for *language*."""

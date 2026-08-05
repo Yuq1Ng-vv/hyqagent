@@ -108,7 +108,11 @@ class Parser:
             raise FileNotFoundError(f"File not found: {path}")
 
         language = self._detect_language(path)
-        return self._parse(path.read_text(encoding="utf-8"), language, str(path))
+        try:
+            code = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            code = path.read_text(encoding="latin-1")
+        return self._parse(code, language, str(path))
 
     def parse_code(self, code: str, language: str) -> Tree:
         """Parse source code given as a string.

@@ -1,4 +1,4 @@
-"""cpg/languages/java.java — Java language adapter.
+"""cpg/languages/java.py — Java language adapter.
 
 Implements :class:`LanguageProvider` for Java source code using the
 tree-sitter-java grammar.

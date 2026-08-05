@@ -53,17 +53,6 @@ def _uid(*parts: str) -> str:
     return ":".join(parts)
 
 
-def _loc(node, file_path: str = "") -> str:
-    """``"file:line"`` string."""
-    line = node.start_point[0] + 1
-    return f"{file_path}:{line}" if file_path else f"<string>:{line}"
-
-
-def _src(node) -> str:
-    """Decode node text."""
-    return node.text.decode("utf-8") if node.text else ""
-
-
 # ─── CPG Graph Builder ───────────────────────────────────────────────────────
 
 
@@ -149,6 +138,8 @@ class CPGGraphBuilder:
             # If resolved locally: call site → callee function
             if edge.is_resolved:
                 callee_fid = func_nodes.get(edge.callee)
+                if callee_fid is None:
+                    callee_fid = func_nodes.get(edge.callee)
                 if callee_fid:
                     self.graph.add_edge(cid, callee_fid, edge_type=EDGE_CALLS)
 
@@ -217,8 +208,10 @@ class CPGGraphBuilder:
         cross_edges = self._call_graph_builder.build_calls()
 
         # Add each file's local information to the graph
-        for file_path in self._call_graph_builder.files:
-            self.add_file(file_path)
+        import contextlib
+        for file_path in sorted(self._call_graph_builder.files):
+            with contextlib.suppress(Exception):
+                self.add_file(file_path)
 
         # Add cross-file CALLS edges
         for edge in cross_edges:
@@ -246,6 +239,9 @@ class CPGGraphBuilder:
                         is_resolved=True,
                         cross_file=True,
                     )
+                else:
+                    self.graph.nodes[cid]["is_resolved"] = True
+                    self.graph.nodes[cid]["cross_file"] = True
                 self.graph.add_edge(caller_fid, cid, edge_type=EDGE_CALLS)
                 self.graph.add_edge(cid, callee_fid, edge_type=EDGE_CALLS)
 

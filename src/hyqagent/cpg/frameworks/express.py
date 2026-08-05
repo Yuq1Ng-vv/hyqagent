@@ -45,7 +45,7 @@ class ExpressExtractor(BaseFrameworkExtractor):
         path = str(Path(file_path).resolve())
         try:
             tree = self._parser.parse_file(path)
-        except Exception:
+        except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
         has_require = "require('express')" in source or 'require("express")' in source

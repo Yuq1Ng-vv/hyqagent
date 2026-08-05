@@ -46,7 +46,7 @@ class FastAPIExtractor(BaseFrameworkExtractor):
         path = str(Path(file_path).resolve())
         try:
             tree = self._parser.parse_file(path)
-        except Exception:
+        except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
         return "fastapi" in source.lower() and "from fastapi" in source

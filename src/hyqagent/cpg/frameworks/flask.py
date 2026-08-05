@@ -59,7 +59,7 @@ class FlaskExtractor(BaseFrameworkExtractor):
         path = str(Path(file_path).resolve())
         try:
             tree = self._parser.parse_file(path)
-        except Exception:
+        except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
         # Must have both a Flask import AND actual Flask usage
@@ -153,13 +153,9 @@ class FlaskExtractor(BaseFrameworkExtractor):
             return None
 
         # Check the attribute is named 'route'
-        attr_text = self._source(func)
-        if not attr_text.endswith(".route"):
-            # Could be "app.route" or "bp.route" or "mod.route"
-            # Try alternate check: last named child is 'route'
-            named = [c for c in func.children if c.is_named]
-            if not named or self._source(named[-1]) != "route":
-                return None
+        named = [c for c in func.children if c.is_named]
+        if not named or self._source(named[-1]) != "route":
+            return None
 
         # Extract the route string (first argument)
         route_pattern = "/"
