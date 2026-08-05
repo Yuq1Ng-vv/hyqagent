@@ -4,7 +4,7 @@
 >
 > **用途**：作为后续开发和维护测试的可执行蓝图。
 >
-> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.5 + 基础加固，CPG 模块已实现 ~2,700 行代码、240 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
+> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.6，CPG 模块已实现 ~3,200 行代码、269 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析（def-use chain + 跨函数追踪 + BFS 污点传播）。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
 
 ---
 
@@ -37,7 +37,7 @@ hyqagent/
 │   │   │   ├── python.py      #    PythonAdapter
 │   │   │   ├── javascript.py  #    JavaScriptAdapter
 │   │   │   └── java.py        #    JavaAdapter
-│   │   ├── data_flow.py       # 📋 计划中 — 数据流+污点追踪（Session 1.6）
+│   │   ├── data_flow.py       # ✅ 数据流分析 — def-use chain + 跨函数追踪 + BFS 污点传播
 │   │   ├── query.py           # 📋 计划中 — CPG查询接口（Session 1.7）
 │   │   ├── taint_rules.yaml   # 📋 计划中 — Taint source/sink配置
 │   │   ├── sanitizers.yaml    # 📋 计划中 — Sanitizer函数配置
@@ -78,8 +78,8 @@ hyqagent/
 │       ├── json_report.py
 │       ├── markdown_report.py
 │       └── sarif_report.py
-├── tests/                     # ✅ 镜像src/结构，240个测试
-│   ├── test_cpg/              # CPG模块测试（parser/traversal/callgraph/callgraph_builder）
+├── tests/                     # ✅ 镜像src/结构，269个测试
+│   ├── test_cpg/              # CPG模块测试（parser/traversal/callgraph/callgraph_builder/dataflow）
 │   ├── test_scanner/
 │   ├── test_models/
 │   └── test_session/
@@ -379,9 +379,9 @@ class Traverser:
 
 **依赖**: `Parser`（注入）
 
-### 2.4 数据流图构建 📋 计划中
+### 2.4 数据流图构建 ✅ 已实现
 
-> ⏳ Session 1.6 目标
+> Session 1.6 完成。详见 `dev-docs/Session-1.6-数据流图构建.md`。
 
 **公开接口**:
 
@@ -1062,7 +1062,7 @@ class SignalHandler:
 3. ✅ LanguageProvider可扩展架构：策略模式重构，添加语言=1文件+1行注册（Session 1.5）
 4. ✅ 跨文件调用图：CallGraphBuilder，import解析+跨文件调用边（Session 1.5）
 5. ✅ 基础加固：边界测试+性能基线+契约验证，240 tests（Session 1.5后续）
-6. 📋 数据流图构建：def-use chain分析、跨函数数据流追踪、基础污点传播（Session 1.6）
+6. ✅ 数据流图构建：def-use chain分析、跨函数数据流追踪、BFS 污点传播（Session 1.6）
 7. 📋 框架提取器：Flask路由提取器 + 扩展接口（Session 1.8）
 8. 📋 Taint配置：taint_rules.yaml初版（Python+Flask 5种漏洞的source/sink）
 9. 📋 CPG查询接口：find_path, find_sources, find_sinks, get_sanitizers, slice_path（Session 1.7）
@@ -1166,7 +1166,7 @@ CLI (api/cli.py)
 | 共享类型 | `cpg/types.py` | `FunctionNode`, `ClassNode`, `ImportNode`, `CallEdge`, `UnresolvedCall` | 无 | ✅ |
 | 单文件调用图 | `cpg/callgraph.py` | `SingleFileCallGraph.build`, `get_callees/callers`, `has_edge` | `Parser` | ✅ |
 | 跨文件调用图 | `cpg/callgraph_builder.py` | `CallGraphBuilder.add_directory/file`, `resolve_imports`, `build_calls` | `Parser` | ✅ |
-| 数据流 | `cpg/data_flow.py` | `DataFlowBuilder.build_def_use_chains`, `trace_cross_function`, `propagate_taint` | `CallGraphBuilder` | 📋 |
+| 数据流分析 | `cpg/dataflow.py` | `DataFlowBuilder.build_def_use_chains`, `trace_cross_function`, `propagate_taint` | `Parser`, `CallGraphBuilder` | ✅ |
 | CPG查询 | `cpg/query.py` | `CPGQuery.find_path/sources/sinks/sanitizers/slice_path` | `nx.MultiDiGraph` | 📋 |
 | 确定性扫描 | `scanner/deterministic.py` | `scan_secrets/dangerous_calls/cpg_taint/missing_auth/config_issues` | `CPGQuery` | 📋 |
 | 攻击面映射 | `scanner/mapper.py` | `classify_endpoint`, `filter_high_priority` | `LlmProvider`, `CPGQuery` | 📋 |
@@ -1192,7 +1192,7 @@ CLI (api/cli.py)
 6. ✅ `cpg/traversal.py` — AST 遍历器（Session 1.3）
 7. ✅ `cpg/callgraph.py` — 单文件调用图（Session 1.4, 1.5 重构）
 8. ✅ `cpg/callgraph_builder.py` — 跨文件调用图（Session 1.5）
-9. 📋 `cpg/data_flow.py` — 数据流+污点追踪（依赖 callgraph，Session 1.6）
+9. ✅ `cpg/data_flow.py` — 数据流+污点追踪（依赖 callgraph，Session 1.6）
 10. 📋 `cpg/frameworks/flask.py` — 框架提取器（依赖 parser，Session 1.8）
 11. 📋 `cpg/query.py` — CPG 查询接口（依赖以上所有 CPG 组件，Session 1.7）
 12. 📋 `scanner/deterministic.py` — 确定性扫描（依赖 query）
