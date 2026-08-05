@@ -157,13 +157,13 @@ graph TB
     C --> K
 ```
 
-> **实现进度**（2026-08-05）：CPG Engine 的 Parser/Traverser/CallGraph/LanguageProvider/DataFlowBuilder/CPGGraphBuilder/CPGQuery 已实现（~5,200行，335 tests）。Core Runtime 的 protocols.py/state.py/events.py 已实现。其余模块（Scan Engine、Model Router、Context Manager、Infrastructure）为设计阶段，仅 `__init__.py` 骨架。详见 `progress.md`。
+> **实现进度**（2026-08-05）：CPG Engine 的 Parser/Traverser/CallGraph/LanguageProvider/DataFlowBuilder/CPGGraphBuilder/CPGQuery 已实现（~5,200行，361 tests）。Core Runtime 的 protocols.py/state.py/events.py 已实现。其余模块（Scan Engine、Model Router、Context Manager、Infrastructure）为设计阶段，仅 `__init__.py` 骨架。详见 `progress.md`。
 
 ### 3.2 模块划分
 
 | 模块 | 职责 | 核心组件 | 状态 |
 |:-----|:-----|:--------|:----|
-| **CPG Engine** | 代码属性图构建与查询 | ✅ tree-sitter多语言解析（Parser）、AST遍历器（Traverser）、LanguageProvider策略模式（`languages/`包）、单文件调用图（SingleFileCallGraph）、跨文件调用图（CallGraphBuilder）、数据流分析（DataFlowBuilder）、CPG图构建（CPGGraphBuilder + CPGQuery）、污点规则（taint_rules.yaml）、框架提取器（Flask/Django/FastAPI/Express/Spring）<br>📋 端到端测试（Flask/Django/FastAPI/Express/Spring） | 🔄 部分实现 |
+| **CPG Engine** ✅ Phase 1 完成 | 代码属性图构建与查询 | ✅ tree-sitter多语言解析（Parser）、AST遍历器（Traverser）、LanguageProvider策略模式（`languages/`包）、单文件调用图（SingleFileCallGraph）、跨文件调用图（CallGraphBuilder）、数据流分析（DataFlowBuilder）、CPG图构建（CPGGraphBuilder + CPGQuery）、污点规则（taint_rules.yaml）、框架提取器（Flask/Django/FastAPI/Express/Spring）<br>✅ 端到端集成验证（CWE-89/78/79/639 全链路通过）（Flask/Django/FastAPI/Express/Spring） | 🔄 部分实现 |
 | **Scan Engine** | 五阶段流水线执行 | Phase1确定性→Phase2攻击面映射→Phase3假设生成→Phase4验证→Phase5报告 | 📋 设计阶段 |
 | **Model Router** | 三级模型按任务类型路由 | cheap/mid/strong分级，预算自动降级，成本追踪 | 📋 设计阶段 |
 | **Session Manager** | 信念系统与假设生命周期 | SQLite持久化，贝叶斯置信度更新，状态机（proposed→confirmed/rejected） | 📋 设计阶段 |

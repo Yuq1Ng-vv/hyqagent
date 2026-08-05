@@ -461,10 +461,10 @@ Phase 1: CPG Foundation（代码属性图基础层）
   ✅ Session 1.8 — 框架提取器（五种框架一次到位）
      Flask/FastAPI/Django/Express/Spring，TaintRuleLoader
 
-  🔜 Session 1.9 — 端到端 CPG 测试          ← 下一步
+  🔜 Session 1.9 — 端到端 CPG 集成验证 ✅          ← 下一步
   ⬜ Session 1.7 — CPG 查询接口
   ⬜ Session 1.8 — Flask 框架提取器
-  ⬜ Session 1.9 — 端到端 CPG 测试
+  ⬜ Session 1.9 — 端到端 CPG 集成验证 ✅
   ⬜ Sessions 1.10-1.12 — 边界情况修复
 
 Phase 2: 确定性扫描器（未开始）
@@ -473,7 +473,7 @@ Phase 4: 长任务能力（未开始）
 Phase 5: 质量与发布（未开始）
 ```
 
-**质量门禁**：335 个 pytest 测试全部通过，ruff 零警告，mypy strict 模式零错误。
+**质量门禁**：361 个 pytest 测试全部通过，ruff 零警告，mypy strict 模式零错误。
 
 ---
 
