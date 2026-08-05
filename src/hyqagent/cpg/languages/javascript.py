@@ -293,3 +293,58 @@ class JavaScriptAdapter(LanguageProvider):
                 return (bare, full, True)
 
         return (full, full, False)
+
+    # ── Data flow ───────────────────────────────────────────────────────
+
+    @property
+    def assignment_types(self) -> set[str]:
+        return {
+            "assignment_expression",
+            "augmented_assignment_expression",
+            "variable_declarator",
+        }
+
+    def extract_assignment_target(self, node: Node) -> str | None:
+        """Extract variable name from JavaScript assignment."""
+        if node.type == "variable_declarator":
+            # let x = 1 → name field is the identifier
+            name_node = node.child_by_field_name("name")
+            if name_node is not None and name_node.type == "identifier":
+                return name_node.text.decode("utf-8") if name_node.text else None
+            # Destructuring: not a simple variable
+            return None
+
+        # assignment_expression / augmented_assignment_expression
+        left = node.child_by_field_name("left")
+        if left is None:
+            return None
+        if left.type == "identifier":
+            return left.text.decode("utf-8") if left.text else None
+        # Member expression / destructuring: not a simple variable
+        return None
+
+    def is_variable_identifier(self, node: Node) -> bool:
+        """Check whether an ``identifier`` node is a variable reference."""
+        if node.type != "identifier":
+            return False
+        parent = node.parent
+        if parent is None:
+            return False
+
+        # Function name in a call: foo(x) → "foo" is not a variable
+        if parent.type == "call_expression" and parent.child_by_field_name("function") is node:
+            return False
+
+        # Property name in member expression: obj.prop → "prop" is not a variable
+        if parent.type == "member_expression" and parent.child_by_field_name("property") is node:
+            return False
+
+        # Function / class definition name
+        return not (
+            parent.type in (
+                "function_declaration",
+                "class_declaration",
+                "method_definition",
+            )
+            and parent.child_by_field_name("name") is node
+        )

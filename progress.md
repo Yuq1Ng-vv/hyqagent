@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.5 完成后
+> 上次更新: Session 1.6 完成后
 
 ## Phase 1: CPG Foundation — 进行中
 - [x] **Session 1.1** — 项目骨架初始化 (commit: 4ba65f7)
@@ -40,7 +40,11 @@
   - `__post_init__` 拒绝空 name/无效行号；`get_provider` 统一 ValueError
   - `_languages` 缓存泄漏检测；`_validate()` Provider 契约检查
   - 240 个 pytest 测试全部通过，ruff/mypy 零错误
-- [ ] Session 1.6 — 数据流图构建
+- [x] **Session 1.6** — 数据流图构建 (cpg/dataflow.py + 29 tests)
+  - LanguageProvider 扩展: 新增 `assignment_types`/`extract_assignment_target`/`is_variable_identifier` 3 个抽象成员
+  - DataFlowBuilder 类: `build_def_use_chains()` 函数内 def-use、`trace_cross_function()` 跨函数追踪、`propagate_taint()` 基础污点传播
+  - 新增 4 个 dataclass: DefUsePair/DataFlowStep/TaintPath/TaintConfig
+  - 269 个 pytest 测试全部通过，ruff/mypy 零错误
 - [ ] Session 1.7 — CPG 查询接口 (cpg/query.py)
 - [ ] Session 1.8 — Flask 框架提取器
 - [ ] Session 1.9 — 端到端 CPG 测试（用已知 CVE 项目验证）
@@ -73,17 +77,19 @@
 ## 当前阻塞
 - 无
 
-> 上次更新: 基础加固完成后 (2026-08-05)
+> 上次更新: Session 1.6 完成后 (2026-08-05)
 
 ## 当前状态
-- **240 个测试**，ruff/mypy 零错误
-- **12 个源模块**，~2,500 行
-- **下一个**: Session 1.6 — 数据流图构建
+- **269 个测试**，ruff/mypy 零错误
+- **14 个源模块**，~3,200 行
+- **下一个**: Session 1.7 — CPG 查询接口
 
 ## 下次 Session 目标
-- **Session 1.6**: 实现数据流图构建 `cpg/dataflow.py`
-  - def-use chain 分析 + 跨函数数据流追踪 + 基础污点传播
-  - 产出标准: `DataFlowBuilder` 支持 `build_def_use_chains()` + `trace_cross_function()` + `propagate_taint()`
+- **Session 1.7**: 实现 CPG 查询接口 `cpg/query.py`
+  - `find_path(source, sink)` / `find_sources(sink)` / `find_sinks(source)` / `slice_path()`
+  - 将 DefUsePair + TaintPath 索引到查询接口
+  - Taint 配置从 Python dict 迁移到 `taint_rules.yaml`
+  - 产出标准: `CPGQuery` 类支持 5 种查询 + YAML 驱动污点规则
 
 ## 文档索引
 

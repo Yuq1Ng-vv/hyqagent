@@ -166,6 +166,43 @@ class LanguageProvider(ABC):
         """
         ...
 
+    # ── Data-flow helpers (dataflow.py delegates to these) ──────────────
+
+    @property
+    @abstractmethod
+    def assignment_types(self) -> set[str]:
+        """Set of tree-sitter node types that represent variable assignments.
+
+        Used by :class:`DataFlowBuilder` to locate definition sites within
+        a function body for def-use chain analysis.
+        """
+        ...
+
+    @abstractmethod
+    def extract_assignment_target(self, node: Node) -> str | None:
+        """Extract the variable name being assigned from an assignment node.
+
+        Returns ``None`` for complex / compound targets where the assigned
+        variable cannot be determined to a single name (e.g. ``obj.attr``
+        in Python).
+
+        Args:
+            node: An assignment node whose type is in :attr:`assignment_types`.
+
+        """
+        ...
+
+    @abstractmethod
+    def is_variable_identifier(self, node: Node) -> bool:
+        """Return ``True`` if *node* is a variable reference identifier.
+
+        Must return ``False`` for identifiers that are function names,
+        class names, attribute accesses, or other non-variable uses.
+
+        Used to locate *use* sites within a function body.
+        """
+        ...
+
     # ── Contract validation (debug-only) ────────────────────────────────
 
     def _validate(self) -> list[str]:
@@ -183,6 +220,8 @@ class LanguageProvider(ABC):
             issues.append(f"{type(self).__name__}.function_query must be a str")
         if not isinstance(self.func_def_types, set) or not self.func_def_types:
             issues.append(f"{type(self).__name__}.func_def_types must be a non-empty set")
+        if not isinstance(self.assignment_types, set) or not self.assignment_types:
+            issues.append(f"{type(self).__name__}.assignment_types must be a non-empty set")
         return issues
 
     # ── Convenience: tree-sitter Language / Parser construction ─────────

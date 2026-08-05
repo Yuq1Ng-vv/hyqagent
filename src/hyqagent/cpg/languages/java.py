@@ -240,3 +240,73 @@ class JavaAdapter(LanguageProvider):
         full = node.text.decode("utf-8") if node.text else ""
         obj_node = node.child_by_field_name("object")
         return (bare, full, obj_node is not None)
+
+    # ── Data flow ───────────────────────────────────────────────────────
+
+    @property
+    def assignment_types(self) -> set[str]:
+        return {
+            "assignment_expression",
+            "local_variable_declaration",
+            "enhanced_for_statement",
+        }
+
+    def extract_assignment_target(self, node: Node) -> str | None:
+        """Extract variable name from Java assignment / declaration."""
+        if node.type == "local_variable_declaration":
+            # int x = 1; → declarator → name field
+            for child in node.children:
+                if child.type == "variable_declarator":
+                    name_node = child.child_by_field_name("name")
+                    if name_node is not None and name_node.type == "identifier":
+                        return name_node.text.decode("utf-8") if name_node.text else None
+            return None
+
+        if node.type == "enhanced_for_statement":
+            # for (String s : list) → find the variable declarator
+            for child in node.children:
+                if child.type == "identifier" and child.is_named:
+                    return child.text.decode("utf-8") if child.text else None
+            return None
+
+        # assignment_expression: x = 1;
+        left = node.child_by_field_name("left")
+        if left is None:
+            # Try first named child
+            named = [c for c in node.children if c.is_named]
+            if named and named[0].type == "identifier":
+                return named[0].text.decode("utf-8") if named[0].text else None
+            return None
+        if left.type == "identifier":
+            return left.text.decode("utf-8") if left.text else None
+        # Field access / array access: not a simple variable
+        return None
+
+    def is_variable_identifier(self, node: Node) -> bool:
+        """Check whether an ``identifier`` node is a variable reference."""
+        if node.type != "identifier":
+            return False
+        parent = node.parent
+        if parent is None:
+            return False
+
+        # Method name in an invocation: foo.bar() → "bar" is method, not variable
+        if parent.type == "method_invocation" and parent.child_by_field_name("name") is node:
+            return False
+
+        # Field access: obj.field
+        if parent.type == "field_access":
+            # Last named child is the field name
+            named = [c for c in parent.children if c.is_named]
+            if named and named[-1] is node:
+                return False
+
+        # Method / class declaration name
+        return not (
+            parent.type in (
+                "method_declaration",
+                "class_declaration",
+                "constructor_declaration",
+            )
+            and parent.child_by_field_name("name") is node
+        )

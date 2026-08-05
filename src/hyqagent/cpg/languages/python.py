@@ -344,3 +344,82 @@ class PythonAdapter(LanguageProvider):
 
         # Catch-all for nested calls like ``foo()()``
         return (full, full, False)
+
+    # ── Data flow ───────────────────────────────────────────────────────
+
+    @property
+    def assignment_types(self) -> set[str]:
+        return {"assignment", "augmented_assignment", "named_expression"}
+
+    def extract_assignment_target(self, node: Node) -> str | None:
+        """Extract variable name from Python assignment LHS.
+
+        Handles ``x = ...``, ``x += ...``, ``x := ...``, and simple
+        single-target patterns.  Returns ``None`` for multi-target
+        assignments (``a, b = ...``) and complex targets.
+        """
+        if node.type == "named_expression":
+            # walrus: name := value → find the identifier on the left
+            for child in node.children:
+                if child.type == "identifier" and child.is_named:
+                    return child.text.decode("utf-8") if child.text else None
+            return None
+
+        # assignment / augmented_assignment: left child is the target
+        left = node.child_by_field_name("left")
+        if left is None:
+            # Try first named child
+            named = [c for c in node.children if c.is_named]
+            if named:
+                left = named[0]
+
+        if left is None:
+            return None
+
+        if left.type == "identifier":
+            return left.text.decode("utf-8") if left.text else None
+
+        # Multi-target / tuple-unpacking: too complex for single name
+        if left.type in ("pattern_list", "tuple_pattern"):
+            return None
+
+        # Subscript / attribute: e.g. obj.attr = ... → not a simple variable
+        if left.type in ("attribute", "subscript"):
+            return None
+
+        return None
+
+    def is_variable_identifier(self, node: Node) -> bool:
+        """Check whether an ``identifier`` node is a variable reference.
+
+        Returns ``False`` for:
+        * Function names in call expressions (the ``print`` in ``print(x)``)
+        * Attribute names (the ``attr`` in ``obj.attr``)
+        * Definition names (function / class names)
+        """
+        if node.type != "identifier":
+            return False
+        parent = node.parent
+        if parent is None:
+            return False
+
+        # Function name in a call: print(x) → "print" is not a variable
+        if parent.type == "call" and parent.child_by_field_name("function") is node:
+            return False
+
+        # Attribute name: obj.attr → "attr" is not a variable reference
+        if parent.type == "attribute":
+            # The last named child of an attribute is the attribute name
+            named = [c for c in parent.children if c.is_named]
+            if named and named[-1] is node:
+                return False
+
+        # Function / class definition name
+        return not (
+            parent.type in (
+                "function_definition",
+                "class_definition",
+                "decorated_definition",
+            )
+            and parent.child_by_field_name("name") is node
+        )
