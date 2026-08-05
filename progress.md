@@ -55,8 +55,11 @@
   - Flask/FastAPI/Django/Express/Spring 五种框架完整实现
   - TaintRuleLoader: YAML→结构化规则加载器（match_source/sink/rules_for）
   - 335 个 pytest 测试全部通过，ruff 零错误
-- [ ] Session 1.9 — 端到端 CPG 测试（用已知 CVE 项目验证）
-- [ ] Session 1.10-1.12 — 边界情况修复
+- [x] **Session 1.9** — 端到端 CPG 集成验证（26 tests）
+  - 微型漏洞 Flask 应用：CWE-89/78/79/639 四种真实漏洞
+  - 5 层 26 个集成测试：Parser→CallGraph→DataFlow→Graph→Frameworks→Query→TaintLoader 全链路
+  - 361 个 pytest 测试全部通过，ruff 零错误
+- [ ] Session 1.10-1.12 — 边界情况修复（可选）
 
 ## Phase 2-5: 待开始
 
@@ -85,18 +88,19 @@
 ## 当前阻塞
 - 无
 
-> 上次更新: Session 1.8 完成后 (2026-08-05)
+> 上次更新: Session 1.9 完成后 (2026-08-05)
+
+## Phase 1: CPG Foundation — ✅ 完成
 
 ## 当前状态
-- **335 个测试**，ruff 零错误
+- **361 个测试**，ruff 零错误
 - **22 个源模块**，~5,200 行
-- **下一个**: Session 1.9 — 端到端 CPG 测试
+- **Phase 1 完成**。下一个: Phase 2 — Scanner
 
-## 下次 Session 目标
-- **Session 1.9**: 端到端 CPG 测试
-  - 用已知 CVE 项目验证完整 CPG 链路
-  - 框架提取器 → CPG 图 → 查询接口 全链路集成
-  - 验证 source→sink 路径发现的正确性
+## Phase 2 规划
+- **Session 2.x**: 确定性扫描器
+  - 规则引擎 + CPG 污点追踪 + 配置检测
+  - 产出 `hyqagent scan --quick` 可用版本
 
 ## 文档索引
 
