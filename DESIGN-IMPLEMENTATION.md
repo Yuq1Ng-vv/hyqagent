@@ -4,7 +4,7 @@
 >
 > **用途**：作为后续开发和维护测试的可执行蓝图。
 >
-> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.6，CPG 模块已实现 ~3,800 行代码、302 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析、CPG 图构建（NetworkX）与查询接口、YAML 污点规则。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
+> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.6，CPG 模块已实现 ~5,200 行代码、335 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析、CPG 图构建与查询、YAML 污点规则、五种框架提取器。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
 
 ---
 
@@ -42,7 +42,7 @@ hyqagent/
 │   │   ├── query.py           # ✅ CPG查询接口 — find_path/sources/sinks/call_chain/slice_path
 │   │   ├── taint_rules.yaml   # ✅ 污点规则 — Python/JS/Java × 9 种漏洞类别
 │   │   ├── sanitizers.yaml    # 📋 计划中 — Sanitizer函数配置
-│   │   └── frameworks/        # 📋 计划中 — 框架特定提取器（flask.py等，Session 1.8）
+│   │   └── frameworks/        # ✅ 框架提取器 — Flask/Django/FastAPI/Express/Spring + TaintRuleLoader
 │   ├── scanner/               # 📋 设计阶段 — 扫描引擎（详见PLAN.md 第四章）
 │   │   ├── orchestrator.py    # 扫描流水线编排
 │   │   ├── deterministic.py   # Phase 1: 确定性规则
@@ -79,7 +79,7 @@ hyqagent/
 │       ├── json_report.py
 │       ├── markdown_report.py
 │       └── sarif_report.py
-├── tests/                     # ✅ 镜像src/结构，302个测试
+├── tests/                     # ✅ 镜像src/结构，335个测试
 │   ├── test_cpg/              # CPG模块测试（parser/traversal/callgraph/callgraph_builder/dataflow）
 │   ├── test_scanner/
 │   ├── test_models/
@@ -1064,7 +1064,7 @@ class SignalHandler:
 4. ✅ 跨文件调用图：CallGraphBuilder，import解析+跨文件调用边（Session 1.5）
 5. ✅ 基础加固：边界测试+性能基线+契约验证，240 tests（Session 1.5后续）
 6. ✅ 数据流图构建：def-use chain分析、跨函数数据流追踪、BFS 污点传播（Session 1.6）
-7. 📋 框架提取器：Flask路由提取器 + 扩展接口（Session 1.8）
+7. ✅ 框架提取器：Flask/Django/FastAPI/Express/Spring 五种框架（Session 1.8）
 8. 📋 Taint配置：taint_rules.yaml初版（Python+Flask 5种漏洞的source/sink）
 9. ✅ CPG查询接口 + CPG图构建 + YAML污点规则（Session 1.7）
 10. 📋 端到端CPG测试：用已知CVE项目验证（Session 1.9）
