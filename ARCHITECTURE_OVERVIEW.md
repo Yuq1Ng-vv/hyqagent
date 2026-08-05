@@ -456,32 +456,55 @@ hyqagent report <session-id> --format sarif
 
 ---
 
-## 8. 未来规划与可扩展方向
+## 8. 当前进度与后续规划
 
-### 8.1 短期迭代目标（MVP阶段，7周）
+### 8.1 当前进度（2026-08-05）
 
-| 周 | 阶段 | 验证目标 |
-|:--|:-----|:--------|
-| 1-2 | Baseline | Bandit+Semgrep跑10个已知CVE项目，建立TP/FP基准 |
-| 3-4 | CPG-only | Joern生成CPG，写3-5个CPGQL查询，验证CPG是否比AST模式匹配FP更低 |
-| 5-6 | CPG+LLM | CPG切片→LLM分类，验证LLM是否能显著提升precision |
-| 7 | 三方对比报告 | 决定是否继续投入LLM |
+**CPG Engine — 已完成**（Session 1.1-1.7，16 个模块，~3,800 行，302 tests）
 
-MVP范围：Python一种语言、5种漏洞类型（命令注入/SQL注入/反序列化/路径遍历/硬编码密钥）、Flask一种框架。
+| 组件 | 说明 | 语言支持 |
+|------|------|---------|
+| Parser + Traverser | tree-sitter 多语言解析 + AST 遍历 | Python/JS/Java |
+| LanguageProvider | 策略模式可扩展架构 | Python/JS/Java |
+| SingleFileCallGraph | 单文件调用图 | Python/JS/Java |
+| CallGraphBuilder | 跨文件调用图 + 导入解析 | Python/JS/Java |
+| DataFlowBuilder | def-use + 跨函数追踪 + BFS 污点传播 | Python/JS/Java |
+| CPGGraphBuilder | NetworkX MultiDiGraph 统一索引 | Python/JS/Java |
+| CPGQuery | 图查询接口（find_path/sources/sinks 等） | Python/JS/Java |
+| taint_rules.yaml | 9 种漏洞类别 × 3 语言的 source/sink/sanitizer | Python/JS/Java |
 
-### 8.2 中期目标（Phase 2，15-20周）
+**Core Runtime — 基础完成**
 
-- 七种盲区缓解方案全面部署（反向CPG+盲扫LLM+Completeness Critic+饱和扫描+差异覆盖+对抗性审查+架构感知）
-- 多语言扩展（JavaScript/Java）
-- 沙箱PoC验证（L6）集成
-- Eval基准构建（50-100个真实Web漏洞回归集）
+| 组件 | 说明 |
+|------|------|
+| protocols.py | 6 个核心抽象协议 |
+| state.py | AgentState + AuditState |
+| events.py | 12 种 ESAA 事件类型 |
+
+**其余模块 — 待实现**
+
+Scanner / Model Router / Session Manager / Context Manager / CLI / Report 均为空壳（`__init__.py`）。
+
+### 8.2 后续 Session 规划
+
+每个模块一次性做到最终版，支持 Python/JS/Java 三种语言，不分 MVP→扩展两阶段：
+
+| Session | 模块 | 核心产出 |
+|---------|------|---------|
+| 1.8 | 框架提取器 | Flask/Django/FastAPI/Express/Spring 五种框架的路由/参数/认证提取，HTTP_ROUTE 边接入 CPG 图 |
+| 1.9 | 端到端 CPG 测试 | 用已知 CVE 项目验证 CPG 链路完整性 |
+| 2.x | Scanner | 五阶段扫描流水线（确定性→攻击面映射→假设生成→验证→报告） |
+| 3.x | Models | 三级模型路由 + 预算管理 + Provider 适配器 |
+| 4.x | Session + Memory | SQLite 信念系统 + 三区段上下文 + 检查点 |
+| 5.x | CLI + Report | 命令行入口 + JSON/Markdown/SARIF 报告 |
+| 6.x | Observability | OTel + LangFuse + Prometheus + 审计链 |
 
 ### 8.3 长期演进
 
-- **阶段性多Agent引入**：第一个ROI为正的增量是一个独立的Critic/Verifier Agent（不同模型家族），审查主Agent发现
-- **交互式审查模式**：人类专家可在Agent运行过程中注入问题/重定向分析
-- **持续学习闭环**：生产FP/FN反馈 → 自动规则调整 → A/B测试验证
-- **CI/CD深度集成**：GitHub App/CLI插件，PR自动安全Review
+- **阶段性多Agent引入**：第一个 ROI 为正的增量是一个独立的 Critic/Verifier Agent（不同模型家族），审查主 Agent 发现
+- **交互式审查模式**：人类专家可在 Agent 运行过程中注入问题/重定向分析
+- **持续学习闭环**：生产 FP/FN 反馈 → 自动规则调整 → A/B 测试验证
+- **CI/CD 深度集成**：GitHub App/CLI 插件，PR 自动安全 Review
 
 ---
 
