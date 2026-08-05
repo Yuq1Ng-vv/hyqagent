@@ -59,7 +59,16 @@
   - 微型漏洞 Flask 应用：CWE-89/78/79/639 四种真实漏洞
   - 5 层 26 个集成测试：Parser→CallGraph→DataFlow→Graph→Frameworks→Query→TaintLoader 全链路
   - 361 个 pytest 测试全部通过，ruff 零错误
-- [ ] Session 1.10-1.12 — 边界情况修复（可选）
+- [x] **Session 1.10** — Bug 清零 + 代码去重 + 错误处理补强（12 bugs fixed）
+  - trace_cross_function 类型修复, 跨文件边 is_resolved, YAML sanitizer 拼写
+  - _source/_loc 去重到 traversal.py, detect() narrow except, 懒加载 URL config
+- [x] **Session 1.11** — 性能优化（5 perf fixes）
+  - def-use O(n*m)→O(n+m) 单 pass, callgraph_builder 单次解析
+  - _fn_to_node 缓存索引, find_path 多源 BFS 共享 visited
+  - get_sanitizers 支持 TaintRuleLoader, 消除硬编码列表
+- [x] **Session 1.12** — 测试 + YAML + 文档收尾（+11 tests）
+  - Django/FastAPI/Java def-use 测试补齐, cross-function/taint_loader 集成测试
+  - JS/Java YAML sanitizer 补全, __init__.py re-exports
 
 ## Phase 2-5: 待开始
 
@@ -88,13 +97,14 @@
 ## 当前阻塞
 - 无
 
-> 上次更新: Session 1.9 完成后 (2026-08-05)
+> 上次更新: Sessions 1.10-1.12 完成后 (2026-08-05)
 
-## Phase 1: CPG Foundation — ✅ 完成
+## Phase 1: CPG Foundation — ✅ 完成并优化
 
 ## 当前状态
-- **361 个测试**，ruff 零错误
-- **22 个源模块**，~5,200 行
+- **372 个测试**，ruff 零错误，0 已知 bug
+- **22 个源模块**，~5,300 行
+- **3 种语言** (Python/JS/Java)，**5 种框架** (Flask/Django/FastAPI/Express/Spring)
 - **Phase 1 完成**。下一个: Phase 2 — Scanner
 
 ## Phase 2 规划
