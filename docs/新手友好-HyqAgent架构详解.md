@@ -233,8 +233,9 @@ src/hyqagent/
 │   │   ├── javascript.py          ←   JavaScriptAdapter
 │   │   └── java.py                ←   JavaAdapter
 │   ├── data_flow.py               ← ✅ 数据流分析（Session 1.6）
-│   ├── query.py                   ← ⬜ CPG 查询接口（Session 1.7）
-│   ├── taint_rules.yaml           ← ⬜ 污点源/汇的配置文件
+│   ├── graph.py                   ← ✅ CPG 图构建器（Session 1.7）
+│   ├── query.py                   ← ✅ CPG 查询接口（Session 1.7）
+│   ├── taint_rules.yaml           ← ✅ 污点规则（Session 1.7）
 │   ├── sanitizers.yaml            ← ⬜ 过滤函数的配置文件
 │   └── frameworks/                ← ⬜ 框架提取器（Flask/Django/Spring）
 │
@@ -455,9 +456,11 @@ Phase 1: CPG Foundation（代码属性图基础层）
 
   ✅ Session 1.6 — 数据流图构建
      def-use chain + 跨函数追踪 + BFS 污点传播
-     LanguageProvider 扩展 3 个抽象成员
+  ✅ Session 1.7 — CPG 图构建 + 查询接口 + Taint 规则
+     NetworkX MultiDiGraph 统一索引，5 种查询方法
+     9 种漏洞类别 × 3 种语言的 YAML 规则
 
-  🔜 Session 1.7 — CPG 查询接口          ← 下一步
+  🔜 Session 1.8 — 框架提取器          ← 下一步
   ⬜ Session 1.7 — CPG 查询接口
   ⬜ Session 1.8 — Flask 框架提取器
   ⬜ Session 1.9 — 端到端 CPG 测试
@@ -469,7 +472,7 @@ Phase 4: 长任务能力（未开始）
 Phase 5: 质量与发布（未开始）
 ```
 
-**质量门禁**：269 个 pytest 测试全部通过，ruff 零警告，mypy strict 模式零错误。
+**质量门禁**：302 个 pytest 测试全部通过，ruff 零警告，mypy strict 模式零错误。
 
 ---
 
