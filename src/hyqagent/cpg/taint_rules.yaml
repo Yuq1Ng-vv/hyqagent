@@ -439,6 +439,8 @@ java:
       - ESAPI.encoder(
     command_injection:
       - ProcessBuilder(
+      - SecurityManager
+      - AccessController
     xss:
       - StringEscapeUtils.escapeHtml4(
       - ESAPI.encoder(
@@ -450,9 +452,6 @@ java:
       - Path.normalize(
       - Path.toAbsolutePath(
       - FilenameUtils.getName(
-    command_injection:
-      - SecurityManager
-      - AccessController
     ssrf:
       - new URI(
       - URLValidator
