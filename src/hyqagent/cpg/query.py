@@ -91,13 +91,14 @@ class CPGQuery:
             return []
 
         paths: list[GraphPath] = []
+        global_visited: set[str] = set()
         for src_id in sources:
-            for path in self._bfs_paths(src_id, sinks, max_depth):
+            if len(paths) >= 20:
+                break
+            for path in self._bfs_paths(src_id, sinks, max_depth, visited=global_visited):
                 if len(paths) >= 20:
                     break
                 paths.append(path)
-            if len(paths) >= 20:
-                break
 
         paths.sort(key=len)
         return paths
@@ -212,15 +213,35 @@ class CPGQuery:
 
         return "\n".join(lines)
 
-    def get_sanitizers(self, path: GraphPath) -> list[str]:
-        """Check for sanitizer patterns along *path* nodes."""
-        # Simple heuristic: look for type-casting / escaping in assignment sources
+    def get_sanitizers(
+        self, path: GraphPath, taint_loader: object | None = None
+    ) -> list[str]:
+        """Check for sanitizer patterns along *path* nodes.
+
+        If *taint_loader* (a :class:`TaintRuleLoader`) is provided, uses
+        YAML-driven patterns.  Otherwise falls back to a minimal built-in list.
+        """
         sanitizers: list[str] = []
-        sanitizer_patterns = ["int(", "float(", "str(", "escape(", "sanitize", "filter", "validate"]
+        # Use YAML rules if available
+        if taint_loader is not None and hasattr(taint_loader, 'all_sources'):
+            patterns: set[str] = set()
+            for lang in getattr(taint_loader, 'available_languages', []):
+                rules = getattr(taint_loader, 'rules_for')(lang)
+                for cat in rules.categories.values():
+                    patterns.update(s.lower() for s in cat.sanitizers)
+            for node in path.nodes:
+                src_lower = node.source.lower()
+                for pat in patterns:
+                    if pat in src_lower:
+                        sanitizers.append(pat)
+            return sanitizers
+
+        # Minimal fallback patterns
+        fallback = {"int(", "float(", "str(", "escape(", "sanitize", "filter", "validate"}
         for node in path.nodes:
             src_lower = node.source.lower()
-            for pat in sanitizer_patterns:
-                if pat.lower() in src_lower:
+            for pat in fallback:
+                if pat in src_lower:
                     sanitizers.append(pat)
         return sanitizers
 
@@ -249,6 +270,7 @@ class CPGQuery:
         targets: set[str],
         max_depth: int,
         edge_types: set[str] | None = None,
+        visited: set[str] | None = None,
     ) -> list[GraphPath]:
         """BFS from *start* to any node in *targets*.
 
@@ -259,7 +281,10 @@ class CPGQuery:
             edge_types = {EDGE_DATA_FLOW, EDGE_CALLS}
 
         result: list[GraphPath] = []
-        visited: set[str] = {start}
+        local_visited: set[str] = {start}
+        shared = visited is not None
+        if shared:
+            visited.add(start)
         queue: deque[tuple[str, list[str], list[str]]] = deque()
         queue.append((start, [start], []))
 
@@ -274,7 +299,7 @@ class CPGQuery:
                 continue
 
             for succ in self._graph.successors(cur):
-                if succ in visited:
+                if succ in local_visited or (shared and succ in visited):
                     continue
                 # Filter by edge type
                 edge_data = self._graph.get_edge_data(cur, succ)
@@ -289,7 +314,9 @@ class CPGQuery:
                 if not valid:
                     continue
 
-                visited.add(succ)
+                local_visited.add(succ)
+                if shared:
+                    visited.add(succ)
                 queue.append((succ, [*node_path, succ], [*edge_path, etype]))
 
         return result

@@ -135,25 +135,28 @@ class DataFlowBuilder:
                         )
                     )
 
-        # Phase 2 — for each assigned variable, find all uses in the body
+        # Phase 2 — single pass: collect all variable uses, then associate with defs
+        # Build a map from var_name → list of use locations in one tree traversal
+        var_uses: dict[str, list[str]] = {}
+        for node in traverser.traverse():
+            if not self._node_in_range(node, body):
+                continue
+            if node.type != "identifier":
+                continue
+            if not provider.is_variable_identifier(node):
+                continue
+            var_name = _source(node)
+            if var_name not in var_uses:
+                var_uses[var_name] = []
+            var_uses[var_name].append(_loc(node, file_path))
+
+        # Associate each assignment with its uses (skip the definition site itself)
         results: list[DefUsePair] = []
         for assign in assignments:
-            use_locations: list[str] = []
-            for node in traverser.traverse():
-                if not self._node_in_range(node, body):
-                    continue
-                if node.type != "identifier":
-                    continue
-                if not provider.is_variable_identifier(node):
-                    continue
-                if _source(node) != assign.var_name:
-                    continue
-                # Skip the definition site itself
-                if node is assign.node or self._is_descendant_of(
-                    node, assign.node
-                ):
-                    continue
-                use_locations.append(_loc(node, file_path))
+            use_locations = [
+                loc for loc in var_uses.get(assign.var_name, [])
+                if not self._loc_matches_def(loc, assign.node, file_path)
+            ]
 
             results.append(
                 DefUsePair(
@@ -372,6 +375,15 @@ class DataFlowBuilder:
             and node.end_byte <= container.end_byte
         )
 
+    def _loc_matches_def(self, loc: str, def_node: Node, file_path: str) -> bool:
+        """Return True if *loc* refers to the definition site itself.
+
+        Compares location strings since we no longer have the original
+        use Node objects after the single-pass optimization.
+        """
+        def_loc = _loc(def_node, file_path)
+        return loc == def_loc
+
     @staticmethod
     def _is_descendant_of(node: Node, ancestor: Node) -> bool:
         """Return ``True`` if *node* is a descendant of *ancestor*."""
@@ -500,8 +512,14 @@ class DataFlowBuilder:
     def _fn_to_node(self, fn: FunctionNode, tree: Tree) -> Node | None:
         """Convert a FunctionNode (dataclass) back to a tree-sitter Node.
 
-        Searches the tree for a function definition at the same location.
+        Uses a per-tree cache to avoid repeated full-tree traversals.
         """
+        cache_key = (id(tree), fn.name, fn.start_line)
+        if not hasattr(self, '_fn_cache'):
+            self._fn_cache: dict[tuple, Node | None] = {}
+        if cache_key in self._fn_cache:
+            return self._fn_cache[cache_key]
+
         for node in Traverser(tree).traverse():
             line = node.start_point[0] + 1
             if line == fn.start_line:
@@ -511,7 +529,9 @@ class DataFlowBuilder:
                 if node.type in provider.func_def_types:
                     name = provider.extract_function_name(node)
                     if name == fn.name:
+                        self._fn_cache[cache_key] = node
                         return node
+        self._fn_cache[cache_key] = None
         return None
 
 

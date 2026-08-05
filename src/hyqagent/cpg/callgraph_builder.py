@@ -56,8 +56,12 @@ class CallGraphBuilder:
         if path in self._graphs:
             return
 
+        # Parse once, reuse tree for both call graph and imports
+        tree = self._parser.parse_file(path)
+        language = self._parser.get_language(tree)
+
         cg = SingleFileCallGraph(self._parser)
-        cg.build_from_file(path)
+        cg.build_from_tree(tree, language, path)
         self._graphs[path] = cg
 
         # Index functions: which file defines each function
@@ -67,9 +71,7 @@ class CallGraphBuilder:
             if name not in self._all_functions:
                 self._all_functions[name] = path
 
-        # Extract imports for later resolution
-        tree = self._parser.parse_file(path)
-        language = self._parser.get_language(tree)
+        # Extract imports for later resolution (reuse same tree)
         imports = self._parser.extract_imports(tree, language)
         self._imports[path] = [
             _ResolvedImport(
