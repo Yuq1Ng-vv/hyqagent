@@ -308,6 +308,19 @@ javascript:
     path_traversal:
       - path.basename(
       - path.normalize(
+    ssrf:
+      - url.parse(
+      - new URL(
+    deserialization:
+      - JSON.parse
+      - validator.isJSON(
+    open_redirect:
+      - url.resolve(
+      - path.join(
+    code_injection:
+      - String(
+      - parseInt(
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Java
@@ -437,3 +450,19 @@ java:
       - Path.normalize(
       - Path.toAbsolutePath(
       - FilenameUtils.getName(
+    command_injection:
+      - SecurityManager
+      - AccessController
+    ssrf:
+      - new URI(
+      - URLValidator
+    deserialization:
+      - ValidatingObjectInputStream
+      - ObjectInputFilter
+    open_redirect:
+      - UriComponentsBuilder
+      - ServletUriComponentsBuilder
+    code_injection:
+      - StringEscapeUtils
+      - ESAPI.validator(
+

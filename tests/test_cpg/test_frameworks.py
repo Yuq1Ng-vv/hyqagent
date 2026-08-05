@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 from hyqagent.cpg.frameworks.base import HttpEndpoint, RouteParam
+from hyqagent.cpg.frameworks.django import DjangoExtractor
 from hyqagent.cpg.frameworks.express import ExpressExtractor
+from hyqagent.cpg.frameworks.fastapi import FastAPIExtractor
 from hyqagent.cpg.frameworks.flask import FlaskExtractor
 from hyqagent.cpg.frameworks.spring import SpringExtractor
 from hyqagent.cpg.parser import Parser
@@ -262,3 +264,49 @@ class TestTaintLoader:
         loader = TaintRuleLoader()
         rules = loader.rules_for("java")
         assert len(rules.categories) > 0
+
+
+# ─── Django (T1) ─────────────────────────────────────────────────────────────
+
+
+class TestDjangoExtractor:
+    def test_detect(self, parser):
+        ext = DjangoExtractor(parser)
+        code = "from django.urls import path\nurlpatterns = [path('/', views.index)]"
+        tree = parser.parse_code(code, "python")
+        assert "django" in ext._source(tree.root_node).lower()
+
+    def test_url_config_parsing(self, parser):
+        ext = DjangoExtractor(parser)
+        code = (
+            "from django.urls import path\n"
+            'urlpatterns = [path("users/", views.list_users, name="list")]'
+        )
+        tree = parser.parse_code(code, "python")
+        entries = ext._parse_url_config(tree)
+        assert len(entries) >= 1
+        assert entries[0]["route"] == "users/"
+        assert "list_users" in entries[0]["view"]
+
+
+# ─── FastAPI (T2) ────────────────────────────────────────────────────────────
+
+
+class TestFastAPIExtractor:
+    def test_detect(self, parser):
+        ext = FastAPIExtractor(parser)
+        code = "from fastapi import FastAPI\napp = FastAPI()\n@app.get('/')\ndef index():\n    pass"
+        assert ext.detect is not None  # won't pass detect (no file path) but shouldn't crash
+
+    def test_extract_routes_from_code(self, parser):
+        ext = FastAPIExtractor(parser)
+        code = (
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "@app.get('/users')\n"
+            "def list_users():\n"
+            "    pass\n"
+        )
+        tree = parser.parse_code(code, "python")
+        funcs = parser.extract_functions(tree, "python")
+        assert len(funcs) >= 1

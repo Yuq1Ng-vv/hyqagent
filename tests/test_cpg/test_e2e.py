@@ -220,6 +220,20 @@ class TestFrameworkExtraction:
 # ─── Level 5: Query + Taint ──────────────────────────────────────────────────
 
 
+class TestCrossFileEdgeState:
+    """T8: Verify cross-file call-site nodes have is_resolved=True."""
+
+    def test_cross_file_is_resolved(self, parser):
+        builder = CPGGraphBuilder(parser)
+        builder.add_directory(str(MICROBLOG))
+        query = CPGQuery(builder.graph)
+        for nid, data in builder.graph.nodes(data=True):
+            if data.get("cross_file") and data.get("node_type") == "call_site":
+                assert data.get("is_resolved") is True, (
+                    f"Cross-file call-site {nid} should have is_resolved=True"
+                )
+
+
 class TestQueryAndTaint:
     """Verify CPGQuery and TaintRuleLoader work together."""
 

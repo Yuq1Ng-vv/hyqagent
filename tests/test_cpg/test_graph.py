@@ -111,3 +111,24 @@ class TestGraphBuilding:
             b.graph.nodes[n].get("name") for n in funcs
         }
         assert "processRequest" in func_names
+
+
+class TestMixedLanguageDirectory:
+    def test_mixed_lang_indexing(self, parser):
+        import tempfile, os
+        d = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(d, "app.py"), "w") as f:
+                f.write("def foo():\n    return bar()\ndef bar():\n    return 1\n")
+            with open(os.path.join(d, "util.js"), "w") as f:
+                f.write("function foo() { return bar(); }\nfunction bar() { return 1; }\n")
+            b = CPGGraphBuilder(parser)
+            b.add_directory(d)
+            funcs = b.nodes_by_type(NODE_FUNCTION)
+            func_names = {b.graph.nodes[n].get("name") for n in funcs}
+            assert "foo" in func_names
+            assert "bar" in func_names
+        finally:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+

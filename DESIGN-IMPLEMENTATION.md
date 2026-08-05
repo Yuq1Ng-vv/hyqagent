@@ -4,7 +4,7 @@
 >
 > **用途**：作为后续开发和维护测试的可执行蓝图。
 >
-> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.6，CPG 模块已实现 ~5,200 行代码、361 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析、CPG 图构建与查询、YAML 污点规则、五种框架提取器。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
+> **当前状态**：Phase 1 (CPG Foundation) 进行中。已完成 Session 1.1-1.6，CPG 模块已实现 ~5,300 行代码、372 个 pytest，覆盖 tree-sitter 解析、AST 遍历、LanguageProvider 可扩展架构、单文件/跨文件调用图、数据流分析、CPG 图构建与查询、YAML 污点规则、五种框架提取器。Scanner/Models/Session 等模块仍为设计阶段（仅 `__init__.py` 骨架）。
 
 ---
 

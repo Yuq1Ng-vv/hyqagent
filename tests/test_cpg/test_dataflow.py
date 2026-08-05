@@ -350,3 +350,105 @@ class TestTaintWithCallGraph:
         var_names = {du.var_name for du in chains}
         assert "uid" in var_names
         assert "result" in var_names
+
+
+# ─── Java def-use (T3) ───────────────────────────────────────────────────────
+
+
+class TestDefUseChainsJava:
+    def test_java_method_def_use(self, parser):
+        code = (
+            "class Test {\n"
+            "    void doWork(String input) {\n"
+            "        String query = \"SELECT * FROM \" + input;\n"
+            "        execute(query);\n"
+            "    }\n"
+            "    void execute(String sql) {}\n"
+            "}"
+        )
+        tree = parser.parse_code(code, "java")
+        provider = parser.get_provider("java")
+        df = DataFlowBuilder(parser)
+        found = False
+        for node in _walk_tree(tree):
+            if node.type in provider.func_def_types:
+                name = provider.extract_function_name(node)
+                if name == "doWork":
+                    chains = df.build_def_use_chains(tree, node, "java")
+                    var_names = {du.var_name for du in chains}
+                    assert "query" in var_names
+                    found = True
+                    break
+        assert found, "Could not find doWork method"
+
+
+# ─── Cross-function tracing integration (T4) ─────────────────────────────────
+
+
+class TestCrossFunctionIntegration:
+    def test_trace_with_callgraph(self, parser):
+        from hyqagent.cpg.callgraph_builder import CallGraphBuilder
+        import tempfile, os
+        d = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(d, "a.py"), "w") as f:
+                f.write("from b import helper\ndef caller():\n    x = helper(42)\n")
+            with open(os.path.join(d, "b.py"), "w") as f:
+                f.write("def helper(n):\n    return n * 2\n")
+            cg = CallGraphBuilder(parser)
+            cg.add_directory(d)
+            df = DataFlowBuilder(parser, cg)
+            steps = df.trace_cross_function("x", "caller", "helper")
+            assert isinstance(steps, list)
+        finally:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+
+
+# ─── TaintLoader error paths (T5) ────────────────────────────────────────────
+
+
+class TestTaintLoaderErrors:
+    def test_missing_file(self):
+        from hyqagent.cpg.taint_loader import TaintRuleLoader
+        loader = TaintRuleLoader(rules_path="/nonexistent/path.yaml")
+        assert loader.available_languages == []
+
+    def test_custom_path(self):
+        from hyqagent.cpg.taint_loader import TaintRuleLoader
+        from pathlib import Path
+        real = Path(__file__).resolve().parent.parent.parent / "src/hyqagent/cpg/taint_rules.yaml"
+        loader = TaintRuleLoader(rules_path=str(real))
+        assert "python" in loader.available_languages
+
+
+# ─── _fn_to_node (T7) ────────────────────────────────────────────────────────
+
+
+class TestFnToNode:
+    def test_converts_function_node(self, parser):
+        df = DataFlowBuilder(parser)
+        code = "def foo():\n    x = 1\n    return x"
+        tree = parser.parse_code(code, "python")
+        funcs = parser.extract_functions(tree, "python")
+        assert len(funcs) == 1
+        fn = funcs[0]
+        node = df._fn_to_node(fn, tree)
+        assert node is not None
+        assert node.type == "function_definition"
+
+
+def _walk_tree(tree):
+    """Simple tree walker."""
+    cursor = tree.walk()
+    visited = set()
+    stack = [cursor.node]
+    while stack:
+        node = stack.pop()
+        if node.id in visited:
+            continue
+        visited.add(node.id)
+        yield node
+        for child in node.children:
+            if child.id not in visited:
+                stack.append(child)
