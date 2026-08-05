@@ -50,7 +50,11 @@
   - CPGQuery: find_path/find_sources/find_sinks/get_call_chain/slice_path
   - taint_rules.yaml: Python/JS/Java 三种语言 × 9 种漏洞类别完整规则
   - 302 个 pytest 测试全部通过，ruff 零错误
-- [ ] Session 1.8 — 框架提取器 (Flask/Django/FastAPI/Express/Spring)
+- [x] **Session 1.8** — 框架提取器（五种框架一次到位，33 tests）
+  - BaseFrameworkExtractor ABC + HttpEndpoint/RouteParam 统一数据结构
+  - Flask/FastAPI/Django/Express/Spring 五种框架完整实现
+  - TaintRuleLoader: YAML→结构化规则加载器（match_source/sink/rules_for）
+  - 335 个 pytest 测试全部通过，ruff 零错误
 - [ ] Session 1.9 — 端到端 CPG 测试（用已知 CVE 项目验证）
 - [ ] Session 1.10-1.12 — 边界情况修复
 
@@ -81,20 +85,18 @@
 ## 当前阻塞
 - 无
 
-> 上次更新: Session 1.7 完成后 (2026-08-05)
+> 上次更新: Session 1.8 完成后 (2026-08-05)
 
 ## 当前状态
-- **302 个测试**，ruff 零错误
-- **16 个源模块**，~3,800 行
-- **下一个**: Session 1.8 — 框架提取器
+- **335 个测试**，ruff 零错误
+- **22 个源模块**，~5,200 行
+- **下一个**: Session 1.9 — 端到端 CPG 测试
 
 ## 下次 Session 目标
-- **Session 1.8**: 实现框架提取器 `cpg/frameworks/`
-  - BaseFrameworkExtractor 抽象基类
-  - Flask/Django/FastAPI/Express/Spring 五种框架提取器
-  - HTTP_ROUTE 边接入 CPG 图
-  - TaintRuleLoader: 从 taint_rules.yaml 读取规则驱动分析
-  - 产出标准: 提取器能准确识别每种框架的路由/参数/认证装饰器
+- **Session 1.9**: 端到端 CPG 测试
+  - 用已知 CVE 项目验证完整 CPG 链路
+  - 框架提取器 → CPG 图 → 查询接口 全链路集成
+  - 验证 source→sink 路径发现的正确性
 
 ## 文档索引
 

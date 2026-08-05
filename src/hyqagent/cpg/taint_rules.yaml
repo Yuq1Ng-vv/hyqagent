@@ -321,11 +321,11 @@ java:
       - request.getQueryString(
       - request.getHeader(
       - request.getCookies(
-      - @RequestParam
-      - @PathVariable
-      - @RequestBody
-      - @RequestHeader
-      - @CookieValue
+      - "@RequestParam"
+      - "@PathVariable"
+      - "@RequestBody"
+      - "@RequestHeader"
+      - "@CookieValue"
     command_injection:
       - request.getParameter(
       - request.getHeader(
@@ -335,19 +335,19 @@ java:
       - request.getParameter(
       - request.getParameterValues(
       - request.getHeader(
-      - @RequestParam
+      - "@RequestParam"
     path_traversal:
       - request.getParameter(
       - request.getHeader(
-      - @RequestParam
+      - "@RequestParam"
     ssrf:
       - request.getParameter(
       - request.getHeader(
-      - @RequestParam
+      - "@RequestParam"
     deserialization:
       - request.getInputStream(
       - request.getReader(
-      - @RequestBody
+      - "@RequestBody"
       - ObjectInputStream
     open_redirect:
       - request.getParameter(
@@ -355,7 +355,7 @@ java:
     code_injection:
       - request.getParameter(
       - request.getHeader(
-      - @RequestParam
+      - "@RequestParam"
 
   sinks:
     sql_injection:
