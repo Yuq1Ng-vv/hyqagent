@@ -237,7 +237,8 @@ class TestTaintLoader:
         loader = TaintRuleLoader()
         sources = loader.all_sources("python")
         assert len(sources) > 5
-        assert "request.args.get" in sources
+        # Patterns are now variable-agnostic (.args.get( not request.args.get)
+        assert ".args.get(" in sources
 
     def test_all_sinks_python(self):
         loader = TaintRuleLoader()
@@ -247,7 +248,8 @@ class TestTaintLoader:
 
     def test_match_source(self):
         loader = TaintRuleLoader()
-        cat = loader.match_source("python", "request.args.get('id')")
+        # Variable-agnostic: .args.get( matches req.args.get('id')
+        cat = loader.match_source("python", "req.args.get('id')")
         assert cat is not None  # should match some category
 
     def test_match_sink(self):

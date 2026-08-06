@@ -14,70 +14,128 @@
 
 python:
   sources:
-    # HTTP request input vectors
+    # ── Framework-agnostic HTTP input (Flask / Bottle / webapp2 / …) ──
+    # Variable-agnostic dot-prefixed patterns: .args.get( matches
+    # request.args.get(, req.args.get(, r.args.get(, etc.
     sql_injection:
-      - request.args.get
-      - request.args[
-      - request.form.get
-      - request.form[
-      - request.json.get
-      - request.json[
-      - request.get_json(
-      - request.data
-      - request.values.get
-      - request.cookies.get
-      - request.headers.get
+      - .args.get(
+      - .args[
+      - .form.get(
+      - .form[
+      - .json.get(
+      - .json[
+      - .get_json(
+      - .data
+      - .values.get(
+      - .cookies.get(
+      - .headers.get(
+      # Django
+      - .GET.get(
+      - .GET[
+      - .POST.get(
+      - .POST[
+      - .META.get(
+      - .COOKIES.get(
+      # FastAPI / Starlette (function-parameter-level annotation patterns)
+      - "Query("
+      - "Path("
+      - "Body("
+      - "Header("
+      - "Cookie("
+      # Environment / CLI (configuration injection vectors)
+      - os.environ
+      - sys.argv
     command_injection:
-      - request.args.get
-      - request.form.get
-      - request.json.get
+      - .args.get(
+      - .form.get(
+      - .json.get(
+      - .GET.get(
+      - .POST.get(
+      - .META.get(
       - sys.argv
       - os.environ
     xss:
-      - request.args.get
-      - request.form.get
-      - request.json.get
-      - request.data
+      - .args.get(
+      - .form.get(
+      - .json.get(
+      - .data
+      - .GET.get(
+      - .POST.get(
+      - "Query("
+      - "Path("
     path_traversal:
-      - request.args.get
-      - request.form.get
-      - request.files
+      - .args.get(
+      - .form.get(
+      - .files
+      - .GET.get(
+      - .POST.get(
+      - "Query("
+      - "Path("
+      - "File("
       - os.environ
     ssrf:
-      - request.args.get
-      - request.form.get
-      - request.json.get
+      - .args.get(
+      - .form.get(
+      - .json.get(
+      - .GET.get(
+      - .POST.get(
+      - "Query("
+      - "Path("
     deserialization:
-      - request.data
-      - request.get_data(
-      - request.json
+      - .data
+      - .get_data(
+      - .json
+      - .GET.get(
+      - .POST.get(
+      - "Body("
       - pickle.loads
       - yaml.load
     open_redirect:
-      - request.args.get
-      - request.args[
-      - request.headers.get
+      - .args.get(
+      - .args[
+      - .headers.get(
+      - .GET.get(
     code_injection:
-      - request.args.get
-      - request.form.get
-      - request.json.get
+      - .args.get(
+      - .form.get(
+      - .json.get(
+      - .GET.get(
+      - .POST.get(
+      - "Query("
+      - "Path("
+      - "Body("
+      - os.environ
+      - sys.argv
     auth_bypass:
-      - request.args.get
-      - request.cookies.get
-      - request.headers.get
+      - .args.get(
+      - .cookies.get(
+      - .headers.get(
+      - .COOKIES.get(
+      - .META.get(
 
   sinks:
     sql_injection:
+      # DB-API 2.0 cursor methods
       - .execute(
       - .executemany(
       - .executescript(
+      - cursor.execute
+      - connection.execute
+      # Django ORM raw SQL
       - .raw(
       - .extra(
-      - cursor.execute
-      - session.execute
-      - connection.execute
       - .raw_query
       - RawSQL(
+      # SQLAlchemy
+      - text(
+      - literal_column(
+      - .from_statement(
+      # Peewee / asyncpg
+      - database.execute(
+      - cursor.mogrify(
+      # Django raw cursor
+      - django.db.connection.cursor(
+      - connection.cursor(
     command_injection:
       - os.system(
       - os.popen(
@@ -86,48 +144,99 @@ python:
       - subprocess.run(
       - subprocess.check_output(
       - subprocess.getoutput(
+      - subprocess.getstatusoutput(
       - os.exec
+      - os.spawnl(
+      - os.spawnlp(
+      - os.spawnv(
+      - os.spawnvp(
       - commands.getoutput(
+      - commands.getstatusoutput(
+      # Async subprocess
+      - asyncio.create_subprocess_exec(
+      - asyncio.create_subprocess_shell(
+      # Shell-like injection via eval/exec
       - eval(
       - exec(
     xss:
-      - Markup(
-      - render_template
-      - Response(
-      - .html
+      # Jinja2 / Flask
+      - render_template_string(
       - jinja2.Template
+      - Markup(
+      # Django
+      - mark_safe(
+      - format_html(
+      # HTTP response builders
+      - Response(
+      - make_response(
+      - .html
+      # lxml / BeautifulSoup
+      - lxml.html.tostring(
+      - BeautifulSoup(
     path_traversal:
       - open(
       - os.path.join
       - pathlib.Path(
       - send_file(
       - send_from_directory(
+      # File-system mutations (write/delete user-controlled paths)
+      - shutil.copy(
+      - shutil.move(
+      - shutil.copytree(
+      - os.remove(
+      - os.unlink(
+      - os.rmdir(
+      - os.makedirs(
+      # Zip-slip (archive extraction)
+      - zipfile.ZipFile(
+      - tarfile.open(
+      - tarfile.extractall(
     ssrf:
       - requests.get(
       - requests.post(
+      - requests.put(
+      - requests.delete(
+      - requests.patch(
+      - requests.head(
+      - requests.request(
       - httpx.get(
       - httpx.post(
+      - httpx.AsyncClient(
       - urllib.request.urlopen(
       - urlopen(
+      - aiohttp.ClientSession(
+      - aiohttp.request(
+      - urllib3.PoolManager(
+      - socket.create_connection(
+      - websocket.create_connection(
     deserialization:
       - pickle.loads(
       - pickle.load(
+      - cPickle.loads(
+      - cPickle.load(
+      - _pickle.loads(
       - yaml.load(
       - yaml.full_load(
       - marshal.loads(
       - dill.loads(
       - joblib.load(
       - torch.load(
+      - pandas.read_pickle(
+      - shelve.open(
+      - numpy.load(
     open_redirect:
       - redirect(
       - url_for(
       - HttpResponseRedirect(
+      - HttpResponsePermanentRedirect(
     code_injection:
       - eval(
       - exec(
       - compile(
       - __import__(
       - importlib.import_module(
+      - types.FunctionType(
+      - code.InteractiveInterpreter(
     auth_bypass:
       - .is_authenticated
       - .has_permission(
@@ -137,17 +246,21 @@ python:
 
   sanitizers:
     sql_injection:
+      # Type coercion (basic)
       - int(
       - float(
+      # Regex escape
       - re.escape(
-      - .filter(
+      # SQLAlchemy parameterization
       - .filter_by(
       - .params(
       - .bindparam(
+      # General escaping
       - .escape(
-      - bleach.clean(
-      - django.utils.html.escape
-      - markupsafe.escape
+      # NOTE: .filter( was removed — matches list filtering, pandas,
+      #   and general Python, not safe for SQL injection prevention.
+      # NOTE: bleach.clean / django / markupsafe are HTML escape, not SQL.
+      #   They were removed from sql_injection sanitizers.
     command_injection:
       - shlex.quote(
       - shlex.split(
@@ -183,66 +296,86 @@ python:
 
 javascript:
   sources:
+    # ── Variable-agnostic HTTP input (Express / Koa / Fastify / Next.js) ──
+    # .query matches req.query, request.query, ctx.query, etc.
+    # .body matches req.body, request.body, ctx.request.body, etc.
     sql_injection:
-      - req.query
-      - req.body
-      - req.params
-      - req.cookies
-      - req.headers
-      - request.query
-      - request.body
-      - request.params
-      - .query.
-      - .params.
+      - .query
+      - .body
+      - .params
+      - .cookies
+      - .headers
       - location.search
       - URLSearchParams
+      # Next.js App Router
+      - searchParams
+      # AWS Lambda
+      - event.queryStringParameters
+      - event.body
+      - event.pathParameters
     command_injection:
-      - req.query
-      - req.body
-      - req.params
+      - .query
+      - .body
+      - .params
       - process.argv
       - process.env
     xss:
-      - req.query
-      - req.body
-      - req.params
+      - .query
+      - .body
+      - .params
       - .innerHTML
       - document.URL
       - location.href
       - location.hash
+      - searchParams
     path_traversal:
-      - req.query
-      - req.params
-      - req.body
-      - req.files
+      - .query
+      - .params
+      - .body
+      - .files
+      - searchParams
     ssrf:
-      - req.query
-      - req.body
-      - req.params
+      - .query
+      - .body
+      - .params
     deserialization:
-      - req.body
-      - JSON.parse
+      - .body
       - .serialize(
+      # NOTE: JSON.parse was removed from deserialization sources —
+      #   it produces plain objects, NEVER executes code.
+      #   It is only a safe parser (listed in sanitizers).
     open_redirect:
-      - req.query
-      - req.params
+      - .query
+      - .params
     code_injection:
-      - req.query
-      - req.body
-      - req.params
+      - .query
+      - .body
+      - .params
     auth_bypass:
-      - req.cookies
-      - req.headers
-      - req.query
+      - .cookies
+      - .headers
+      - .query
 
   sinks:
     sql_injection:
+      # Raw query methods (variable-agnostic)
       - .query(
       - .execute(
       - .raw(
+      # Sequelize / TypeORM
       - .sequelize.query(
-      - knex.raw(
       - .createQueryBuilder(
+      # Knex / Drizzle / Slonik / Prisma
+      - knex.raw(
+      - knex(
+      - sql.raw(
+      - sql.unsafe(
+      - $queryRaw(
+      - $executeRaw(
+      - $queryRawUnsafe(
+      # Mongoose (NoSQL injection)
+      - mongoose.Model.find(
+      - mongoose.Model.findOne(
     command_injection:
       - child_process.exec(
       - child_process.spawn(
@@ -251,6 +384,12 @@ javascript:
       - exec(
       - spawn(
       - eval(
+      # Modern alternatives
+      - execa(
+      - execa.command(
+      - shelljs.exec(
+      # zx library (Google's shell scripting for JS)
+      - '$`'
     xss:
       - .innerHTML =
       - document.write(
@@ -259,14 +398,30 @@ javascript:
       - dangerouslySetInnerHTML
       - React.createElement(
       - res.send(
+      # Vue
+      - v-html
+      # Angular
+      - bypassSecurityTrustHtml(
+      - bypassSecurityTrustScript(
+      - [innerHTML]
+      # Svelte
+      - '{@html '
+      # DOM Range
+      - createContextualFragment(
     path_traversal:
       - fs.readFile(
       - fs.readFileSync(
       - fs.createReadStream(
+      - fs.writeFile(
+      - fs.writeFileSync(
       - path.join(
       - path.resolve(
       - res.sendFile(
       - res.download(
+      # Zip-slip (extraction)
+      - adm-zip
+      - unzipper
+      - extract-zip
     ssrf:
       - fetch(
       - axios.get(
@@ -276,12 +431,21 @@ javascript:
       - https.get(
       - node-fetch
       - got(
+      # Modern HTTP clients
+      - superagent(
+      - needle(
+      - undici.request(
+      - undici.fetch(
+      - bent(
+      - ky(
     deserialization:
       - eval(
       - new Function(
       - vm.runInNewContext(
       - vm.run(
       - serialize.unserialize(
+      - node-serialize.unserialize(
+      - funcster(
     open_redirect:
       - res.redirect(
       - window.location =
@@ -301,18 +465,18 @@ javascript:
     sql_injection:
       - parseInt(
       - parseFloat(
-      - Number(
-      - String(
       - .escape(
-      - .bind(
       - validator.escape(
       - sanitize(
       - escape(
       - encodeURI(
       - encodeURIComponent(
+      # NOTE: Number( and String( were removed — type coercion does not
+      #   prevent SQL injection if the result is concatenated into a query.
+      # NOTE: .bind( was removed — matches Function.prototype.bind,
+      #   React event binding, etc. universally.
     command_injection:
       - shellescape(
-      - String(
     xss:
       - escape(
       - encodeURI(
@@ -335,10 +499,11 @@ javascript:
       - validator.isJSON(
     open_redirect:
       - url.resolve(
-      - path.join(
+      # NOTE: path.join( was removed — it joins path segments but does
+      #   NOT validate URLs or prevent open redirects.
     code_injection:
-      - String(
       - parseInt(
+      # NOTE: String( was removed — same rationale as for sql_injection.
 
 
 # ═══════════════════════════════════════════════════════════════════════════

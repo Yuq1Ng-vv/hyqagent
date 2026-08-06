@@ -116,6 +116,13 @@ class CallGraphBuilder:
         Third-party and standard-library imports are left unresolved.
 
         """
+        # Pre-build a filename → path index (basename without ext → full path)
+        # so we can resolve imports in O(1) without rglob.
+        file_index: dict[str, str] = {}
+        for fp in self._graphs:
+            stem = Path(fp).stem  # filename without extension
+            file_index[stem] = fp
+
         resolved: dict[str, str] = {}
 
         for file_path, imp_list in self._imports.items():
@@ -125,7 +132,9 @@ class CallGraphBuilder:
                 if not imp.module:
                     continue
 
-                target = self._resolve_module_path(imp.module, base_dir)
+                target = self._resolve_module_path(
+                    imp.module, base_dir, file_index,
+                )
                 if target is not None and target in self._graphs:
                     # Map each imported name to the target file
                     for name in imp.names:
@@ -208,14 +217,24 @@ class CallGraphBuilder:
     # ── Internal helpers ────────────────────────────────────────────────
 
     @staticmethod
-    def _resolve_module_path(module: str, base_dir: str) -> str | None:
-        """Convert a Python module name to a file path.
+    def _resolve_module_path(
+        module: str,
+        base_dir: str,
+        file_index: dict[str, str],
+    ) -> str | None:
+        """Convert a module name to a file path.
 
-        ``".utils"`` → ``base_dir/../utils.py``
-        ``"app.models"`` → ``root/app/models.py``
+        Python
+            ``".utils"`` → ``base_dir/../utils.py``
+            ``"app.models"`` → ``root/app/models.py``
+
+        Java
+            ``"com.example.Foo"`` → ``root/com/example/Foo.java``
+            Falls back to a *file_index* lookup by class name alone when
+            the full package path doesn't match the filesystem layout.
         """
         if module.startswith("."):
-            # Relative import: count leading dots
+            # Python relative import: count leading dots
             dots = len(module) - len(module.lstrip("."))
             rest = module.lstrip(".")
             parent = Path(base_dir)
@@ -224,25 +243,30 @@ class CallGraphBuilder:
             if rest:
                 target = parent / (rest.replace(".", "/") + ".py")
             else:
-                # Single-dot: `from . import X` — module is current package
                 target = parent / "__init__.py"
             return str(target.resolve())
         else:
-            # Absolute import: try common root patterns
-            # Simple case: module.py exists relative to some project root
             parts = module.split(".")
-            # Walk up from base_dir looking for the module
+
+            # Walk up from base_dir, try *every* source-root
+            # so we match the nearest parent directory.
             current = Path(base_dir)
             while current != current.parent:
-                candidate = current / (str(Path(*parts)) + ".py")
-                if candidate.exists():
-                    return str(candidate.resolve())
-                # Also try package/__init__.py
+                for ext in (".py", ".java"):
+                    candidate = current / (str(Path(*parts)) + ext)
+                    if candidate.exists():
+                        return str(candidate.resolve())
+                # Package init (Python only)
                 candidate_init = current / str(Path(*parts)) / "__init__.py"
                 if candidate_init.exists():
                     return str(candidate_init.resolve())
                 current = current.parent
-            return None
+
+            # Fallback: match by class name alone (last segment of the
+            # qualified module name).  Uses the pre-built *file_index*
+            # so we avoid an expensive rglob on every import.
+            class_name = parts[-1]
+            return file_index.get(class_name)
 
     @staticmethod
     def _is_reachable(

@@ -90,7 +90,7 @@ class CPGQuery:
         # parameter name `req` in `HttpServletRequest req`), but function
         # nodes are not the actual taint entry points — assignments are.
         sources = self._find_nodes(source_pattern, exclude_types={NODE_FUNCTION})
-        sinks = set(self._find_nodes(sink_pattern))
+        sinks = set(self._find_nodes(sink_pattern, exclude_types={NODE_FUNCTION}))
         if not sources or not sinks:
             return []
 

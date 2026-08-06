@@ -37,6 +37,7 @@ NODE_FUNCTION = "function"
 NODE_CALL_SITE = "call_site"
 NODE_ASSIGNMENT = "assignment"
 NODE_VARIABLE_REF = "variable_ref"
+NODE_PARAMETER = "parameter"
 NODE_SOURCE = "source"
 NODE_SINK = "sink"
 
@@ -51,6 +52,19 @@ EDGE_DATA_FLOW = "DATA_FLOW"
 def _uid(*parts: str) -> str:
     """Build a unique node id from string parts."""
     return ":".join(parts)
+
+
+def _parse_line(location: str) -> int | None:
+    """Extract the trailing line number from a ``file_path:line`` string."""
+    if not location:
+        return None
+    parts = location.rsplit(":", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
 
 
 # ─── CPG Graph Builder ───────────────────────────────────────────────────────
@@ -107,6 +121,25 @@ class CPGGraphBuilder:
                 source=fn.source[:200],
             )
             func_nodes[fn.name] = fid
+
+            # 1.5 — Parameter nodes: for each function parameter, create a
+            # NODE_PARAMETER node and DATA_FLOW edge from the function.
+            # These serve as attachment points for cross-function taint
+            # edges (caller argument var_refs → callee parameter nodes).
+            for pi, pname in enumerate(fn.params):
+                pid = _uid(NODE_PARAMETER, path, fn.name, pname)
+                self.graph.add_node(
+                    pid,
+                    node_type=NODE_PARAMETER,
+                    name=pname,
+                    var_name=pname,
+                    file_path=path,
+                    location=f"{path}:{fn.start_line}",
+                    enclosing_function=fn.name,
+                    param_index=pi,
+                )
+                # DATA_FLOW: function → parameter
+                self.graph.add_edge(fid, pid, edge_type=EDGE_DATA_FLOW)
 
         # 2 — Index AST: find the function body tree-node for each function
         fn_tree_nodes: dict[str, object] = {}  # func_name → tree-sitter Node
@@ -252,6 +285,147 @@ class CPGGraphBuilder:
                     self.graph.nodes[cid]["cross_file"] = True
                 self.graph.add_edge(caller_fid, cid, edge_type=EDGE_CALLS)
                 self.graph.add_edge(cid, callee_fid, edge_type=EDGE_CALLS)
+
+        # 5 — Cross-function DATA_FLOW edges: connect caller argument
+        # variable-refs to callee parameter nodes so the BFS can trace
+        # taint across function boundaries.
+        #
+        # For every resolved call-site, we find the callee's parameter
+        # nodes and create DATA_FLOW edges from the caller's argument
+        # variable-refs (at the call line) to those parameter nodes.
+        # This is an over-approximation (all args → all params) but
+        # guarantees no real taint flow is missed.
+        self._add_cross_function_edges()
+
+    def _add_cross_function_edges(self) -> None:
+        """Create DATA_FLOW edges from call-site argument variable-refs
+        to the callee function's parameter nodes.
+
+        Also creates edges from callee return-style assignments back to
+        the caller's assignment at the call-site line (if any), enabling
+        round-trip taint tracking through calls.
+
+        Uses pre-built indexes to avoid O(N²) nested scans on large projects.
+        """
+        # ── Pre-build indexes (single pass over all nodes) ──────────────
+        # (file_path, func_name) → function node id (local)
+        func_index: dict[tuple[str, str], str] = {}
+        # func_name → function node id (cross-file, last-write wins)
+        func_by_name: dict[str, str] = {}
+        # (file_path, enclosing_function) → list of parameter node ids
+        param_index: dict[tuple[str, str], list[str]] = {}
+        # (file_path, enclosing_function, line) → list of variable_ref node ids
+        varref_index: dict[tuple[str, str, int], list[str]] = {}
+        # (file_path, enclosing_function, line) → list of assignment node ids
+        assign_index: dict[tuple[str, str, int], list[str]] = {}
+
+        for nid, data in self.graph.nodes(data=True):
+            ntype = data.get("node_type", "")
+            fp = data.get("file_path", "")
+            ef = data.get("enclosing_function", "")
+            name = data.get("name", "")
+
+            if ntype == NODE_FUNCTION:
+                if fp and name:
+                    func_index[(fp, name)] = nid
+                    func_by_name[name] = nid
+
+            elif ntype == NODE_PARAMETER:
+                if fp and ef:
+                    param_index.setdefault((fp, ef), []).append(nid)
+
+            elif ntype == NODE_VARIABLE_REF:
+                loc = data.get("location", "")
+                line = _parse_line(loc)
+                if line is not None and fp and ef:
+                    varref_index.setdefault((fp, ef, line), []).append(nid)
+
+            elif ntype == NODE_ASSIGNMENT:
+                loc = data.get("location", "")
+                line = _parse_line(loc)
+                if line is not None and fp and ef:
+                    assign_index.setdefault((fp, ef, line), []).append(nid)
+
+        # ── Resolve each call-site using the indexes ─────────────────────
+        for nid, data in self.graph.nodes(data=True):
+            if data.get("node_type") != NODE_CALL_SITE:
+                continue
+            if not data.get("is_resolved"):
+                continue
+            callee_name = data.get("callee", "")
+            caller_name = data.get("caller", "")
+            call_file = data.get("file_path", "")
+            call_line = data.get("line", 0)
+
+            # Find the callee function
+            if data.get("cross_file"):
+                callee_fid = func_by_name.get(callee_name)
+            else:
+                callee_fid = func_index.get((call_file, callee_name))
+
+            if callee_fid is None:
+                continue
+
+            # Callee parameter nodes (from any file for cross-file calls)
+            param_nodes: list[str] = []
+            if data.get("cross_file"):
+                # Search across all indexed files
+                for (_fp, _ef), pids in param_index.items():
+                    if _ef == callee_name:
+                        param_nodes.extend(pids)
+            else:
+                param_nodes = param_index.get((call_file, callee_name), [])
+
+            if not param_nodes:
+                continue
+
+            # Caller variable-refs at the call line
+            caller_var_refs = varref_index.get(
+                (call_file, caller_name, call_line), []
+            )
+
+            if not caller_var_refs:
+                continue
+
+            # Create edges: all caller var_refs → all callee params
+            # (over-approximation that is safe for taint tracking)
+            for arg_vid in caller_var_refs:
+                for param_nid in param_nodes:
+                    self.graph.add_edge(
+                        arg_vid, param_nid,
+                        edge_type=EDGE_DATA_FLOW,
+                    )
+
+            # DATA_FLOW edges through the call_site node itself:
+            #   var_ref → call_site → callee_function → param
+            for arg_vid in caller_var_refs:
+                self.graph.add_edge(arg_vid, nid, edge_type=EDGE_DATA_FLOW)
+                self.graph.add_edge(nid, callee_fid, edge_type=EDGE_DATA_FLOW)
+
+            # Return value: connect callee_function → caller's assignment
+            # at the call line (approximates "callee return → caller result")
+            caller_assigns = assign_index.get(
+                (call_file, caller_name, call_line), []
+            )
+            for a_nid in caller_assigns:
+                self.graph.add_edge(callee_fid, a_nid, edge_type=EDGE_DATA_FLOW)
+
+        # ── Also connect callee_function directly to its parameter nodes ─
+        # via DATA_FLOW edges, so BFS can traverse:
+        #   caller_call_site → callee_function → callee_param
+        # (already done in add_file() for each function, but add_directory
+        #  may add cross-file functions that were added via add_file()
+        #  earlier; this double-check guarantees the edges exist.)
+        for (_fp, _ef), pids in param_index.items():
+            fid = func_index.get((_fp, _ef))
+            if fid is None:
+                continue
+            for pid in pids:
+                if not any(
+                    d.get("edge_type") == EDGE_DATA_FLOW
+                    for d in self.graph.get_edge_data(fid, pid).values()
+                ):
+                    self.graph.add_edge(fid, pid, edge_type=EDGE_DATA_FLOW)
 
     # ── Graph properties ─────────────────────────────────────────────────
 
