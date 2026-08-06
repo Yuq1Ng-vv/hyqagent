@@ -85,7 +85,11 @@ class CPGQuery:
         Traverses ``DATA_FLOW`` and ``CALLS`` edges via BFS.  Returns up
         to 20 distinct paths, sorted shortest-first.
         """
-        sources = self._find_nodes(source_pattern)
+        # Exclude function nodes from source matching: function bodies
+        # contain source/sink patterns as substring matches (e.g. the
+        # parameter name `req` in `HttpServletRequest req`), but function
+        # nodes are not the actual taint entry points — assignments are.
+        sources = self._find_nodes(source_pattern, exclude_types={NODE_FUNCTION})
         sinks = set(self._find_nodes(sink_pattern))
         if not sources or not sinks:
             return []
@@ -257,10 +261,23 @@ class CPGQuery:
             for d in edge_data.values()
         )
 
-    def _find_nodes(self, pattern: str, max_results: int = 200) -> list[str]:
+    def _find_nodes(
+        self,
+        pattern: str,
+        max_results: int = 200,
+        exclude_types: set[str] | None = None,
+    ) -> list[str]:
         """Find node ids where *pattern* appears in any attribute value.
 
         Stops early after *max_results* to prevent O(n) blowup on large graphs.
+
+        Args:
+            pattern: Substring to search for in node attribute values.
+            max_results: Stop searching after this many matches.
+            exclude_types: If set, skip nodes whose ``node_type`` is in this set.
+               Used to exclude e.g. ``NODE_FUNCTION`` from source/sink matching,
+               since function bodies contain source/sink patterns as substring
+               matches but aren't the actual taint entry/exit points.
         """
         if not pattern:
             return []
@@ -268,6 +285,8 @@ class CPGQuery:
         for nid, data in self._graph.nodes(data=True):
             if len(matches) >= max_results:
                 break
+            if exclude_types and data.get("node_type") in exclude_types:
+                continue
             for val in data.values():
                 if isinstance(val, str) and pattern in val:
                     matches.append(nid)

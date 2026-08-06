@@ -182,6 +182,16 @@ class CPGGraphBuilder:
                     self.graph.add_edge(prev_node, vid, edge_type=EDGE_DATA_FLOW)
                     prev_node = vid
 
+            # 4.5 — RHS→LHS data-flow edges: connect variable uses in an
+            # assignment's right-hand side to the assignment itself.
+            #
+            # When `list = jdbc.queryForList(sql, map)` is executed, the
+            # values of `sql` and `map` flow INTO `list`.  Without this step
+            # the BFS can traverse the `sql` variable-ref chain all the way
+            # to line 235 but never "cross over" to the `list` assignment
+            # that is the actual sink.  This edge bridges that gap.
+            self._add_rhs_to_lhs_edges(path)
+
     def add_directory(self, dir_path: str | Path) -> None:
         """Recursively add all source files in *dir_path*.
 
@@ -244,6 +254,63 @@ class CPGGraphBuilder:
                 self.graph.add_edge(cid, callee_fid, edge_type=EDGE_CALLS)
 
     # ── Graph properties ─────────────────────────────────────────────────
+
+    def _add_rhs_to_lhs_edges(self, file_path: str) -> None:
+        """Create DATA_FLOW edges from variable-refs on a line to the
+        assignment on the same line whose RHS uses them.
+
+        For a statement like ``list = jdbc.queryForList(sql, map)``,
+        this adds edges::
+
+            variable_ref(sql@L)  ──DATA_FLOW──▶ assignment(list@L)
+            variable_ref(map@L)  ──DATA_FLOW──▶ assignment(list@L)
+
+        which bridges the gap between the ``sql`` taint chain and the
+        ``list`` sink assignment.  Without this step the BFS can follow
+        ``sql`` all the way to the sink *line* but never reach the sink
+        *node* because variable-ref nodes carry no source text for
+        pattern matching.
+        """
+        # Collect assignments by line
+        assignments_by_line: dict[str, list[str]] = {}
+        for nid, data in self.graph.nodes(data=True):
+            if data.get("node_type") != NODE_ASSIGNMENT:
+                continue
+            fp = data.get("file_path", "")
+            if fp != file_path:
+                continue
+            loc = data.get("location", "")
+            assignments_by_line.setdefault(loc, []).append(nid)
+
+        # Collect variable-refs by line
+        var_refs_by_line: dict[str, list[str]] = {}
+        for nid, data in self.graph.nodes(data=True):
+            if data.get("node_type") != NODE_VARIABLE_REF:
+                continue
+            fp = data.get("file_path", "")
+            if fp != file_path:
+                continue
+            loc = data.get("location", "")
+            var_refs_by_line.setdefault(loc, []).append(nid)
+
+        # For each line that has both assignments and variable-refs,
+        # add edges from each variable-ref to each assignment whose
+        # target variable differs from the var-ref (a variable doesn't
+        # "flow into" its own definition — that's already covered by
+        # the def-use chain).
+        for loc, assignment_ids in assignments_by_line.items():
+            var_ref_ids = var_refs_by_line.get(loc, [])
+            if not var_ref_ids:
+                continue
+            for aid in assignment_ids:
+                a_var = self.graph.nodes[aid].get("var_name", "")
+                for vid in var_ref_ids:
+                    v_var = self.graph.nodes[vid].get("var_name", "")
+                    if v_var != a_var:
+                        self.graph.add_edge(
+                            vid, aid,
+                            edge_type=EDGE_DATA_FLOW,
+                        )
 
     @property
     def node_count(self) -> int:

@@ -348,82 +348,121 @@ javascript:
 java:
   sources:
     sql_injection:
-      - request.getParameter(
-      - request.getParameterValues(
-      - request.getQueryString(
-      - request.getHeader(
-      - request.getCookies(
+      # Variable-agnostic patterns — matches req.getParameter(,
+      # request.getParameter(, httpRequest.getParameter(, etc.
+      - .getParameter(
+      - .getParameterValues(
+      - .getQueryString(
+      - .getHeader(
+      - .getCookies(
+      - .getInputStream(
+      - .getReader(
+      # Spring annotation-based injection
       - "@RequestParam"
       - "@PathVariable"
       - "@RequestBody"
       - "@RequestHeader"
       - "@CookieValue"
     command_injection:
-      - request.getParameter(
-      - request.getHeader(
+      - .getParameter(
+      - .getHeader(
       - System.getenv(
       - System.getProperty(
     xss:
-      - request.getParameter(
-      - request.getParameterValues(
-      - request.getHeader(
+      - .getParameter(
+      - .getParameterValues(
+      - .getHeader(
       - "@RequestParam"
     path_traversal:
-      - request.getParameter(
-      - request.getHeader(
+      - .getParameter(
+      - .getHeader(
       - "@RequestParam"
     ssrf:
-      - request.getParameter(
-      - request.getHeader(
+      - .getParameter(
+      - .getHeader(
       - "@RequestParam"
     deserialization:
-      - request.getInputStream(
-      - request.getReader(
+      - .getInputStream(
+      - .getReader(
       - "@RequestBody"
       - ObjectInputStream
     open_redirect:
-      - request.getParameter(
-      - request.getHeader(
+      - .getParameter(
+      - .getHeader(
     code_injection:
-      - request.getParameter(
-      - request.getHeader(
+      - .getParameter(
+      - .getHeader(
       - "@RequestParam"
     auth_bypass:
-      - request.getCookies(
-      - request.getHeader("Authorization"
+      - .getCookies(
+      - .getHeader("Authorization"
       - "@RequestHeader"
+    xxe:
+      - .getParameter(
+      - .getInputStream(
+      - .getReader(
+      - "@RequestBody"
+      - "@RequestPart"
 
   sinks:
     sql_injection:
+      # Statement / PreparedStatement execution methods
       - .executeQuery(
       - .executeUpdate(
       - .execute(
-      - Statement.
-      - PreparedStatement.
+      - Statement.executeQuery(
+      - Statement.executeUpdate(
+      - Statement.execute(
+      # JPA / Hibernate
       - createNativeQuery(
       - createQuery(
       - .createSQLQuery(
-      - jdbcTemplate.query(
-      - jdbcTemplate.update(
-      - jdbcTemplate.execute(
       - EntityManager.createNativeQuery(
+      # Spring JdbcTemplate / NamedParameterJdbcTemplate (variable-agnostic)
+      - .query(
+      - .queryForList(
+      - .queryForObject(
+      - .queryForMap(
+      - .queryForRowSet(
+      - .update(
+      - .batchUpdate(
+      # MyBatis
+      - .selectOne(
+      - .selectList(
+      - .selectMap(
+      - SqlSession.
+      # JDBC connection injection (arbitrary driver/URL → RCE)
+      - DriverManager.getConnection(
+      - Class.forName(
+      - DataSource.getConnection(
+      # NOTE: JdbcTemplate / NamedParameterJdbcTemplate as type-indicator
+      # patterns were removed — they match imports, type declarations, and
+      # variable names globally, producing high false-positive rates.
+      # Use method-level patterns (.query, .queryForList, etc.) instead.
     command_injection:
       - Runtime.exec(
       - Runtime.getRuntime().exec(
       - ProcessBuilder(
-      - .start(
+      # NOTE: .start( was removed — it matches Thread.start(),
+      # Server.start(), etc. across every Java framework.
+      # ProcessBuilder usage is already covered by the type pattern above.
     xss:
-      - response.getWriter(
-      - .print(
-      - .println(
-      - response.setHeader(
-      - response.addHeader(
+      # Variable-agnostic — matches resp.getWriter(), response.getWriter(), etc.
+      - .getWriter(
+      - .getOutputStream(
+      # NOTE: .print( and .println( were removed — they match
+      # System.out.print(), logger.print(), etc. universally.
     path_traversal:
       - new FileInputStream(
       - new FileReader(
       - new File(
+      - new FileOutputStream(
+      - new FileWriter(
       - Files.read(
       - Files.newInputStream(
+      - Files.write(
+      - Files.newOutputStream(
+      - Files.copy(
       - Paths.get(
     ssrf:
       - new URL(
@@ -439,9 +478,16 @@ java:
       - SnakeYAML.load(
       - Jackson ObjectMapper.readValue(
       - Gson.fromJson(
+      - XStream.fromXML(
+      - XStream
+      - Kryo.readObject(
+      - Kryo
+      - HessianInput.readObject(
+      - HessianInput
     open_redirect:
-      - response.sendRedirect(
-      - response.setHeader("Location"
+      # Variable-agnostic
+      - .sendRedirect(
+      - .setHeader("Location"
       - ModelAndView("redirect:"
       - "redirect:"
     code_injection:
@@ -453,21 +499,49 @@ java:
       - SecurityContext.getAuthentication(
       - .isAuthenticated(
       - .hasRole(
+    xxe:
+      # DOM4J / JDOM / dom4j
+      - SAXReader
+      - .read(                       # SAXReader.read(), DocumentBuilder.parse()
+      # JAXP (javax.xml.parsers)
+      - DocumentBuilder
+      - DocumentBuilderFactory
+      - SAXParser
+      - SAXParserFactory
+      - XMLReader
+      - XMLInputFactory
+      - .parse(                      # common parse method across JAXP parsers
+      # XPath / XSLT / Validation
+      - XPathExpression
+      - SchemaFactory
+      - TransformerFactory
+      - Validator
+      # Package indicators (import/type level)
+      - org.dom4j
+      - org.xml.sax
+      - javax.xml.parsers
+      - org.jdom2
 
   sanitizers:
     sql_injection:
-      - PreparedStatement
-      - setString(
-      - setInt(
-      - setLong(
-      - setBoolean(
+      # Parameter binding (PreparedStatement / NamedParameterJdbcTemplate)
+      # NOTE: PreparedStatement as a type-pattern was removed — it matches
+      # imports, parameter types, and method names globally, silently
+      # suppressing valid findings.  Use method-level patterns instead.
+      - .setString(
+      - .setInt(
+      - .setLong(
+      - .setBoolean(
+      - .setObject(
       - .setParameter(
       - StringEscapeUtils.escapeSql(
       - ESAPI.encoder(
-    command_injection:
-      - ProcessBuilder(
-      - SecurityManager
-      - AccessController
+    # command_injection sanitizers were removed:
+    #   ProcessBuilder( is a sink, not a sanitizer.
+    #   SecurityManager / AccessController enforce JVM permissions, not
+    #   command argument sanitization.
+    #   No reliable command-injection sanitizers remain for Java.
+    command_injection: []
     xss:
       - StringEscapeUtils.escapeHtml4(
       - ESAPI.encoder(
@@ -494,4 +568,16 @@ java:
     code_injection:
       - StringEscapeUtils
       - ESAPI.validator(
+    xxe:
+      # External entity / DTD disabling features
+      - setFeature(
+      - "disallow-doctype-decl"
+      - "external-general-entities"
+      - "external-parameter-entities"
+      - FEATURE_SECURE_PROCESSING
+      - XMLConstants.FEATURE_SECURE_PROCESSING
+      - ACCESS_EXTERNAL_DTD
+      - ACCESS_EXTERNAL_SCHEMA
+      - setExpandEntityReferences(false
+      - setProperty(XMLConstants.ACCESS_EXTERNAL_DTD
 
