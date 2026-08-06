@@ -83,6 +83,25 @@ class CallGraphBuilder:
             for imp in imports
         ]
 
+        # Extract field-type names as virtual imports.  Frameworks like
+        # Spring inject dependencies without explicit imports, but the
+        # field type (e.g. `private ReportParser reportParser`) tells
+        # us exactly which class is being used.  We add these type names
+        # so that `resolve_imports` can connect them via the file_index.
+        virtual_types = self._extract_field_types(tree, language)
+        for vt in virtual_types:
+            # Only add if not already covered by a real import
+            already_imported = any(vt in imp.names for imp in imports)
+            if not already_imported:
+                self._imports[path].append(
+                    _ResolvedImport(
+                        module=vt,
+                        names=[vt],
+                        is_relative=False,
+                        file_path=path,
+                    )
+                )
+
     def add_directory(self, dir_path: str | Path) -> None:
         """Recursively add all source files in *dir_path*.
 
@@ -179,8 +198,16 @@ class CallGraphBuilder:
                 if target_file == file_path:
                     continue  # already resolved as intra-file
 
-                # Check if there's an import path to the target file
-                if not self._is_reachable(
+                # Same-directory always reachable for Java (same-package
+                # visibility).  Python and JS require explicit imports
+                # even for same-directory files, so we scope this to
+                # Java only.
+                same_dir = (
+                    Path(file_path).parent == Path(target_file).parent
+                    and file_path.endswith(".java")
+                )
+
+                if not same_dir and not self._is_reachable(
                     file_path, target_file, imported_modules, resolved_imports
                 ):
                     continue
@@ -219,6 +246,81 @@ class CallGraphBuilder:
 
     # Extensions we try for JS/TS relative imports and absolute module paths
     _SRC_EXTS = (".py", ".java", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
+
+    @staticmethod
+    def _extract_field_types(
+        tree: object, language: str
+    ) -> list[str]:
+        """Extract type names from field/variable declarations.
+
+        Captures the class name from patterns like
+        ``private ReportParser reportParser;`` so that
+        framework-injected dependencies become reachable
+        even when the source file has no explicit import.
+
+        Filters out primitive types and common stdlib container
+        names that would never resolve to a project file.
+        """
+        from hyqagent.cpg.traversal import Traverser
+
+        _PRIMITIVES = {
+            "int", "long", "float", "double", "boolean", "byte",
+            "short", "char", "void", "String", "Integer", "Long",
+            "Float", "Double", "Boolean", "Byte", "Short",
+        }
+        _CONTAINERS = {
+            "List", "Map", "Set", "Collection", "ArrayList",
+            "HashMap", "HashSet", "Optional", "Array", "Object",
+            "HttpServletRequest", "HttpServletResponse",
+            "ServletRequest", "ServletResponse",
+            "ServletException", "IOException",
+        }
+        skip = _PRIMITIVES | _CONTAINERS
+
+        types: list[str] = []
+        seen: set[str] = set()
+
+        for node in Traverser(tree).traverse():
+            ntype = node.type
+
+            # ── Java field declarations ────────────────────────────
+            if ntype == "field_declaration" and language == "java":
+                type_node = node.child_by_field_name("type")
+                if type_node is not None:
+                    # Collect every `type_identifier` descendant
+                    # (handles generics: List<ReportProvider> →
+                    #  we collect ReportProvider)
+                    self_nodes = [type_node]
+                    while self_nodes:
+                        cur = self_nodes.pop()
+                        if cur.type == "type_identifier":
+                            name = cur.text.decode()
+                            if name not in skip and name not in seen:
+                                types.append(name)
+                                seen.add(name)
+                        for child in cur.children:
+                            self_nodes.append(child)
+
+            # ── Python typed assignments ───────────────────────────
+            elif ntype == "assignment" and language == "python":
+                type_node = node.child_by_field_name("type")
+                if type_node is not None:
+                    name = type_node.text.decode()
+                    if name not in skip and name not in seen:
+                        types.append(name)
+                        seen.add(name)
+
+            # ── JS/TS field / variable type annotations ────────────
+            elif ntype in ("field_definition", "public_field_definition",
+                           "variable_declarator") and language in ("javascript", "typescript"):
+                type_node = node.child_by_field_name("type")
+                if type_node is not None:
+                    name = type_node.text.decode()
+                    if name not in skip and name not in seen:
+                        types.append(name)
+                        seen.add(name)
+
+        return types
 
     @staticmethod
     def _resolve_module_path(
