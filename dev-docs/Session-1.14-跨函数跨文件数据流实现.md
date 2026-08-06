@@ -14,6 +14,10 @@
 | `src/hyqagent/cpg/query.py` | +1/-1 行 | sink 匹配也排除 NODE_FUNCTION |
 | `src/hyqagent/cpg/taint_rules.yaml` | (上次Session) | 变量无关 YAML 模式 |
 | `tests/test_cpg/test_frameworks.py` | (上次Session) | 测试预期更新 |
+| `src/hyqagent/cpg/callgraph_builder.py` | +80/-20 行 | JS/TS 导入解析 + filename 索引消歧 |
+| `src/hyqagent/cpg/graph.py` | +50 行 | CPG pickle 缓存（~/.cache/hyqagent/cpg/） |
+
+**总改动**: 5 文件, +470/-105 行 (2 commits)
 
 ## 实现过程
 
@@ -159,3 +163,71 @@ DatasourceServletAction.java (console模块)
 - **Java 项目需要正确的 source root 检测**: 当前通过逐级向上查找 package 目录，
   对于 Maven/Gradle 标准布局 (`src/main/java/com/...`) 工作良好，
   但对于非标准布局可能失败。
+
+## 后半段：4 项遗留问题的修复（饭后）
+
+### 1. CPG 缓存（Task #7）
+
+**问题**: 每次测试 ureport2 都要等 13 分钟构建，严重阻碍开发迭代。
+
+**修复**: 在 `add_directory()` 中加 pickle 缓存：
+- 缓存 key = 文件列表指纹（相对路径+文件大小 hash）
+- 缓存到 `~/.cache/hyqagent/cpg/<hash>.pkl`
+- 文件不变时直接加载 pickle，0.84s vs 800s（**~1000x 加速**）
+- 缓存损坏或过时时自动重建
+
+### 2. JavaScript/TypeScript 跨文件导入解析（Task #8）
+
+**问题**: `_resolve_module_path` 只处理 Python (`.py`) 和 Java (`.java`)，
+JS/TS 的 `import {x} from './utils'` 未解析。
+
+**修复**:
+- 新增 `./path` 和 `../path` 格式的 JS 风格相对路径处理
+- 正确处理 `lstrip(".")` 的 bug（混淆了 `./` 和 `../`）
+- 自动剥离 import 语句自带的 `.js`/`.ts` 扩展名
+- 支持 `index.js`/`index.ts` 目录入口解析
+- 新增扩展名列表: `.py`, `.java`, `.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, `.cjs`
+
+### 3. Filename 索引冲突消歧（Task #9）
+
+**问题**: `file_index[stem] = fp` 的 last-write-wins 策略在多个 `utils.py` 时错误。
+
+**修复**:
+- `file_index` 改为 `dict[str, list[str]]`，收集所有同名文件候选
+- 当只有一个候选时直接返回
+- 多候选时按包路径结构匹配最佳（如 `com/example/Foo.java` 匹配 `com.example.Foo`）
+- 无法匹配时取最短路径（通常最接近 base_dir）
+
+### 4. XXE 检测（Task #6）✅ 根因定位 + 最小验证通过
+
+**关键发现**: XXE 漏洞代码在 `DesignerServletAction.java` 而非 `DatasourceServletAction.java`！
+
+正确路径:
+```
+req.getParameter("content") @ DesignerServletAction:120
+  → decodeContent(content)
+  → IOUtils.toInputStream(content) → inputStream
+  → reportParser.parse(inputStream, "p") @ line 123
+  → 跨文件 → ReportParser.parse(InputStream, String)
+  → saxReader.read(inputStream) @ ReportParser:69
+```
+
+**最小测试验证**: 2 条路径 ✅（8 跳，跨文件）
+
+**全量 ureport2 未命中原因**: `DesignerServletAction.reportParser` 字段通过
+Spring `@Autowired` / setter 注入，代码中**没有** `import ReportParser`。
+`CallGraphBuilder._is_reachable` 依赖 import 链，无法处理 DI 框架的隐式依赖。
+
+**Phase 2 修复方向**:
+- 解析 `@Autowired` / `@Inject` 注解推断字段类型
+- Name-based fallback: `reportParser` → `ReportParser`（驼峰约定）
+- Type-based fallback: 从同 package 搜索匹配类名
+
+## 补充：遇到的问题与修复（后半段）
+
+| 现象 | 原因 | 修复方案 |
+|------|------|----------|
+| 缓存文件只有 100KB | 后台 build 进程在 pickle 完成前被中断 | 改用同步构建，确认 28MB 完整缓存 |
+| JS `./lib/utils.js` 解析失败 | `lstrip(".")` 混淆 `./` 和 `../`，且 `.js` 扩展名重复 | 按 `/` 分割数 `..` 个数 + 剥离已知扩展名 |
+| JS 跨文件调用 `resolved=False` | 旧缓存了调用结果 | `use_cache=False` 强制重建 |
+| XXE 全量 0 路径 | Spring DI 无 import | 最小测试验证通过，根因已记录 |
