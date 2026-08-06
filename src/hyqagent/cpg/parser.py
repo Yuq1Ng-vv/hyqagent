@@ -66,19 +66,18 @@ class Parser:
         lang_names = languages or get_all_names()
         self._parsers: dict[str, TSParser] = {}
         self._languages: dict[int, str] = {}
+        self._lang_keys: list[int] = []  # FIFO insertion order for eviction (BUG 22)
         self._query_cache: dict[tuple[str, str], Query] = {}
 
         self._providers: dict[str, LanguageProvider] = {}
         for name in lang_names:
             prov = get_provider(name)
             if __debug__:
-                issues = prov._validate()  # noqa: SLF001
+                issues = prov._validate()
                 if issues:
                     import warnings
 
-                    warnings.warn(
-                        f"LanguageProvider {name!r} has contract issues: {issues}"
-                    )
+                    warnings.warn(f"LanguageProvider {name!r} has contract issues: {issues}")
             self._providers[name] = prov
             self._parsers[name] = prov.build_ts_parser()
 
@@ -145,11 +144,11 @@ class Parser:
 
         Raises:
             ValueError: If *language* is not initialised in this Parser instance.
+
         """
         if language not in self._providers:
             raise ValueError(
-                f"Unsupported language: {language!r}. "
-                f"Initialised: {sorted(self._providers)}"
+                f"Unsupported language: {language!r}. Initialised: {sorted(self._providers)}"
             )
         return self._providers[language]
 
@@ -233,17 +232,26 @@ class Parser:
                 f"Parser for {language!r} not initialised. Available: {list(self._parsers)}"
             )
         tree = self._parsers[language].parse(code.encode("utf-8"))
+        tid = id(tree)
+        self._lang_keys.append(tid)
+        self._languages[tid] = language
+
+        # BUG 22: Evict oldest entries when capacity exceeded (25% at a time)
         n_entries = len(self._languages)
         if n_entries >= self._max_lang_entries:
             import warnings
 
             warnings.warn(
-                f"Parser._languages has {n_entries} entries — possible cache leak. "
-                f"Reuse Parser instances across many parses.",
+                f"Parser._languages has {n_entries} entries — evicting oldest. "
+                f"Reuse Parser instances across many parses to avoid churn.",
                 ResourceWarning,
                 stacklevel=2,
             )
-        self._languages[id(tree)] = language
+            n_evict = max(self._max_lang_entries // 4, 1)
+            for _ in range(n_evict):
+                if self._lang_keys:
+                    old_id = self._lang_keys.pop(0)
+                    self._languages.pop(old_id, None)
         return tree
 
     @staticmethod
@@ -255,10 +263,6 @@ class Parser:
         raise ValueError(
             f"Cannot detect language for {path.name!r}. Use parse_code() with an explicit language."
         )
-
-    # ── Legacy alias (for tests that accessed _get_language directly) ───
-
-    _get_language = get_language
 
     def _compile_query(self, language: str, query_str: str) -> Query:
         """Compile a tree-sitter Query (cached because creation is expensive)."""

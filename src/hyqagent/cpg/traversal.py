@@ -262,6 +262,7 @@ class Traverser:
 
 # ─── Shared helpers (used by multiple CPG modules) ───────────────────────
 
+
 def _source(node: Node) -> str:
     """Decode a tree-sitter node's text safely.  Shared across all CPG modules."""
     return node.text.decode("utf-8") if node.text else ""

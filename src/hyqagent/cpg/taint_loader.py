@@ -6,10 +6,16 @@ sink / sanitizer patterns grouped by language and vulnerability category.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
+
+_VALID_LANGUAGES = {"python", "javascript", "java"}
+_VALID_SECTIONS = {"sources", "sinks", "sanitizers"}
 
 
 @dataclass
@@ -50,11 +56,42 @@ class TaintRuleLoader:
         self._load()
 
     def _load(self) -> None:
+        """Load YAML and validate structure (BUG 24)."""
         try:
             with open(self._path, encoding="utf-8") as fh:
                 self._data = yaml.safe_load(fh) or {}
         except FileNotFoundError:
             self._data = {}
+            return
+
+        self._validate()
+
+    def _validate(self) -> None:
+        """Check YAML structure and warn about issues."""
+        if not isinstance(self._data, dict):
+            logger.warning("taint_rules.yaml top-level should be a dict, got %s", type(self._data).__name__)
+            return
+
+        for lang, lang_data in self._data.items():
+            if lang not in _VALID_LANGUAGES:
+                logger.warning("Unknown language %r in taint_rules.yaml (expected one of %s)", lang, sorted(_VALID_LANGUAGES))
+                continue
+
+            if not isinstance(lang_data, dict):
+                logger.warning("Language %r section should be a dict, got %s", lang, type(lang_data).__name__)
+                continue
+
+            for section in lang_data:
+                if section not in _VALID_SECTIONS:
+                    logger.warning("Unknown section %r in language %r (expected one of %s)", section, lang, sorted(_VALID_SECTIONS))
+
+                section_data = lang_data.get(section, {})
+                if isinstance(section_data, dict):
+                    for cat_name, patterns in section_data.items():
+                        if not isinstance(patterns, list):
+                            logger.warning("%s.%s.%s should be a list, got %s", lang, section, cat_name, type(patterns).__name__)
+                        elif not patterns:
+                            logger.info("%s.%s.%s is empty", lang, section, cat_name)
 
     def rules_for(self, language: str) -> LanguageTaintRules:
         """Return all taint rules for *language*."""

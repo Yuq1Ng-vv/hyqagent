@@ -1,5 +1,4 @@
-"""
-core/state.py — Agent 状态类型定义
+"""core/state.py — Agent 状态类型定义
 
 定义审计过程中流转的状态结构。
 LangGraph 的 StateGraph 使用此 TypedDict 作为节点间的状态载体。
@@ -7,14 +6,22 @@ LangGraph 的 StateGraph 使用此 TypedDict 作为节点间的状态载体。
 
 from __future__ import annotations
 
-from typing import Annotated, Any, TypedDict
 from operator import add
+from typing import Annotated, Any, TypedDict
+
+# Fields that MUST be present for a valid initial state (BUG 25)
+_REQUIRED_FIELDS = ("session_id", "target_path", "language", "mode")
 
 
 class AuditState(TypedDict, total=False):
     """LangGraph 审计流程的状态载体
 
     字段按照"谁写入、谁读取"分组。
+
+    ``total=False`` means every field is optional at the type level,
+    but ``validate_audit_state()`` enforces that the *initial* state
+    carries at least ``session_id``, ``target_path``, ``language``,
+    and ``mode``.
     """
 
     # ─── 会话元数据 ───
@@ -43,3 +50,19 @@ class AuditState(TypedDict, total=False):
     audit_complete: bool
     error_count: int
     messages: list[dict[str, Any]]  # LLM 对话历史
+
+
+def validate_audit_state(state: dict[str, Any], partial: bool = False) -> list[str]:
+    """Validate required fields are present in *state* (BUG 25).
+
+    Args:
+        state: The state dict to validate.
+        partial: If ``True``, skip required-field checks (for intermediate
+                 states that nodes build incrementally).
+
+    Returns:
+        A list of missing-field names (empty if valid).
+    """
+    if partial:
+        return []
+    return [f for f in _REQUIRED_FIELDS if f not in state or state[f] in (None, "")]

@@ -1,5 +1,4 @@
-"""
-core/events.py — 事件类型定义
+"""core/events.py — 事件类型定义
 
 ESAA（事件溯源自治Agent）模式下，所有Agent动作记录为不可变事件。
 事件类型定义遵循六条审计不变量（详见 LONG-RUNNING-AGENT-ARCHITECTURE.md）。
@@ -7,8 +6,8 @@ ESAA（事件溯源自治Agent）模式下，所有Agent动作记录为不可变
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -18,9 +17,7 @@ class AuditEvent:
 
     event_type: str
     session_id: str
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

@@ -170,11 +170,13 @@ class CPGQuery:
         """Find a ``CALLS``-edge path from *func_a* to *func_b*."""
         # Find function nodes by name
         a_nodes = [
-            n for n, d in self._graph.nodes(data=True)
+            n
+            for n, d in self._graph.nodes(data=True)
             if d.get("node_type") == NODE_FUNCTION and d.get("name") == func_a
         ]
         b_nodes = {
-            n for n, d in self._graph.nodes(data=True)
+            n
+            for n, d in self._graph.nodes(data=True)
             if d.get("node_type") == NODE_FUNCTION and d.get("name") == func_b
         }
         if not a_nodes or not b_nodes:
@@ -217,9 +219,7 @@ class CPGQuery:
 
         return "\n".join(lines)
 
-    def get_sanitizers(
-        self, path: GraphPath, taint_loader: object | None = None
-    ) -> list[str]:
+    def get_sanitizers(self, path: GraphPath, taint_loader: object | None = None) -> list[str]:
         """Check for sanitizer patterns along *path* nodes.
 
         If *taint_loader* (a :class:`TaintRuleLoader`) is provided, uses
@@ -227,10 +227,14 @@ class CPGQuery:
         """
         sanitizers: list[str] = []
         # Use YAML rules if available
-        if taint_loader is not None and hasattr(taint_loader, 'all_sources'):
+        if taint_loader is not None and hasattr(taint_loader, "all_sources"):
             patterns: set[str] = set()
-            for lang in getattr(taint_loader, 'available_languages', []):
-                rules = getattr(taint_loader, 'rules_for')(lang)
+            for lang in getattr(taint_loader, "available_languages", []):
+                if not hasattr(taint_loader, "rules_for"):
+                    continue
+                rules = taint_loader.rules_for(lang)
+                if rules is None:
+                    continue
                 for cat in rules.categories.values():
                     patterns.update(s.lower() for s in cat.sanitizers)
             for node in path.nodes:
@@ -256,10 +260,7 @@ class CPGQuery:
         edge_data = self._graph.get_edge_data(u, v)
         if not edge_data:
             return False
-        return any(
-            d.get("edge_type") in {EDGE_DATA_FLOW, EDGE_CALLS}
-            for d in edge_data.values()
-        )
+        return any(d.get("edge_type") in {EDGE_DATA_FLOW, EDGE_CALLS} for d in edge_data.values())
 
     def _find_nodes(
         self,
@@ -278,6 +279,7 @@ class CPGQuery:
                Used to exclude e.g. ``NODE_FUNCTION`` from source/sink matching,
                since function bodies contain source/sink patterns as substring
                matches but aren't the actual taint entry/exit points.
+
         """
         if not pattern:
             return []

@@ -416,7 +416,8 @@ class PythonAdapter(LanguageProvider):
 
         # Function / class definition name
         return not (
-            parent.type in (
+            parent.type
+            in (
                 "function_definition",
                 "class_definition",
                 "decorated_definition",

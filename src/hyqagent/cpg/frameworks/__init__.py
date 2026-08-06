@@ -16,21 +16,19 @@ if TYPE_CHECKING:
     from hyqagent.cpg.parser import Parser
 
 # Registry: framework_name → extractor class (lazy via builder functions)
-_EXTRACTOR_BUILDERS: dict[str, "type[BaseFrameworkExtractor]"] = {}
+_EXTRACTOR_BUILDERS: dict[str, type[BaseFrameworkExtractor]] = {}
 
 
-def _register(name: str, builder: "type[BaseFrameworkExtractor]") -> None:
+def _register(name: str, builder: type[BaseFrameworkExtractor]) -> None:
     _EXTRACTOR_BUILDERS[name] = builder
 
 
-def get_extractor(name: str, parser: "Parser") -> "BaseFrameworkExtractor":
+def get_extractor(name: str, parser: Parser) -> BaseFrameworkExtractor:
     """Get a framework extractor instance by name."""
     cls = _EXTRACTOR_BUILDERS.get(name)
     if cls is None:
         available = ", ".join(sorted(_EXTRACTOR_BUILDERS))
-        raise ValueError(
-            f"Unknown framework: {name!r}. Available: {available}"
-        )
+        raise ValueError(f"Unknown framework: {name!r}. Available: {available}")
     return cls(parser)
 
 
@@ -41,10 +39,10 @@ def available_frameworks() -> list[str]:
 
 # ── Register built-in extractors ──────────────────────────────────────────
 
-from hyqagent.cpg.frameworks.flask import FlaskExtractor  # noqa: E402
 from hyqagent.cpg.frameworks.django import DjangoExtractor  # noqa: E402
-from hyqagent.cpg.frameworks.fastapi import FastAPIExtractor  # noqa: E402
 from hyqagent.cpg.frameworks.express import ExpressExtractor  # noqa: E402
+from hyqagent.cpg.frameworks.fastapi import FastAPIExtractor  # noqa: E402
+from hyqagent.cpg.frameworks.flask import FlaskExtractor  # noqa: E402
 from hyqagent.cpg.frameworks.spring import SpringExtractor  # noqa: E402
 
 _register("flask", FlaskExtractor)

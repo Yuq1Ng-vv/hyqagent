@@ -1,5 +1,4 @@
-"""
-core/protocols.py — HyqAgent 核心抽象接口
+"""core/protocols.py — HyqAgent 核心抽象接口
 
 这是整个项目最重要的文件。所有具体实现依赖这些协议，协议不依赖任何具体实现。
 这是依赖倒置原则（DIP）在代码层面的体现。
@@ -54,13 +53,11 @@ class ToolResult(Generic[T]):
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def ok(cls, tool_name: str, result: T, **metadata: Any) -> "ToolResult[T]":
+    def ok(cls, tool_name: str, result: T, **metadata: Any) -> ToolResult[T]:
         return cls(success=True, tool_name=tool_name, result=result, metadata=metadata)
 
     @classmethod
-    def fail(
-        cls, tool_name: str, error: str, error_code: str = "UNKNOWN"
-    ) -> "ToolResult[T]":
+    def fail(cls, tool_name: str, error: str, error_code: str = "UNKNOWN") -> ToolResult[T]:
         return cls(success=False, tool_name=tool_name, error=error, error_code=error_code)
 
 
@@ -160,9 +157,7 @@ class CpgAnalyzer(Protocol):
         self, source: CodeLocation, sink: CodeLocation
     ) -> ToolResult[list[CodeLocation]]: ...
 
-    async def get_call_chain(
-        self, func_a: str, func_b: str
-    ) -> ToolResult[list[CodeLocation]]: ...
+    async def get_call_chain(self, func_a: str, func_b: str) -> ToolResult[list[CodeLocation]]: ...
 
     async def slice_path(
         self, source: CodeLocation, sink: CodeLocation, context_lines: int = 3
@@ -182,9 +177,7 @@ class AuditRepository(ABC):
     async def get_session(self, session_id: str) -> dict[str, Any] | None: ...
 
     @abstractmethod
-    async def save_finding(
-        self, session_id: str, hypothesis: VulnerabilityHypothesis
-    ) -> str: ...
+    async def save_finding(self, session_id: str, hypothesis: VulnerabilityHypothesis) -> str: ...
 
     @abstractmethod
     async def get_findings(
@@ -244,10 +237,6 @@ class MetricsCollector(Protocol):
 
     def record_finding(self, severity: FindingSeverity, cwe: str) -> None: ...
 
-    def record_tool_call(
-        self, tool_name: str, success: bool, latency_seconds: float
-    ) -> None: ...
+    def record_tool_call(self, tool_name: str, success: bool, latency_seconds: float) -> None: ...
 
-    def set_coverage(
-        self, session_id: str, endpoint: float, risk_weighted: float
-    ) -> None: ...
+    def set_coverage(self, session_id: str, endpoint: float, risk_weighted: float) -> None: ...

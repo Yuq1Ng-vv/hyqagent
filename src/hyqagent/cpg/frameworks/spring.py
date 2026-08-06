@@ -29,9 +29,30 @@ _SPRING_METHOD_ANNOTATIONS = {
     "RequestMapping": "GET",  # default, may be overridden by method= attribute
 }
 
+def _merge_routes(prefix: str, route: str) -> str:
+    """Merge a class-level prefix with a method-level route (BUG 11).
+
+    >>> _merge_routes("/api", "/users")
+    "/api/users"
+    >>> _merge_routes("/api/", "/users")
+    "/api/users"
+    """
+    prefix = prefix.rstrip("/")
+    if not prefix:
+        return route
+    if not route.startswith("/"):
+        route = "/" + route
+    return prefix + route
+
+
 _SPRING_SECURITY_ANNOTATIONS = {
-    "PreAuthorize", "PostAuthorize", "Secured", "RolesAllowed",
-    "PreFilter", "PostFilter", "Authenticated",
+    "PreAuthorize",
+    "PostAuthorize",
+    "Secured",
+    "RolesAllowed",
+    "PreFilter",
+    "PostFilter",
+    "Authenticated",
 }
 
 
@@ -78,6 +99,11 @@ class SpringExtractor(BaseFrameworkExtractor):
 
             http_method, route_pattern = route_annotation
 
+            # BUG 11: Merge class-level @RequestMapping prefix
+            class_prefix = self._find_class_route_prefix(node)
+            if class_prefix:
+                route_pattern = _merge_routes(class_prefix, route_pattern)
+
             # Parameters
             params = self._extract_method_params(node, provider)
 
@@ -107,7 +133,12 @@ class SpringExtractor(BaseFrameworkExtractor):
     # ── Annotation parsing ──────────────────────────────────────────────
 
     def _find_route_annotation(self, method_node: Node) -> tuple[str, str] | None:
-        """Find the first Spring mapping annotation, return (HTTP_method, route)."""
+        """Find the first Spring mapping annotation, return (HTTP_method, route).
+
+        For ``@RequestMapping``, also checks the ``method=`` attribute
+        (e.g. ``method=RequestMethod.POST``) to determine the actual HTTP
+        method instead of always defaulting to GET (BUG 10).
+        """
         for child in method_node.children:
             if child.type != "modifiers":
                 continue
@@ -119,16 +150,60 @@ class SpringExtractor(BaseFrameworkExtractor):
 
                 # Extract route string from annotation value
                 route = "/"
+                method_override: str | None = None
                 for sub in self._walk_subtree(child):
                     if sub.type == "annotation":
                         ann_text = self._source(sub)
                         if ann_name in ann_text:
                             route = self._extract_annotation_value(sub) or route
+                            # BUG 10: @RequestMapping can specify method= attribute
+                            if ann_name == "RequestMapping":
+                                method_override = self._extract_method_attribute(sub)
                             break
 
+                if ann_name == "RequestMapping" and method_override:
+                    return method_override, route
                 return http_method, route
 
         return None
+
+    @staticmethod
+    def _extract_method_attribute(ann_node: Node) -> str | None:
+        """Extract ``method=RequestMethod.X`` from a ``@RequestMapping`` annotation (BUG 10)."""
+        for child in ann_node.children:
+            if child.type == "element_value_pair":
+                name_node = child.child_by_field_name("name")
+                if name_node and name_node.text and name_node.text.decode() == "method":
+                    val_node = child.child_by_field_name("value")
+                    if val_node is not None and hasattr(val_node, "text") and val_node.text:
+                        val_text = val_node.text.decode()
+                        if "RequestMethod." in val_text:
+                            return val_text.split("RequestMethod.")[-1].strip()
+        return None
+
+    def _find_class_route_prefix(self, method_node: Node) -> str:
+        """Return the class-level ``@RequestMapping`` route prefix, or ``""`` (BUG 11).
+
+        Walks ancestors to the enclosing ``class_declaration``, then checks
+        its modifiers for ``@RequestMapping``.  The prefix is prepended to
+        each method-level route, e.g. ``"/api" + "/users"`` → ``"/api/users"``.
+        """
+        for ancestor in Traverser.get_ancestors(method_node):
+            if ancestor.type == "class_declaration":
+                for child in ancestor.children:
+                    if child.type == "modifiers":
+                        modifiers_text = self._source(child)
+                        if "@RequestMapping" in modifiers_text:
+                            for sub in self._walk_subtree(child):
+                                if sub.type == "annotation":
+                                    ann_text = self._source(sub)
+                                    if "RequestMapping" in ann_text:
+                                        prefix = self._extract_annotation_value(sub)
+                                        if prefix and prefix != "/":
+                                            return prefix
+                                        return ""
+                break  # Only check the first enclosing class
+        return ""
 
     def _extract_annotation_value(self, ann_node: Node) -> str | None:
         """Extract the string argument from an annotation like @GetMapping("/path")."""
@@ -140,7 +215,11 @@ class SpringExtractor(BaseFrameworkExtractor):
                 name = child.child_by_field_name("name")
                 if name and self._source(name) == "value":
                     val = child.child_by_field_name("value")
-                    if val is not None and hasattr(val, 'type') and val.type in ("string_literal", "string"):
+                    if (
+                        val is not None
+                        and hasattr(val, "type")
+                        and val.type in ("string_literal", "string")
+                    ):
                         return self._source(val).strip("\"'")
         return None
 
@@ -199,9 +278,14 @@ class SpringExtractor(BaseFrameworkExtractor):
             if type_node is not None:
                 type_hint = self._source(type_node)
 
-            params.append(RouteParam(
-                name=name, source=source, type_hint=type_hint, required=required,
-            ))
+            params.append(
+                RouteParam(
+                    name=name,
+                    source=source,
+                    type_hint=type_hint,
+                    required=required,
+                )
+            )
 
         return params
 
@@ -214,9 +298,15 @@ class SpringExtractor(BaseFrameworkExtractor):
         source_text = self._source(body)
         for line_text in source_text.split("\n"):
             stripped = line_text.strip()
-            if any(p in stripped for p in [
-                "getParameter(", "getHeader(", "getCookies(",
-                "getInputStream(", "getReader(",
-            ]):
+            if any(
+                p in stripped
+                for p in [
+                    "getParameter(",
+                    "getHeader(",
+                    "getCookies(",
+                    "getInputStream(",
+                    "getReader(",
+                ]
+            ):
                 lines.append(stripped[:120])
         return lines

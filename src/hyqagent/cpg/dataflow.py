@@ -28,10 +28,6 @@ from hyqagent.cpg.types import DataFlowStep, DefUsePair, TaintConfig, TaintPath
 # ─── Helper: location string ───────────────────────────────────────────────
 
 
-
-
-
-
 # ─── Core class ────────────────────────────────────────────────────────────
 
 
@@ -154,7 +150,8 @@ class DataFlowBuilder:
         results: list[DefUsePair] = []
         for assign in assignments:
             use_locations = [
-                loc for loc in var_uses.get(assign.var_name, [])
+                loc
+                for loc in var_uses.get(assign.var_name, [])
                 if not self._loc_matches_def(loc, assign.node, file_path)
             ]
 
@@ -305,16 +302,12 @@ class DataFlowBuilder:
             provider = self._parser.get_provider(language)
 
             # Find all taint sources in this file
-            sources = self._find_pattern_matches(
-                tree, source_pattern, file_path
-            )
+            sources = self._find_pattern_matches(tree, source_pattern, file_path)
             if not sources:
                 continue
 
             # Find all sinks
-            sinks = self._find_pattern_matches(
-                tree, sink_pattern, file_path
-            )
+            sinks = self._find_pattern_matches(tree, sink_pattern, file_path)
 
             # Build per-function def-use chains
             funcs = self._parser.extract_functions(tree, language)
@@ -322,17 +315,13 @@ class DataFlowBuilder:
             for fn in funcs:
                 fn_node = self._fn_to_node(fn, tree)
                 if fn_node is not None:
-                    du_map[fn.name] = self.build_def_use_chains(
-                        tree, fn_node, language, file_path
-                    )
+                    du_map[fn.name] = self.build_def_use_chains(tree, fn_node, language, file_path)
 
             # For each source, BFS through assignments
             for src_node in sources:
                 src_text = _source(src_node)
                 # Find the enclosing function for this source
-                encl_func = self._find_enclosing_func(
-                    src_node, provider, tree
-                )
+                encl_func = self._find_enclosing_func(src_node, provider)
                 if encl_func is None:
                     continue
 
@@ -345,9 +334,10 @@ class DataFlowBuilder:
                     # source expression itself hits a sink.  This handles
                     # patterns like os.system(request.args.get("cmd")).
                     for sink_node in sinks:
-                        if self._node_in_range(src_node, sink_node) or _source(
-                            sink_node
-                        ) in src_text:
+                        if (
+                            self._node_in_range(src_node, sink_node)
+                            or _source(sink_node) in src_text
+                        ):
                             paths.append(
                                 TaintPath(
                                     source=src_text,
@@ -389,10 +379,7 @@ class DataFlowBuilder:
     @staticmethod
     def _node_in_range(node: Node, container: Node) -> bool:
         """Return ``True`` if *node* is within *container*'s byte range."""
-        return (
-            node.start_byte >= container.start_byte
-            and node.end_byte <= container.end_byte
-        )
+        return node.start_byte >= container.start_byte and node.end_byte <= container.end_byte
 
     def _loc_matches_def(self, loc: str, def_node: Node, file_path: str) -> bool:
         """Return True if *loc* refers to the definition site itself.
@@ -432,15 +419,12 @@ class DataFlowBuilder:
         self,
         node: Node,
         provider: LanguageProvider,
-        tree: Tree,
     ) -> str | None:
         """Walk ancestors to find the nearest function definition name."""
         func_types = provider.func_def_types
-        current = node.parent
-        while current is not None:
-            if current.type in func_types:
-                return provider.extract_function_name(current)
-            current = current.parent
+        for ancestor in Traverser.get_ancestors(node):
+            if ancestor.type in func_types:
+                return provider.extract_function_name(ancestor)
         return None
 
     def _resolve_tainted_var(
@@ -471,7 +455,7 @@ class DataFlowBuilder:
         src_node: Node,
         sinks: list[Node],
         du_map: dict[str, list[DefUsePair]],
-        provider: "LanguageProvider",
+        provider: LanguageProvider,
         file_path: str,
         language: str,
         max_depth: int,
@@ -535,12 +519,15 @@ class DataFlowBuilder:
                             if state in visited:
                                 continue
                             visited.add(state)
-                            new_steps = [*steps, DataFlowStep(
-                                location=use_loc,
-                                expression=cur_var,
-                                enclosing_function=func_name,
-                                kind="assignment",
-                            )]
+                            new_steps = [
+                                *steps,
+                                DataFlowStep(
+                                    location=use_loc,
+                                    expression=cur_var,
+                                    enclosing_function=func_name,
+                                    kind="assignment",
+                                ),
+                            ]
                             queue.append((cur_var, use_loc, new_steps, depth + 1))
 
         return None
@@ -549,25 +536,35 @@ class DataFlowBuilder:
         """Convert a FunctionNode (dataclass) back to a tree-sitter Node.
 
         Uses a per-tree cache to avoid repeated full-tree traversals.
+
+        BUG 23: The cache is capped at ``_MAX_FN_CACHE`` entries with
+        FIFO eviction to prevent unbounded growth across many parses.
         """
+        _MAX_FN_CACHE = 8192
         cache_key = (id(tree), fn.name, fn.start_line)
-        if not hasattr(self, '_fn_cache'):
+        if not hasattr(self, "_fn_cache"):
             self._fn_cache: dict[tuple, Node | None] = {}
+            self._fn_cache_keys: list[tuple] = []
         if cache_key in self._fn_cache:
             return self._fn_cache[cache_key]
+
+        # Evict oldest entry if at capacity
+        if len(self._fn_cache) >= _MAX_FN_CACHE and self._fn_cache_keys:
+            old_key = self._fn_cache_keys.pop(0)
+            self._fn_cache.pop(old_key, None)
 
         for node in Traverser(tree).traverse():
             line = node.start_point[0] + 1
             if line == fn.start_line:
-                provider = self._parser.get_provider(
-                    self._parser.get_language(tree)
-                )
+                provider = self._parser.get_provider(self._parser.get_language(tree))
                 if node.type in provider.func_def_types:
                     name = provider.extract_function_name(node)
                     if name == fn.name:
                         self._fn_cache[cache_key] = node
+                        self._fn_cache_keys.append(cache_key)
                         return node
         self._fn_cache[cache_key] = None
+        self._fn_cache_keys.append(cache_key)
         return None
 
 

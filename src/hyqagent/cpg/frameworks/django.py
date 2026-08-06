@@ -19,14 +19,23 @@ if TYPE_CHECKING:
     from hyqagent.cpg.parser import Parser
 
 _DJANGO_SOURCE_PATTERNS = [
-    "request.POST", "request.GET", "request.body", "request.data",
-    "request.META", "request.COOKIES", "request.FILES", "request.headers",
+    "request.POST",
+    "request.GET",
+    "request.body",
+    "request.data",
+    "request.META",
+    "request.COOKIES",
+    "request.FILES",
+    "request.headers",
     "request.build_absolute_uri",
 ]
 
 _DJANGO_AUTH_DECORATORS = {
-    "login_required", "permission_required", "user_passes_test",
-    "staff_member_required", "superuser_required",
+    "login_required",
+    "permission_required",
+    "user_passes_test",
+    "staff_member_required",
+    "superuser_required",
 }
 
 
@@ -53,9 +62,7 @@ class DjangoExtractor(BaseFrameworkExtractor):
         except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
-        return "django" in source.lower() and (
-            "from django" in source or "import django" in source
-        )
+        return "django" in source.lower() and ("from django" in source or "import django" in source)
 
     def extract_routes(self, file_path: str | Path) -> list[HttpEndpoint]:  # noqa: D102
         path = str(Path(file_path).resolve())
@@ -118,18 +125,25 @@ class DjangoExtractor(BaseFrameworkExtractor):
         return "urls" in Path(file_path).stem
 
     def _parse_url_config(self, tree) -> list[dict]:
-        """Extract route entries from urlpatterns in a urls.py file."""
+        """Extract route entries from urlpatterns in a urls.py file.
+
+        BUG 12: The regex now handles ``re_path`` patterns that may
+        contain embedded quotes (e.g. ``re_path(r"^api/v1/'special'/$")``).
+        It uses a backreference ``(?P<quote>[\"'])…(?P=quote)`` to match
+        balanced quotes so an inner single-quote doesn't prematurely
+        terminate a double-quoted string.
+        """
         entries: list[dict] = []
         source = self._source(tree.root_node)
         import re
 
-        # Match path("route", view_func, name="...")
+        # BUG 12: Match with balanced-quote backreference
         for match in re.finditer(
-            r"(?:path|re_path)\s*\(\s*[\"']([^\"']+)[\"']\s*,\s*(\w+(?:\.\w+)*)",
+            r"(?:path|re_path)\s*\(\s*(?:r)?(?P<quote>[\"'])(.+?)(?P=quote)\s*,\s*(\w+(?:\.\w+)*)",
             source,
         ):
-            route = match.group(1)
-            view = match.group(2)
+            route = match.group(2)
+            view = match.group(3)
             entries.append({"route": route, "view": view})
         return entries
 
@@ -162,9 +176,9 @@ class DjangoExtractor(BaseFrameworkExtractor):
         for node in Traverser(tree).traverse():
             if node.type in ("function_definition", "decorated_definition"):
                 name = provider.extract_function_name(
-                    node if node.type == "function_definition"
-                    else next((c for c in node.children
-                               if c.type == "function_definition"), node)
+                    node
+                    if node.type == "function_definition"
+                    else next((c for c in node.children if c.type == "function_definition"), node)
                 )
                 if name != fn.name:
                     continue
@@ -188,6 +202,7 @@ class DjangoExtractor(BaseFrameworkExtractor):
     @staticmethod
     def _extract_path_params(route: str) -> list[RouteParam]:
         import re
+
         params: list[RouteParam] = []
         for match in re.finditer(r"<(?:int|str|slug|uuid|path):(\w+)>", route):
             params.append(RouteParam(name=match.group(1), source="path"))

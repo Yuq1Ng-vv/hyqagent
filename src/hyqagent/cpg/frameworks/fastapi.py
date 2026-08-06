@@ -152,9 +152,11 @@ class FastAPIExtractor(BaseFrameworkExtractor):
 
         for child in params_node.children:
             if child.type in (
-                    "identifier", "typed_parameter",
-                    "typed_default_parameter", "default_parameter",
-                ):
+                "identifier",
+                "typed_parameter",
+                "typed_default_parameter",
+                "default_parameter",
+            ):
                 name = ""
                 source = "query"  # default FastAPI source
                 type_hint = ""
@@ -185,17 +187,26 @@ class FastAPIExtractor(BaseFrameworkExtractor):
                 if type_node is not None:
                     type_hint = self._source(type_node)
 
-                params.append(RouteParam(
-                    name=name, source=source, type_hint=type_hint, required=required,
-                ))
+                params.append(
+                    RouteParam(
+                        name=name,
+                        source=source,
+                        type_hint=type_hint,
+                        required=required,
+                    )
+                )
 
         return params
 
     def _find_auth_decorators(self, node: Node) -> list[str]:
         found: list[str] = []
         auth_names = {
-            "login_required", "jwt_required", "requires", "has_permission",
-            "Depends", "Security",
+            "login_required",
+            "jwt_required",
+            "requires",
+            "has_permission",
+            "Depends",
+            "Security",
         }
         for child in node.children:
             if child.type == "decorator":
@@ -220,6 +231,7 @@ class FastAPIExtractor(BaseFrameworkExtractor):
     @staticmethod
     def _extract_path_params(route: str) -> list[RouteParam]:
         import re
+
         params: list[RouteParam] = []
         for match in re.finditer(r"\{(\w+)\}", route):
             params.append(RouteParam(name=match.group(1), source="path"))

@@ -303,7 +303,8 @@ class JavaAdapter(LanguageProvider):
 
         # Method / class declaration name
         return not (
-            parent.type in (
+            parent.type
+            in (
                 "method_declaration",
                 "class_declaration",
                 "constructor_declaration",

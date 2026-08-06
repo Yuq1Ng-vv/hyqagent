@@ -29,7 +29,6 @@ from hyqagent.cpg.dataflow import DataFlowBuilder
 from hyqagent.cpg.traversal import Traverser
 
 if TYPE_CHECKING:
-
     from hyqagent.cpg.callgraph_builder import CallGraphBuilder
     from hyqagent.cpg.parser import Parser
 
@@ -184,8 +183,9 @@ class CPGGraphBuilder:
                     fn_tree_nodes[name] = node
 
         # 3 — Build intra-file call graph and index call edges
+        # BUG 15: Reuse already-parsed tree instead of re-parsing
         cg = SingleFileCallGraph(self._parser)
-        cg.build_from_file(path)
+        cg.build_from_tree(tree, language, path)
         for edge in cg.edges:
             cid = _uid(NODE_CALL_SITE, path, str(edge.call_line), edge.caller, edge.callee)
             self.graph.add_node(
@@ -211,7 +211,10 @@ class CPGGraphBuilder:
         # 4 — Build def-use chains and add DATA_FLOW edges
         for fn_name, tree_node in fn_tree_nodes.items():
             chains = self._dataflow.build_def_use_chains(
-                tree, tree_node, language, path  # type: ignore[arg-type]
+                tree,
+                tree_node,
+                language,
+                path,  # type: ignore[arg-type]
             )
             fid = func_nodes.get(fn_name)
             if fid is None:
@@ -219,7 +222,8 @@ class CPGGraphBuilder:
 
             for du in chains:
                 # Assignment node
-                aid = _uid(NODE_ASSIGNMENT, path, du.def_location.split(":")[-1], du.var_name)
+                # BUG 26: rsplit avoids breakage on Windows paths (C:\...)
+                aid = _uid(NODE_ASSIGNMENT, path, du.def_location.rsplit(":", 1)[-1], du.var_name)
                 self.graph.add_node(
                     aid,
                     node_type=NODE_ASSIGNMENT,
@@ -235,7 +239,8 @@ class CPGGraphBuilder:
                 # Variable reference nodes for each use
                 prev_node = aid
                 for use_loc in du.use_locations:
-                    use_line = use_loc.split(":")[-1]
+                    # BUG 26: rsplit avoids breakage on Windows paths
+                    use_line = use_loc.rsplit(":", 1)[-1]
                     vid = _uid(NODE_VARIABLE_REF, path, use_line, du.var_name)
                     self.graph.add_node(
                         vid,
@@ -284,7 +289,8 @@ class CPGGraphBuilder:
                 if cached_fp == fingerprint:
                     self.graph = graph_data
                     self._indexed_files = {
-                        d.get("file_path", "") for _, d in self.graph.nodes(data=True)
+                        d.get("file_path", "")
+                        for _, d in self.graph.nodes(data=True)
                         if d.get("file_path")
                     }
                     return
@@ -308,6 +314,7 @@ class CPGGraphBuilder:
 
         # Add each file's local information to the graph
         import contextlib
+
         for file_path in sorted(self._call_graph_builder.files):
             with contextlib.suppress(OSError, ValueError, FileNotFoundError):
                 self.add_file(file_path)
@@ -447,9 +454,7 @@ class CPGGraphBuilder:
                 continue
 
             # Caller variable-refs at the call line
-            caller_var_refs = varref_index.get(
-                (call_file, caller_name, call_line), []
-            )
+            caller_var_refs = varref_index.get((call_file, caller_name, call_line), [])
 
             if not caller_var_refs:
                 continue
@@ -459,7 +464,8 @@ class CPGGraphBuilder:
             for arg_vid in caller_var_refs:
                 for param_nid in param_nodes:
                     self.graph.add_edge(
-                        arg_vid, param_nid,
+                        arg_vid,
+                        param_nid,
                         edge_type=EDGE_DATA_FLOW,
                     )
 
@@ -471,9 +477,7 @@ class CPGGraphBuilder:
 
             # Return value: connect callee_function → caller's assignment
             # at the call line (approximates "callee return → caller result")
-            caller_assigns = assign_index.get(
-                (call_file, caller_name, call_line), []
-            )
+            caller_assigns = assign_index.get((call_file, caller_name, call_line), [])
             for a_nid in caller_assigns:
                 self.graph.add_edge(callee_fid, a_nid, edge_type=EDGE_DATA_FLOW)
 
@@ -549,7 +553,8 @@ class CPGGraphBuilder:
                     v_var = self.graph.nodes[vid].get("var_name", "")
                     if v_var != a_var:
                         self.graph.add_edge(
-                            vid, aid,
+                            vid,
+                            aid,
                             edge_type=EDGE_DATA_FLOW,
                         )
 

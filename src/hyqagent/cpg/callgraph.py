@@ -90,6 +90,7 @@ class SingleFileCallGraph:
         self._parser = parser
         self._edges: list[CallEdge] = []
         self._function_names: set[str] = set()
+        self._qualified_function_names: set[str] = set()  # BUG 9: ClassName.methodName
 
     # ── Public properties ──────────────────────────────────────────────
 
@@ -123,6 +124,11 @@ class SingleFileCallGraph:
     def function_names(self) -> set[str]:
         """Names of all functions / methods defined in this file."""
         return set(self._function_names)
+
+    @property
+    def qualified_function_names(self) -> set[str]:
+        """Qualified names (e.g. ``ClassName.methodName``) for Java methods (BUG 9)."""
+        return set(self._qualified_function_names)
 
     # ── Build methods ──────────────────────────────────────────────────
 
@@ -182,10 +188,15 @@ class SingleFileCallGraph:
         call_type = provider.call_node_type
 
         # Phase 1 — collect all function definition names
+        # BUG 9: Also generate qualified names (ClassName.methodName)
+        # for Java methods to avoid collisions from overloaded methods.
         for func_node in traverser.traverse(func_def_types):
             name = provider.extract_function_name(func_node)
             if name:
                 self._function_names.add(name)
+                qualified = self._make_qualified_name(func_node, name, language)
+                if qualified and qualified != name:
+                    self._qualified_function_names.add(qualified)
 
         # Phase 2 — walk every call node and attribute to enclosing function
         for call_node in traverser.traverse({call_type}):
@@ -200,11 +211,20 @@ class SingleFileCallGraph:
                 continue
 
             call_line = call_node.start_point[0] + 1
+            # BUG 9: Resolve callee using qualified names for method calls
+            resolved_callee = bare_name
             is_resolved = bare_name in self._function_names
+            if not is_resolved and is_method and self._qualified_function_names:
+                suffix = f".{bare_name}"
+                for qn in self._qualified_function_names:
+                    if qn.endswith(suffix):
+                        is_resolved = True
+                        resolved_callee = qn
+                        break
 
             edge = CallEdge(
                 caller=caller,
-                callee=bare_name,
+                callee=resolved_callee,
                 call_line=call_line,
                 full_expression=full_expr,
                 is_resolved=is_resolved,
@@ -223,6 +243,25 @@ class SingleFileCallGraph:
             if ancestor.type in func_types:
                 return provider.extract_function_name(ancestor)
         return None
+
+    @staticmethod
+    def _make_qualified_name(func_node: Node, base_name: str, language: str) -> str | None:
+        """Generate ``ClassName.methodName`` for Java methods (BUG 9).
+
+        Returns *base_name* unchanged for non-Java languages or top-level
+        functions without an enclosing class.
+        """
+        if language != "java":
+            return base_name
+        parent = func_node.parent
+        if parent is not None and parent.type == "class_body":
+            grandparent = parent.parent
+            if grandparent is not None and grandparent.type == "class_declaration":
+                cls_name_node = grandparent.child_by_field_name("name")
+                if cls_name_node is not None and cls_name_node.text:
+                    cls_name = cls_name_node.text.decode("utf-8")
+                    return f"{cls_name}.{base_name}"
+        return base_name
 
     # ── Dunder helpers ─────────────────────────────────────────────────
 

@@ -28,9 +28,7 @@ class FunctionNode:
         if not self.name:
             raise ValueError("FunctionNode.name must be non-empty")
         if self.start_line < 1:
-            raise ValueError(
-                f"FunctionNode.start_line must be >= 1, got {self.start_line}"
-            )
+            raise ValueError(f"FunctionNode.start_line must be >= 1, got {self.start_line}")
 
 
 @dataclass
@@ -50,9 +48,7 @@ class ClassNode:
         if not self.name:
             raise ValueError("ClassNode.name must be non-empty")
         if self.start_line < 1:
-            raise ValueError(
-                f"ClassNode.start_line must be >= 1, got {self.start_line}"
-            )
+            raise ValueError(f"ClassNode.start_line must be >= 1, got {self.start_line}")
 
 
 @dataclass
@@ -68,9 +64,7 @@ class ImportNode:
 
     def __post_init__(self) -> None:
         if self.start_line < 0:
-            raise ValueError(
-                f"ImportNode.start_line must be >= 0, got {self.start_line}"
-            )
+            raise ValueError(f"ImportNode.start_line must be >= 0, got {self.start_line}")
 
 
 # ── Data-flow types (used by cpg/dataflow.py) ───────────────────────────

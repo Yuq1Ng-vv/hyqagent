@@ -220,6 +220,7 @@ class FlaskExtractor(BaseFrameworkExtractor):
         """Extract ``<param>`` placeholders from a Flask route pattern."""
         params: list[RouteParam] = []
         import re
+
         for match in re.finditer(r"<(?:[^:>]+:)?([^>]+)>", route):
             params.append(RouteParam(name=match.group(1), source="path"))
         return params

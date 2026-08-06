@@ -68,6 +68,9 @@ class CallGraphBuilder:
         self._file_funcs[path] = cg.function_names
         for name in cg.function_names:
             self._all_functions.setdefault(name, []).append(path)
+        # BUG 9: Also index qualified names (ClassName.methodName) for Java
+        for qname in cg.qualified_function_names:
+            self._all_functions.setdefault(qname, []).append(path)
 
         # Extract imports for later resolution (reuse same tree)
         imports = self._parser.extract_imports(tree, language)
@@ -151,7 +154,9 @@ class CallGraphBuilder:
                     continue
 
                 target = self._resolve_module_path(
-                    imp.module, base_dir, file_index,
+                    imp.module,
+                    base_dir,
+                    file_index,
                 )
                 if target is not None and target in self._graphs:
                     # Map each imported name to the target file
@@ -203,10 +208,9 @@ class CallGraphBuilder:
                     # visibility).  Python and JS require explicit imports
                     # even for same-directory files, so we scope this to
                     # Java only.
-                    same_dir = (
-                        Path(file_path).parent == Path(target_file).parent
-                        and file_path.endswith(".java")
-                    )
+                    same_dir = Path(file_path).parent == Path(
+                        target_file
+                    ).parent and file_path.endswith(".java")
 
                     if same_dir or self._is_reachable(
                         file_path, target_file, imported_modules, resolved_imports
@@ -268,9 +272,7 @@ class CallGraphBuilder:
     _SRC_EXTS = (".py", ".java", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
 
     @staticmethod
-    def _extract_field_types(
-        tree: object, language: str
-    ) -> list[str]:
+    def _extract_field_types(tree: object, language: str) -> list[str]:
         """Extract type names from field/variable declarations.
 
         Captures the class name from patterns like
@@ -284,16 +286,41 @@ class CallGraphBuilder:
         from hyqagent.cpg.traversal import Traverser
 
         _PRIMITIVES = {
-            "int", "long", "float", "double", "boolean", "byte",
-            "short", "char", "void", "String", "Integer", "Long",
-            "Float", "Double", "Boolean", "Byte", "Short",
+            "int",
+            "long",
+            "float",
+            "double",
+            "boolean",
+            "byte",
+            "short",
+            "char",
+            "void",
+            "String",
+            "Integer",
+            "Long",
+            "Float",
+            "Double",
+            "Boolean",
+            "Byte",
+            "Short",
         }
         _CONTAINERS = {
-            "List", "Map", "Set", "Collection", "ArrayList",
-            "HashMap", "HashSet", "Optional", "Array", "Object",
-            "HttpServletRequest", "HttpServletResponse",
-            "ServletRequest", "ServletResponse",
-            "ServletException", "IOException",
+            "List",
+            "Map",
+            "Set",
+            "Collection",
+            "ArrayList",
+            "HashMap",
+            "HashSet",
+            "Optional",
+            "Array",
+            "Object",
+            "HttpServletRequest",
+            "HttpServletResponse",
+            "ServletRequest",
+            "ServletResponse",
+            "ServletException",
+            "IOException",
         }
         skip = _PRIMITIVES | _CONTAINERS
 
@@ -322,17 +349,11 @@ class CallGraphBuilder:
                             self_nodes.append(child)
 
             # ── Python typed assignments ───────────────────────────
-            elif ntype == "assignment" and language == "python":
-                type_node = node.child_by_field_name("type")
-                if type_node is not None:
-                    name = type_node.text.decode()
-                    if name not in skip and name not in seen:
-                        types.append(name)
-                        seen.add(name)
-
-            # ── JS/TS field / variable type annotations ────────────
-            elif ntype in ("field_definition", "public_field_definition",
-                           "variable_declarator") and language in ("javascript", "typescript"):
+            elif (ntype == "assignment" and language == "python") or (ntype in (
+                "field_definition",
+                "public_field_definition",
+                "variable_declarator",
+            ) and language in ("javascript", "typescript")):
                 type_node = node.child_by_field_name("type")
                 if type_node is not None:
                     name = type_node.text.decode()
@@ -362,7 +383,7 @@ class CallGraphBuilder:
             ``"../lib/foo"`` → ``base_dir/../lib/foo.js``
         """
         # ── JavaScript-style relative imports (./foo  or  ../foo) ─────
-        if (module.startswith("./") or module.startswith("../")):
+        if module.startswith("./") or module.startswith("../"):
             parts = module.split("/")
             # Count `..` segments (parent-directory steps)
             up_count = sum(1 for p in parts if p == "..")
@@ -460,6 +481,7 @@ class CallGraphBuilder:
 
 
 # ─── Internal data type ──────────────────────────────────────────────────
+
 
 class _ResolvedImport:
     """Internal: a single import statement, resolved to a file path."""

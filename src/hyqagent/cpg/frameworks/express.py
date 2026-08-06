@@ -20,14 +20,28 @@ if TYPE_CHECKING:
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options", "all", "use"}
 
 _EXPRESS_SOURCE_PATTERNS = [
-    "req.query", "req.body", "req.params", "req.cookies",
-    "req.headers", "req.files", "req.ip", "req.hostname",
-    "request.query", "request.body", "request.params",
+    "req.query",
+    "req.body",
+    "req.params",
+    "req.cookies",
+    "req.headers",
+    "req.files",
+    "req.ip",
+    "req.hostname",
+    "request.query",
+    "request.body",
+    "request.params",
 ]
 
 _EXPRESS_AUTH_PATTERNS = [
-    "authenticate", "authorize", "auth", "passport",
-    "requireAuth", "isAuthenticated", "hasRole", "guard",
+    "authenticate",
+    "authorize",
+    "auth",
+    "passport",
+    "requireAuth",
+    "isAuthenticated",
+    "hasRole",
+    "guard",
 ]
 
 
@@ -96,8 +110,7 @@ class ExpressExtractor(BaseFrameworkExtractor):
 
             # Check for auth middleware
             auth_decorators = [
-                m for m in middleware
-                if any(p in m.lower() for p in _EXPRESS_AUTH_PATTERNS)
+                m for m in middleware if any(p in m.lower() for p in _EXPRESS_AUTH_PATTERNS)
             ]
 
             params = self._extract_path_params(route_pattern)
@@ -120,7 +133,12 @@ class ExpressExtractor(BaseFrameworkExtractor):
         return endpoints
 
     def _find_source_lines(self, args_node: Node) -> list[str]:
-        """Look for req.query/body/params patterns in handler arguments."""
+        """Look for req.query/body/params patterns in handler arguments.
+
+        BUG 13: Also scans inline handler function bodies (arrow functions
+        and regular functions in the last argument), not just top-level
+        argument text.
+        """
         lines: list[str] = []
         for child in args_node.named_children:
             text = self._source(child)
@@ -128,11 +146,29 @@ class ExpressExtractor(BaseFrameworkExtractor):
                 if pat in text:
                     lines.append(text[:120])
                     break
+
+        # BUG 13: Scan inline handler function bodies
+        # The last argument is usually the handler: (req, res) => { ... }
+        # or function(req, res) { ... }
+        last_arg = args_node.named_children[-1] if args_node.named_children else None
+        if last_arg is not None and last_arg.type in (
+            "arrow_function",
+            "function",
+            "function_expression",
+        ):
+            body_text = self._source(last_arg)
+            for line_text in body_text.split("\n"):
+                stripped = line_text.strip()
+                for pat in _EXPRESS_SOURCE_PATTERNS:
+                    if pat in stripped:
+                        lines.append(stripped[:120])
+                        break
         return lines
 
     @staticmethod
     def _extract_path_params(route: str) -> list[RouteParam]:
         import re
+
         params: list[RouteParam] = []
         for match in re.finditer(r":(\w+)", route):
             params.append(RouteParam(name=match.group(1), source="path"))

@@ -86,14 +86,14 @@ class TestConstruction:
         """build_from_tree mutates in place, returns None."""
         cg = SingleFileCallGraph(parser)
         tree = parser.parse_file(FIXTURES / "sample.py")
-        language = parser._get_language(tree)
+        language = parser.get_language(tree)
         result = cg.build_from_tree(tree, language)
         assert result is None
 
     def test_build_from_tree_accepts_explicit_path(self, parser: Parser) -> None:
         cg = SingleFileCallGraph(parser)
         tree = parser.parse_file(FIXTURES / "sample.py")
-        language = parser._get_language(tree)
+        language = parser.get_language(tree)
         cg.build_from_tree(tree, language, file_path="/custom/path.py")
         assert all(e.file_path == "/custom/path.py" for e in cg.edges)
 

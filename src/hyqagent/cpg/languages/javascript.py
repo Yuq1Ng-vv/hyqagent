@@ -342,7 +342,8 @@ class JavaScriptAdapter(LanguageProvider):
 
         # Function / class definition name
         return not (
-            parent.type in (
+            parent.type
+            in (
                 "function_declaration",
                 "class_declaration",
                 "method_definition",
