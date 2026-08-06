@@ -17,6 +17,8 @@ See DESIGN-IMPLEMENTATION.md Section 2.7 for the full interface specification.
 
 from __future__ import annotations
 
+import hashlib
+import pickle
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -90,6 +92,38 @@ class CPGGraphBuilder:
         self._call_graph_builder: CallGraphBuilder | None = None
         self._dataflow = DataFlowBuilder(parser)
         self._indexed_files: set[str] = set()
+        self._cache_dir: Path | None = None
+
+    # ── Cache helpers ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _cache_path_for(directory: Path) -> Path:
+        """Return the cache file path for *directory*."""
+        cache_root = Path.home() / ".cache" / "hyqagent" / "cpg"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        # Use a hash of the absolute path so cache is stable across cwd changes
+        dir_hash = hashlib.sha256(str(directory.resolve()).encode()).hexdigest()[:16]
+        return cache_root / f"{dir_hash}.pkl"
+
+    @staticmethod
+    def _compute_source_fingerprint(directory: Path) -> str:
+        """Compute a fingerprint of all source files under *directory*.
+
+        Uses (relative_path, file_size) tuples so the cache invalidates
+        when files are added, removed, or changed in size.
+        """
+        from hyqagent.cpg.languages import detect_by_extension
+
+        entries: list[str] = []
+        for entry in sorted(directory.rglob("*")):
+            if not entry.is_file():
+                continue
+            if any(p.startswith(".") or p == "__pycache__" for p in entry.parts):
+                continue
+            if detect_by_extension(str(entry)) is not None:
+                rel = entry.relative_to(directory)
+                entries.append(f"{rel}:{entry.stat().st_size}")
+        return hashlib.sha256("\n".join(entries).encode()).hexdigest()
 
     # ── File indexing ───────────────────────────────────────────────────
 
@@ -225,15 +259,39 @@ class CPGGraphBuilder:
             # that is the actual sink.  This edge bridges that gap.
             self._add_rhs_to_lhs_edges(path)
 
-    def add_directory(self, dir_path: str | Path) -> None:
+    def add_directory(self, dir_path: str | Path, use_cache: bool = True) -> None:
         """Recursively add all source files in *dir_path*.
 
         Uses :class:`CallGraphBuilder` for cross-file import resolution.
+
+        When *use_cache* is True (the default), the built graph is pickled
+        to ``~/.cache/hyqagent/cpg/<hash>.pkl`` and reused on subsequent
+        calls as long as the file list hasn't changed.  Set to False to
+        force a fresh build.
         """
         from hyqagent.cpg.callgraph_builder import CallGraphBuilder
         from hyqagent.cpg.languages import detect_by_extension
 
         root = Path(dir_path).resolve()
+        cache_path = self._cache_path_for(root)
+
+        # ── Try cache ──────────────────────────────────────────────────
+        if use_cache and cache_path.exists():
+            try:
+                fingerprint = self._compute_source_fingerprint(root)
+                with cache_path.open("rb") as fh:
+                    cached_fp, graph_data = pickle.load(fh)
+                if cached_fp == fingerprint:
+                    self.graph = graph_data
+                    self._indexed_files = {
+                        d.get("file_path", "") for _, d in self.graph.nodes(data=True)
+                        if d.get("file_path")
+                    }
+                    return
+            except (pickle.PickleError, EOFError, KeyError, OSError):
+                pass  # Corrupted cache — rebuild
+
+        # ── Build from scratch ─────────────────────────────────────────
         self._call_graph_builder = CallGraphBuilder(self._parser)
 
         # Index all files via CallGraphBuilder for import resolution
@@ -296,6 +354,15 @@ class CPGGraphBuilder:
         # This is an over-approximation (all args → all params) but
         # guarantees no real taint flow is missed.
         self._add_cross_function_edges()
+
+        # ── Save to cache ──────────────────────────────────────────────
+        if use_cache:
+            try:
+                fingerprint = self._compute_source_fingerprint(root)
+                with cache_path.open("wb") as fh:
+                    pickle.dump((fingerprint, self.graph), fh, protocol=pickle.HIGHEST_PROTOCOL)
+            except (pickle.PickleError, OSError):
+                pass  # best-effort — build succeeded, cache is optional
 
     def _add_cross_function_edges(self) -> None:
         """Create DATA_FLOW edges from call-site argument variable-refs

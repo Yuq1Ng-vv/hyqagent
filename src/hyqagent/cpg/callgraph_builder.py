@@ -116,12 +116,13 @@ class CallGraphBuilder:
         Third-party and standard-library imports are left unresolved.
 
         """
-        # Pre-build a filename → path index (basename without ext → full path)
-        # so we can resolve imports in O(1) without rglob.
-        file_index: dict[str, str] = {}
+        # Pre-build a filename → [paths] index for collision-aware lookup.
+        # Multiple directories may contain e.g. `utils.py` — we collect
+        # all candidates and let `_resolve_module_path` pick the best one.
+        file_index: dict[str, list[str]] = {}
         for fp in self._graphs:
-            stem = Path(fp).stem  # filename without extension
-            file_index[stem] = fp
+            stem = Path(fp).stem
+            file_index.setdefault(stem, []).append(fp)
 
         resolved: dict[str, str] = {}
 
@@ -216,11 +217,14 @@ class CallGraphBuilder:
 
     # ── Internal helpers ────────────────────────────────────────────────
 
+    # Extensions we try for JS/TS relative imports and absolute module paths
+    _SRC_EXTS = (".py", ".java", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
+
     @staticmethod
     def _resolve_module_path(
         module: str,
         base_dir: str,
-        file_index: dict[str, str],
+        file_index: dict[str, list[str]],
     ) -> str | None:
         """Convert a module name to a file path.
 
@@ -230,11 +234,42 @@ class CallGraphBuilder:
 
         Java
             ``"com.example.Foo"`` → ``root/com/example/Foo.java``
-            Falls back to a *file_index* lookup by class name alone when
-            the full package path doesn't match the filesystem layout.
+
+        JavaScript / TypeScript
+            ``"./utils"`` → ``base_dir/utils.js`` (also tries .ts/.mjs/…)
+            ``"../lib/foo"`` → ``base_dir/../lib/foo.js``
         """
+        # ── JavaScript-style relative imports (./foo  or  ../foo) ─────
+        if (module.startswith("./") or module.startswith("../")):
+            parts = module.split("/")
+            # Count `..` segments (parent-directory steps)
+            up_count = sum(1 for p in parts if p == "..")
+            # The rest is everything except `.` and `..` segments
+            rest_parts = [p for p in parts if p not in (".", "..")]
+            parent = Path(base_dir)
+            for _ in range(up_count):
+                parent = parent.parent
+            rest = "/".join(rest_parts) if rest_parts else ""
+            if not rest:
+                return None
+            # Strip a known extension if present
+            rest_no_ext = rest
+            for ext in CallGraphBuilder._SRC_EXTS:
+                if rest.endswith(ext):
+                    rest_no_ext = rest[: -len(ext)]
+                    break
+            for ext in CallGraphBuilder._SRC_EXTS:
+                candidate = parent / (rest_no_ext + ext)
+                if candidate.exists():
+                    return str(candidate.resolve())
+                # Also try index files: ./foo/index.js
+                candidate_index = parent / rest_no_ext / ("index" + ext)
+                if candidate_index.exists():
+                    return str(candidate_index.resolve())
+            return None
+
+        # ── Python relative imports (.module  or  ..module) ────────────
         if module.startswith("."):
-            # Python relative import: count leading dots
             dots = len(module) - len(module.lstrip("."))
             rest = module.lstrip(".")
             parent = Path(base_dir)
@@ -245,28 +280,44 @@ class CallGraphBuilder:
             else:
                 target = parent / "__init__.py"
             return str(target.resolve())
-        else:
-            parts = module.split(".")
 
-            # Walk up from base_dir, try *every* source-root
-            # so we match the nearest parent directory.
-            current = Path(base_dir)
-            while current != current.parent:
-                for ext in (".py", ".java"):
-                    candidate = current / (str(Path(*parts)) + ext)
-                    if candidate.exists():
-                        return str(candidate.resolve())
-                # Package init (Python only)
-                candidate_init = current / str(Path(*parts)) / "__init__.py"
-                if candidate_init.exists():
-                    return str(candidate_init.resolve())
-                current = current.parent
+        # ── Absolute module paths ──────────────────────────────────────
+        parts = module.split(".")
 
-            # Fallback: match by class name alone (last segment of the
-            # qualified module name).  Uses the pre-built *file_index*
-            # so we avoid an expensive rglob on every import.
-            class_name = parts[-1]
-            return file_index.get(class_name)
+        # Walk up from base_dir, try *every* source-root
+        # so we match the nearest parent directory.
+        current = Path(base_dir)
+        while current != current.parent:
+            for ext in CallGraphBuilder._SRC_EXTS:
+                candidate = current / (str(Path(*parts)) + ext)
+                if candidate.exists():
+                    return str(candidate.resolve())
+            # Package init (Python)
+            candidate_init = current / str(Path(*parts)) / "__init__.py"
+            if candidate_init.exists():
+                return str(candidate_init.resolve())
+            # Index files (JS/TS package entry)
+            for ext in (".js", ".ts", ".mjs"):
+                candidate_index = current / str(Path(*parts)) / ("index" + ext)
+                if candidate_index.exists():
+                    return str(candidate_index.resolve())
+            current = current.parent
+
+        # ── Fallback: match by class name / module basename ────────────
+        class_name = parts[-1]
+        candidates = file_index.get(class_name, [])
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        # Multiple candidates → pick the one whose path best matches
+        # the expected package structure (e.g. com/example/Foo.java).
+        expected_suffix = str(Path(*parts))
+        for fp in candidates:
+            if fp.endswith(expected_suffix + Path(fp).suffix) or expected_suffix in fp:
+                return fp
+        # Tie-break: shortest path (closest to base_dir usually)
+        return min(candidates, key=len)
 
     @staticmethod
     def _is_reachable(
