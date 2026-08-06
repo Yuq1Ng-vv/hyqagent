@@ -41,3 +41,4 @@ htmlcov/
 
 # uv
 uv.lock
+rwtests/
