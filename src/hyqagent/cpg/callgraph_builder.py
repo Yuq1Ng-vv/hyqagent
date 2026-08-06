@@ -39,7 +39,7 @@ class CallGraphBuilder:
         self._parser = parser
         self._graphs: dict[str, SingleFileCallGraph] = {}
         self._imports: dict[str, list[_ResolvedImport]] = {}
-        self._all_functions: dict[str, str] = {}  # func_name → file_path
+        self._all_functions: dict[str, list[str]] = {}  # func_name → [file_paths]
         self._file_funcs: dict[str, set[str]] = {}  # file_path → {func_names}
 
     # ── File management ─────────────────────────────────────────────────
@@ -67,9 +67,7 @@ class CallGraphBuilder:
         # Index functions: which file defines each function
         self._file_funcs[path] = cg.function_names
         for name in cg.function_names:
-            # First definition wins (arbitrary but deterministic)
-            if name not in self._all_functions:
-                self._all_functions[name] = path
+            self._all_functions.setdefault(name, []).append(path)
 
         # Extract imports for later resolution (reuse same tree)
         imports = self._parser.extract_imports(tree, language)
@@ -192,24 +190,31 @@ class CallGraphBuilder:
                 callee = uc.callee
 
                 # Check if callee is defined in another indexed file
-                if callee not in self._all_functions:
+                candidates = self._all_functions.get(callee, [])
+                if not candidates:
                     continue
-                target_file = self._all_functions[callee]
-                if target_file == file_path:
-                    continue  # already resolved as intra-file
 
-                # Same-directory always reachable for Java (same-package
-                # visibility).  Python and JS require explicit imports
-                # even for same-directory files, so we scope this to
-                # Java only.
-                same_dir = (
-                    Path(file_path).parent == Path(target_file).parent
-                    and file_path.endswith(".java")
-                )
+                resolved_target: str | None = None
+                for target_file in candidates:
+                    if target_file == file_path:
+                        continue  # already resolved as intra-file
 
-                if not same_dir and not self._is_reachable(
-                    file_path, target_file, imported_modules, resolved_imports
-                ):
+                    # Same-directory always reachable for Java (same-package
+                    # visibility).  Python and JS require explicit imports
+                    # even for same-directory files, so we scope this to
+                    # Java only.
+                    same_dir = (
+                        Path(file_path).parent == Path(target_file).parent
+                        and file_path.endswith(".java")
+                    )
+
+                    if same_dir or self._is_reachable(
+                        file_path, target_file, imported_modules, resolved_imports
+                    ):
+                        resolved_target = target_file
+                        break  # first reachable candidate wins
+
+                if resolved_target is None:
                     continue
 
                 cross_edges.append(
@@ -238,9 +243,24 @@ class CallGraphBuilder:
         """Mapping ``{file_path: [function_names]}`` for all indexed files."""
         return {fp: sorted(fns) for fp, fns in self._file_funcs.items()}
 
+    @property
+    def function_index(self) -> dict[str, list[str]]:
+        """Mapping ``{func_name: [file_paths]}`` (all definitions)."""
+        return dict(self._all_functions)
+
     def find_definition(self, func_name: str) -> str | None:
-        """Return the file path where *func_name* is defined, or None."""
-        return self._all_functions.get(func_name)
+        """Return the file path where *func_name* is defined, or None.
+
+        When multiple files define a function with the same name, the
+        first one indexed is returned.  Use :meth:`find_all_definitions`
+        to get every candidate.
+        """
+        paths = self._all_functions.get(func_name, [])
+        return paths[0] if paths else None
+
+    def find_all_definitions(self, func_name: str) -> list[str]:
+        """Return ALL file paths where *func_name* is defined."""
+        return list(self._all_functions.get(func_name, []))
 
     # ── Internal helpers ────────────────────────────────────────────────
 
