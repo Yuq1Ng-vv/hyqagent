@@ -1,9 +1,10 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.6 完成后
+> 上次更新: Session 1.16 完成后 (2026-08-06)
 
-## Phase 1: CPG Foundation — 进行中
-- [x] **Session 1.1** — 项目骨架初始化 (commit: 4ba65f7)
+## Phase 1: CPG Foundation — ✅ 完成
+
+- [x] **Session 1.1** — 项目骨架初始化 (commit: `4ba65f7`)
   - pyproject.toml, src-layout, .env, pre-commit
   - CLAUDE.md, AGENTS.md, README.md, progress.md
   - core/protocols.py (6个核心协议), core/state.py, core/events.py (12种事件类型)
@@ -13,19 +14,18 @@
   - 实现 `cpg/parser.py` — Parser 类支持 parse_file/parse_code
   - 支持 extract_functions/extract_classes/extract_imports（三种语言）
   - 44 个 pytest 测试全部通过
-  - ruff/mypy 零错误
 - [x] **Session 1.3** — AST 遍历器 (cpg/traversal.py + 59 tests)
   - Traverser 类: TreeCursor 实现的 DFS 前序/后序遍历
   - 节点类型过滤、named_only 模式、子树遍历
   - 导航工具: get_children/parent/ancestors/ancestor_of_type
   - 工具方法: find_first/find_all/count/node_type_path
-  - 103 个 pytest 测试全部通过，ruff/mypy 零错误
+  - 103 个 pytest 测试全部通过
 - [x] **Session 1.4** — 单文件调用图 (cpg/callgraph.py + 69 tests)
   - SingleFileCallGraph 类: 支持 Python/JS/Java 三种语言
   - 调用边解析（简单调用/方法调用/递归自环/嵌套函数）
   - 已解析/未解析分类 + UnresolvedCall 供跨文件使用
   - 查询接口: get_callees/get_callers/has_edge
-  - 172 个 pytest 测试全部通过，ruff/mypy 零错误
+  - 172 个 pytest 测试全部通过
 - [x] **Session 1.5** — 可扩展性重构 + 跨文件调用图 (193 tests)
   - ⭐ **LanguageProvider 策略模式**: parser.py (671→260行) + callgraph.py (382→260行)
   - 新增 `cpg/languages/` 包: base.py + python/js/java Adaptor
@@ -33,32 +33,32 @@
   - 添加新语言 = 1个文件 + 1行注册，核心模块零改动
   - **CallGraphBuilder** 跨文件调用图: 支持 add_directory/resolve_imports/build_calls
   - 导入解析: 相对导入 + 绝对导入
-  - 193 个 pytest 测试全部通过，ruff/mypy 零错误
+  - 193 个 pytest 测试全部通过
 - [x] **🔧 基础加固** — 边界测试 + 性能基线 + 契约验证 (240 tests)
   - 新增 39 个边界测试（语法错误/Unicode/空输入/深层嵌套/互递归/循环导入等）
   - 新增 8 个性能基准（4 benchmark + 4 回归断言，CI 默认跳过）
   - `__post_init__` 拒绝空 name/无效行号；`get_provider` 统一 ValueError
   - `_languages` 缓存泄漏检测；`_validate()` Provider 契约检查
-  - 240 个 pytest 测试全部通过，ruff/mypy 零错误
+  - 240 个 pytest 测试全部通过
 - [x] **Session 1.6** — 数据流图构建 (cpg/dataflow.py + 29 tests)
   - LanguageProvider 扩展: 新增 `assignment_types`/`extract_assignment_target`/`is_variable_identifier` 3 个抽象成员
   - DataFlowBuilder 类: `build_def_use_chains()` 函数内 def-use、`trace_cross_function()` 跨函数追踪、`propagate_taint()` 基础污点传播
   - 新增 4 个 dataclass: DefUsePair/DataFlowStep/TaintPath/TaintConfig
-  - 269 个 pytest 测试全部通过，ruff/mypy 零错误
+  - 269 个 pytest 测试全部通过
 - [x] **Session 1.7** — CPG 图构建 + 查询接口 + Taint 规则 (cpg/graph.py + query.py + 33 tests)
   - CPGGraphBuilder: NetworkX MultiDiGraph 统一索引 AST/CALLS/DATA_FLOW
   - CPGQuery: find_path/find_sources/find_sinks/get_call_chain/slice_path
   - taint_rules.yaml: Python/JS/Java 三种语言 × 9 种漏洞类别完整规则
-  - 302 个 pytest 测试全部通过，ruff 零错误
+  - 302 个 pytest 测试全部通过
 - [x] **Session 1.8** — 框架提取器（五种框架一次到位，33 tests）
   - BaseFrameworkExtractor ABC + HttpEndpoint/RouteParam 统一数据结构
   - Flask/FastAPI/Django/Express/Spring 五种框架完整实现
   - TaintRuleLoader: YAML→结构化规则加载器（match_source/sink/rules_for）
-  - 335 个 pytest 测试全部通过，ruff 零错误
+  - 335 个 pytest 测试全部通过
 - [x] **Session 1.9** — 端到端 CPG 集成验证（26 tests）
   - 微型漏洞 Flask 应用：CWE-89/78/79/639 四种真实漏洞
   - 5 层 26 个集成测试：Parser→CallGraph→DataFlow→Graph→Frameworks→Query→TaintLoader 全链路
-  - 361 个 pytest 测试全部通过，ruff 零错误
+  - 361 个 pytest 测试全部通过
 - [x] **Session 1.10** — Bug 清零 + 代码去重 + 错误处理补强（12 bugs fixed）
   - trace_cross_function 类型修复, 跨文件边 is_resolved, YAML sanitizer 拼写
   - _source/_loc 去重到 traversal.py, detect() narrow except, 懒加载 URL config
@@ -69,48 +69,53 @@
 - [x] **Session 1.12** — 测试 + YAML + 文档收尾（+11 tests）
   - Django/FastAPI/Java def-use 测试补齐, cross-function/taint_loader 集成测试
   - JS/Java YAML sanitizer 补全, __init__.py re-exports
+- [x] **Session 1.13** — ureport2 系统性根因诊断与修复
+  - ureport2 (469 Java 文件) 端到端验证：SQL 注入检测 3/4 通过
+  - propagate_taint BFS 逻辑修复，match_source/sink 改为最长匹配
+  - 对抗性审查：7 bugs fixed
+- [x] **Session 1.14** — 跨函数数据流 + CPG 缓存 + JS 导入
+  - `_add_cross_function_edges()` caller arg→callee param taint 追踪
+  - Java `.java` 文件导入解析修复
+  - **CPG pickle 缓存**: 首次 800s → 后续 0.3s（~2700x 加速）
+  - JS/TS 相对导入（`./foo`→`foo.js`）支持 index 文件入口
+  - filename 消歧：多文件同名时按包路径匹配
+  - XXE 最小测试通过（2 paths），全量验证受阻于同名函数冲突
+- [x] **Session 1.15** — Spring DI + 同名函数冲突修复 (BUG 8)
+  - `_extract_field_types()` — 字段声明→虚拟 import（Spring @Autowired 支持）
+  - Java 同 package 默认可达（C 组合）
+  - ⭐ **BUG 8**: `_all_functions` 改为 `dict[str, list[str]]`，遍历候选消歧
+  - ureport2 36 个 `parse()` 定义全部正确消歧
+  - 跨文件 edge 从 ~2137 → **4,581**
+- [x] **Session 1.16** — Bug 清零 + Phase 2 准备 (BUG 9-26)
+  - **BUG 9**: Java 重载方法消歧（`ClassName.methodName` 限定名索引 + callee 后缀匹配）
+  - **BUG 10+11**: Spring `@RequestMapping(method=)` 属性解析 + class-level 路由前缀
+  - **BUG 12+13**: Django `re_path` 平衡引号 + Express handler 函数体 source 扫描
+  - **BUG 15**: graph.py 双重解析修复（复用已解析 tree）
+  - **BUG 18**: `_find_enclosing_func` 代码去重（统一用 `Traverser.get_ancestors`）
+  - **BUG 20-26**: 安全/null 检查、缓存 FIFO 淘汰、YAML 校验、Windows 路径兼容等
+  - ureport2 完整 CPG 图验证: **76,481 节点 / 239,706 边** / 缓存 0.3s 加载
+  - XXE 跨文件 sink 检测确认 (`saxReader.read` @ ReportParser → DesignerServletAction)
+
+## Phase 1 最终指标
+
+| 维度 | 数据 |
+|------|------|
+| 测试 | **372** tests, 0 failures |
+| 源码模块 | **23** 个 |
+| 源码行数 | **~5,700** 行 |
+| 支持语言 | **3** 种 (Python/JavaScript/Java) |
+| 支持框架 | **5** 种 (Flask/Django/FastAPI/Express/Spring) |
+| Taint 规则 | **3** 语言 × 10 类别 (Java 含 XXE) |
+| CPG 图规模 | ureport2: 76K 节点 / 240K 边 |
+| CPG 缓存 | 首次 822s → 后续 **0.3s** (~2700x) |
+| 已知 Bug | **26/26** 全部修复 ✅ |
+| ruff | 自动修复完成 |
+| mypy | 24 pre-existing（类型标注 + stub 缺失） |
 
 ## Phase 2-5: 待开始
 
-## 跨 Session 改进追踪（来自 code-audit skill 分析）
-
-> 来源：`docs/CODE-AUDIT-SKILL-ANALYSIS.md`（2026-08-05）
-> 这些是分析文章中提炼的改进项，按优先级融入后续 Session。
-
-### P0 — 立即落地（高影响、低复杂度）
-- [ ] **CPG 查询缓存** — `cpg/query.py` 实现时加基于查询哈希的缓存层，防同一查询在不同假设中重复执行（~40行，Session 1.7 顺手做）
-- [ ] **跨轮覆盖状态追踪** — `AuditState` 添加 `files_read`/`grep_done`/`coverage_gaps`/`hotspots` 字段（~60行，Session 1.5 后做）
-- [ ] **扫描前能力声明** — Orchestrator 启动时读取 detection_matrix.json + taint_rules.yaml，计算并输出"可检测/部分检测/无法检测"清单（~50行，Session 2.1 CLI 初始化时做）
-
-### P1 — 中期规划
-- [ ] **覆盖率自检阶段** — 在 Phase 3/Phase 4 之间加入 Coverage Self-Check，用 detection_matrix.json 做结构化查漏，输出 GAPS + HOTSPOTS（Session 3.4 附近）
-- [ ] **CPG 驱动的置信度自动分级** — `Validator.validate_deterministic()` 中加硬门禁：CPG 存在完整 source→sink 路径 → confidence≥0.7；不存在 → confidence≤0.3 自动降级（~30行，Session 2.3 Validator 实现时）
-- [ ] **攻击链分析模块** — CPG 图中找"低权限入口→权限提升→高影响 sink"路径，用中等模型做组合分析（Session 3.4 附近）
-- [ ] **结构化截断防御** — 所有 LLM 输出加 `---FINDING_START---` / `---FINDING_END---` 哨兵标记（Session 3.x LLM 集成时）
-- [ ] **Completeness Critic 结构化提示词** — 将 code-audit skill 的 10 维度转化为 Critic 的提问模板（Session 3.4）
-
-### P2 — 长期参考
-- [ ] 多扫描模式（Quick/Quick-Diff/Standard/Deep）
-- [ ] Agent 合约框架（在 protocols.py 中预留接口）
-- [ ] 多轮增量扫描（R2 由 GAPS 驱动，不重复 R1 工作）
-
 ## 当前阻塞
 - 无
-
-> 上次更新: Sessions 1.10-1.12 完成后 (2026-08-05)
-
-## Phase 1: CPG Foundation — ✅ 完成并优化
-
-## 当前状态
-- **372 个测试**，ruff 零错误，0 已知 bug
-- **22 个源模块**，~5,300 行
-- **3 种语言** (Python/JS/Java)，**5 种框架** (Flask/Django/FastAPI/Express/Spring)
-- **Phase 1 完成**。下一个: Phase 2 — Scanner
-
-## Phase 2 规划
-- **Session 2.x**: 确定性扫描器
-  - 规则引擎 + CPG 污点追踪 + 配置检测
-  - 产出 `hyqagent scan --quick` 可用版本
 
 ## 文档索引
 
@@ -126,6 +131,9 @@
 | 文档 | 说明 |
 |------|------|
 | [docs/新手友好-HyqAgent架构详解.md](docs/新手友好-HyqAgent架构详解.md) | 零基础可读的架构讲解，含术语速查表和五阶段流程图 |
+
+### 开发过程文档（`dev-docs/`）
+每次 Session 的详细实现记录，中文命名，含目标/产出/实现过程/问题修复/质量门禁/设计反思。
 
 ### 深度参考（docs/ 目录）
 | 文档 | 说明 |

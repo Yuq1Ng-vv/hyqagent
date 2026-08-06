@@ -8,7 +8,7 @@
 
 > ⚠️ **重要：本文档描述的是 HyqAgent 的完整设计愿景。当前仅 Phase 1（CPG Engine）已实现。**
 >
-> **已实现（Phase 1）**：CPG 代码属性图引擎——多语言解析、调用图、数据流分析、图查询、框架提取器、污点规则。372 tests，零 bug。详见 `progress.md`。
+> **已实现（Phase 1）**：CPG 代码属性图引擎——多语言解析、调用图、数据流分析、CPG 图构建与查询、框架提取器、污点规则、CPG pickle 缓存。**372 tests，零 bug，26 个已知问题全部修复**。ureport2 (469 Java 文件) 端到端验证：76K 节点/240K 边 CPG 图，XXE 跨文件 sink 检测确认，缓存 0.3s 加载。详见 `progress.md`。
 >
 > **设计中（Phase 2-5）**：五阶段扫描流水线、LLM 集成、SQLite 信念系统、三区段上下文、ESAA 审计链、CLI、报告生成——这些模块的架构设计已完成，代码尚未实现（仅 `__init__.py` 骨架）。
 >
@@ -170,13 +170,13 @@ graph TB
     C --> K
 ```
 
-> **实现进度**（2026-08-05）：CPG Engine 的 Parser/Traverser/CallGraph/LanguageProvider/DataFlowBuilder/CPGGraphBuilder/CPGQuery 已实现（~5,200行，361 tests）。Core Runtime 的 protocols.py/state.py/events.py 已实现。其余模块（Scan Engine、Model Router、Context Manager、Infrastructure）为设计阶段，仅 `__init__.py` 骨架。详见 `progress.md`。
+> **实现进度**（2026-08-06）：CPG Engine 全线完成——Parser/Traverser/CallGraph/CallGraphBuilder/LanguageProvider/DataFlowBuilder/CPGGraphBuilder/CPGQuery/Framework Extractors (5种)/TaintRuleLoader。~5,700 行源码，372 tests，26 个已知 Bug 全部修复。Core Runtime 的 protocols.py/state.py/events.py 已实现。CPG pickle 缓存支持秒级加载（ureport2: 首次 822s→后续 0.3s）。其余模块（Scan Engine、Model Router、Context Manager、Infrastructure）为设计阶段，仅 `__init__.py` 骨架。详见 `progress.md`。
 
 ### 3.2 模块划分
 
 | 模块 | 职责 | 核心组件 | 状态 |
 |:-----|:-----|:--------|:----|
-| **CPG Engine** ✅ Phase 1 完成 | 代码属性图构建与查询 | ✅ tree-sitter多语言解析（Parser）、AST遍历器（Traverser）、LanguageProvider策略模式（`languages/`包）、单文件调用图（SingleFileCallGraph）、跨文件调用图（CallGraphBuilder）、数据流分析（DataFlowBuilder）、CPG图构建（CPGGraphBuilder + CPGQuery）、污点规则（taint_rules.yaml）、框架提取器（Flask/Django/FastAPI/Express/Spring）<br>✅ 端到端集成验证（CWE-89/78/79/639 全链路通过）（Flask/Django/FastAPI/Express/Spring） | 🔄 部分实现 |
+| **CPG Engine** ✅ 完成 | 代码属性图构建与查询 | ✅ tree-sitter多语言解析（Parser）、AST遍历器（Traverser）、LanguageProvider策略模式（`languages/`包）、单文件调用图（SingleFileCallGraph）、跨文件调用图（CallGraphBuilder + 同名函数消歧 + Java限定名索引）、数据流分析（DataFlowBuilder + 跨函数 taint 追踪）、CPG图构建与查询（CPGGraphBuilder + CPGQuery + pickle 缓存 0.3s 加载）、污点规则（taint_rules.yaml + 结构校验）、框架提取器（Flask/Django/FastAPI/Express/Spring，含 BUG 10-13 增强）<br>✅ ureport2 469 Java 文件端到端验证（76K 节点/240K 边/XXE sink 检测确认） | ✅ 完成 |
 | **Scan Engine** | 五阶段流水线执行 | Phase1确定性→Phase2攻击面映射→Phase3假设生成→Phase4验证→Phase5报告 | 📋 设计阶段 |
 | **Model Router** | 三级模型按任务类型路由 | cheap/mid/strong分级，预算自动降级，成本追踪 | 📋 设计阶段 |
 | **Session Manager** | 信念系统与假设生命周期 | SQLite持久化，贝叶斯置信度更新，状态机（proposed→confirmed/rejected） | 📋 设计阶段 |
@@ -474,18 +474,22 @@ hyqagent report <session-id> --format sarif
 
 ### 8.1 当前进度（2026-08-05）
 
-**CPG Engine — 已完成**（Session 1.1-1.7，16 个模块，~3,800 行，302 tests）
+**CPG Engine — ✅ 完成**（Session 1.1-1.16，23 个模块，~5,700 行，372 tests）
 
 | 组件 | 说明 | 语言支持 |
 |------|------|---------|
 | Parser + Traverser | tree-sitter 多语言解析 + AST 遍历 | Python/JS/Java |
 | LanguageProvider | 策略模式可扩展架构 | Python/JS/Java |
-| SingleFileCallGraph | 单文件调用图 | Python/JS/Java |
-| CallGraphBuilder | 跨文件调用图 + 导入解析 | Python/JS/Java |
-| DataFlowBuilder | def-use + 跨函数追踪 + BFS 污点传播 | Python/JS/Java |
-| CPGGraphBuilder | NetworkX MultiDiGraph 统一索引 | Python/JS/Java |
+| SingleFileCallGraph | 单文件调用图 + Java 限定名消歧 | Python/JS/Java |
+| CallGraphBuilder | 跨文件调用图 + 导入解析 + 同名函数消歧 | Python/JS/Java |
+| DataFlowBuilder | def-use + 跨函数 taint 追踪 + BFS 污点传播 | Python/JS/Java |
+| CPGGraphBuilder | NetworkX MultiDiGraph 统一索引 + pickle 缓存 | Python/JS/Java |
 | CPGQuery | 图查询接口（find_path/sources/sinks 等） | Python/JS/Java |
-| taint_rules.yaml | 9 种漏洞类别 × 3 语言的 source/sink/sanitizer | Python/JS/Java |
+| taint_rules.yaml | 10 种漏洞类别 × 3 语言 source/sink/sanitizer | Python/JS/Java |
+| Framework Extractors | Flask/Django/FastAPI/Express/Spring (5 种) | Python/JS/Java |
+| TaintRuleLoader | YAML → 结构化规则加载 + 校验 | Python/JS/Java |
+
+✅ ureport2 端到端验证: 469 Java 文件, 76K 节点/240K 边, 缓存 0.3s 加载, XXE sink 检测确认
 
 **Core Runtime — 基础完成**
 
@@ -501,12 +505,13 @@ Scanner / Model Router / Session Manager / Context Manager / CLI / Report 均为
 
 ### 8.2 后续 Session 规划
 
-每个模块一次性做到最终版，支持 Python/JS/Java 三种语言，不分 MVP→扩展两阶段：
+Phase 1 全部完成（Sessions 1.1-1.16），每个模块一次性做到最终版，支持 Python/JS/Java 三种语言，不分 MVP→扩展两阶段：
 
 | Session | 模块 | 核心产出 |
 |---------|------|---------|
-| 1.8 | 框架提取器 | Flask/Django/FastAPI/Express/Spring 五种框架的路由/参数/认证提取，HTTP_ROUTE 边接入 CPG 图 |
-| 1.9 | 端到端 CPG 测试 | 用已知 CVE 项目验证 CPG 链路完整性 |
+| ~~1.8~~ ✅ | ~~框架提取器~~ | Flask/Django/FastAPI/Express/Spring 已完成 |
+| ~~1.9~~ ✅ | ~~端到端 CPG 测试~~ | CWE-89/78/79/639 全链路通过 |
+| ~~1.10-1.16~~ ✅ | ~~Bug 清零 + 优化~~ | 26 bugs fixed, CPG 缓存, ureport2 验证 |
 | 2.x | Scanner | 五阶段扫描流水线（确定性→攻击面映射→假设生成→验证→报告） |
 | 3.x | Models | 三级模型路由 + 预算管理 + Provider 适配器 |
 | 4.x | Session + Memory | SQLite 信念系统 + 三区段上下文 + 检查点 |

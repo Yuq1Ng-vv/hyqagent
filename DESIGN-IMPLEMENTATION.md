@@ -25,7 +25,7 @@ hyqagent/
 │   │   ├── protocols.py       # ⭐ 核心抽象接口（6个协议：BaseTool/CpgAnalyzer/AuditRepository/LlmProvider）
 │   │   ├── state.py           # AgentState + AuditState 类型定义
 │   │   └── events.py          # 12种事件类型定义（ESAA模式）
-│   ├── cpg/                   # ✅ 部分实现 — CPG Engine（详见下方标注）
+│   ├── cpg/                   # ✅ 已完成 — CPG Engine（Phase 1 全部完成）
 │   │   ├── parser.py          # ✅ tree-sitter多语言解析器（通过LanguageProvider委托到语言适配器）
 │   │   ├── traversal.py       # ✅ AST遍历器（DFS前序/后序、节点过滤、导航工具）
 │   │   ├── callgraph.py       # ✅ 单文件调用图（SingleFileCallGraph，支持Python/JS/Java）
