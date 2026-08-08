@@ -9,7 +9,6 @@ See DESIGN-IMPLEMENTATION.md Section 2.4 for the interface specification.
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -19,11 +18,10 @@ from hyqagent.cpg.traversal import Traverser, _loc, _source
 
 if TYPE_CHECKING:
     from hyqagent.cpg.callgraph_builder import CallGraphBuilder
-    from hyqagent.cpg.languages.base import LanguageProvider
     from hyqagent.cpg.parser import Parser
     from hyqagent.cpg.types import FunctionNode
 
-from hyqagent.cpg.types import DataFlowStep, DefUsePair, TaintConfig, TaintPath
+from hyqagent.cpg.types import DataFlowStep, DefUsePair
 
 # ─── Helper: location string ───────────────────────────────────────────────
 
@@ -52,7 +50,6 @@ class DataFlowBuilder:
         cg_builder = CallGraphBuilder(parser)
         cg_builder.add_directory("./myapp")
         df = DataFlowBuilder(parser, cg_builder)
-        paths = df.propagate_taint("request.args.get", "cursor.execute")
     """
 
     def __init__(
@@ -62,22 +59,6 @@ class DataFlowBuilder:
     ) -> None:
         self._parser = parser
         self._call_graph = call_graph
-        self._taint_config = TaintConfig()
-
-    # ── Taint configuration ─────────────────────────────────────────────
-
-    def set_taint_config(
-        self,
-        sources: list[str],
-        sinks: list[str],
-        sanitizers: list[str] | None = None,
-    ) -> None:
-        """Set the taint source / sink / sanitizer patterns."""
-        self._taint_config = TaintConfig(
-            sources=list(sources),
-            sinks=list(sinks),
-            sanitizers=list(sanitizers or []),
-        )
 
     # ── Intra-procedural: def-use chains ─────────────────────────────────
 
@@ -263,117 +244,6 @@ class DataFlowBuilder:
 
         return steps
 
-    # ── Taint propagation ───────────────────────────────────────────────
-
-    def propagate_taint(
-        self,
-        source_pattern: str = "",
-        sink_pattern: str = "",
-        max_depth: int = 10,
-    ) -> list[TaintPath]:
-        """Propagate taint from sources to sinks across the project.
-
-        Uses BFS within each function and across call edges to track
-        tainted variables.  Stops when *max_depth* hops are exceeded
-        or a sink is reached.
-
-        Requires *call_graph* to have been populated via ``add_directory``.
-
-        Args:
-            source_pattern: Substring to match taint sources
-                            (e.g. ``"request.args.get"``).
-            sink_pattern: Substring to match taint sinks
-                          (e.g. ``"cursor.execute"``).
-            max_depth: Maximum BFS depth (controls how many assignments /
-                       call hops to follow).
-
-        Returns:
-            List of complete taint paths from source to sink.
-
-        """
-        if self._call_graph is None:
-            return []
-
-        paths: list[TaintPath] = []
-
-        for file_path in sorted(self._call_graph.files):
-            tree = self._parser.parse_file(file_path)
-            language = self._parser.get_language(tree)
-            provider = self._parser.get_provider(language)
-
-            # Find all taint sources in this file
-            sources = self._find_pattern_matches(tree, source_pattern, file_path)
-            if not sources:
-                continue
-
-            # Find all sinks
-            sinks = self._find_pattern_matches(tree, sink_pattern, file_path)
-
-            # Build per-function def-use chains
-            funcs = self._parser.extract_functions(tree, language)
-            du_map: dict[str, list[DefUsePair]] = {}
-            for fn in funcs:
-                fn_node = self._fn_to_node(fn, tree)
-                if fn_node is not None:
-                    du_map[fn.name] = self.build_def_use_chains(tree, fn_node, language, file_path)
-
-            # For each source, BFS through assignments
-            for src_node in sources:
-                src_text = _source(src_node)
-                # Find the enclosing function for this source
-                encl_func = self._find_enclosing_func(src_node, provider)
-                if encl_func is None:
-                    continue
-
-                # Determine which variable holds the tainted value
-                tainted_var = self._resolve_tainted_var(
-                    src_node, encl_func, du_map.get(encl_func, []), tree, provider
-                )
-                if tainted_var is None:
-                    # Inline source (no intermediate variable): check if the
-                    # source expression itself hits a sink.  This handles
-                    # patterns like os.system(request.args.get("cmd")).
-                    for sink_node in sinks:
-                        if (
-                            self._node_in_range(src_node, sink_node)
-                            or _source(sink_node) in src_text
-                        ):
-                            paths.append(
-                                TaintPath(
-                                    source=src_text,
-                                    sink=_source(sink_node),
-                                    variable=src_text,
-                                    steps=[
-                                        DataFlowStep(
-                                            location=_loc(src_node, file_path),
-                                            expression=src_text,
-                                            enclosing_function=encl_func,
-                                            kind="call_arg",
-                                        )
-                                    ],
-                                    sanitized=False,
-                                )
-                            )
-                            break
-                    continue
-
-                # BFS from this source
-                path = self._bfs_taint(
-                    tainted_var,
-                    src_node,
-                    sinks,
-                    du_map,
-                    provider,
-                    file_path,
-                    language,
-                    max_depth,
-                    src_text,
-                )
-                if path:
-                    paths.append(path)
-
-        return paths
-
     # ── Internal helpers ────────────────────────────────────────────────
 
     @staticmethod
@@ -389,148 +259,6 @@ class DataFlowBuilder:
         """
         def_loc = _loc(def_node, file_path)
         return loc == def_loc
-
-    @staticmethod
-    def _is_descendant_of(node: Node, ancestor: Node) -> bool:
-        """Return ``True`` if *node* is a descendant of *ancestor*."""
-        current = node.parent
-        while current is not None:
-            if current is ancestor:
-                return True
-            current = current.parent
-        return False
-
-    def _find_pattern_matches(
-        self,
-        tree: Tree,
-        pattern: str,
-        file_path: str = "",
-    ) -> list[Node]:
-        """Find all nodes whose source text contains *pattern*."""
-        if not pattern:
-            return []
-        matches: list[Node] = []
-        for node in Traverser(tree).traverse():
-            if pattern in _source(node):
-                matches.append(node)
-        return matches
-
-    def _find_enclosing_func(
-        self,
-        node: Node,
-        provider: LanguageProvider,
-    ) -> str | None:
-        """Walk ancestors to find the nearest function definition name."""
-        func_types = provider.func_def_types
-        for ancestor in Traverser.get_ancestors(node):
-            if ancestor.type in func_types:
-                return provider.extract_function_name(ancestor)
-        return None
-
-    def _resolve_tainted_var(
-        self,
-        src_node: Node,
-        encl_func: str,
-        du_chains: list[DefUsePair],
-        tree: Tree,
-        provider: LanguageProvider,
-    ) -> str | None:
-        """Determine which variable holds the tainted value from *src_node*.
-
-        If the source is directly assigned (``x = request.args.get(...)``),
-        return ``"x"``.  Otherwise return ``None``.
-        """
-        parent = src_node.parent
-        while parent is not None:
-            if parent.type in provider.assignment_types:
-                target = provider.extract_assignment_target(parent)
-                if target:
-                    return target
-            parent = parent.parent
-        return None
-
-    def _bfs_taint(
-        self,
-        var_name: str,
-        src_node: Node,
-        sinks: list[Node],
-        du_map: dict[str, list[DefUsePair]],
-        provider: LanguageProvider,
-        file_path: str,
-        language: str,
-        max_depth: int,
-        src_text: str,
-    ) -> TaintPath | None:
-        """BFS from *var_name* through assignments and calls to find a sink."""
-        # Pre-compute sink locations for O(1) lookup
-        sink_locations: set[str] = {_loc(s, file_path) for s in sinks}
-
-        # Build a map from location → DefUsePair for quick sanitizer checking
-        def_map: dict[str, DefUsePair] = {}
-        for chains in du_map.values():
-            for du in chains:
-                def_map[du.def_location] = du
-                for use_loc in du.use_locations:
-                    if use_loc not in def_map:
-                        def_map[use_loc] = du
-
-        visited: set[tuple[str, str]] = set()
-        queue: deque[tuple[str, str, list[DataFlowStep], int]] = deque()
-        start_loc = _loc(src_node, file_path)
-        queue.append((var_name, start_loc, [], 0))
-        visited.add((var_name, start_loc))
-
-        sanitizers_found: list[str] = []
-
-        while queue:
-            cur_var, cur_loc, steps, depth = queue.popleft()
-            if depth > max_depth:
-                continue
-
-            # Check if current location hits a sink
-            if cur_loc in sink_locations:
-                sink_text = ""
-                for s in sinks:
-                    if _loc(s, file_path) == cur_loc:
-                        sink_text = _source(s)[:120]
-                        break
-                return TaintPath(
-                    source=src_text,
-                    sink=sink_text,
-                    variable=var_name,
-                    steps=steps,
-                    sanitized=len(sanitizers_found) > 0,
-                    sanitizers=list(sanitizers_found),
-                )
-
-            # Check sanitizers against the current def-use expression
-            du_entry = def_map.get(cur_loc)
-            if du_entry and du_entry.def_expression:
-                for sanitizer in self._taint_config.sanitizers:
-                    if sanitizer in du_entry.def_expression:
-                        sanitizers_found.append(sanitizer)
-
-            # Follow the variable through def-use chains
-            for func_name, chains in du_map.items():
-                for du in chains:
-                    if du.var_name == cur_var:
-                        for use_loc in du.use_locations:
-                            state = (cur_var, use_loc)
-                            if state in visited:
-                                continue
-                            visited.add(state)
-                            new_steps = [
-                                *steps,
-                                DataFlowStep(
-                                    location=use_loc,
-                                    expression=cur_var,
-                                    enclosing_function=func_name,
-                                    kind="assignment",
-                                ),
-                            ]
-                            queue.append((cur_var, use_loc, new_steps, depth + 1))
-
-        return None
 
     def _fn_to_node(self, fn: FunctionNode, tree: Tree) -> Node | None:
         """Convert a FunctionNode (dataclass) back to a tree-sitter Node.

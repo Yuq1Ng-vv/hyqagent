@@ -31,6 +31,7 @@ from hyqagent.cpg.traversal import Traverser
 if TYPE_CHECKING:
     from hyqagent.cpg.callgraph_builder import CallGraphBuilder
     from hyqagent.cpg.parser import Parser
+    from hyqagent.cpg.taint_loader import TaintRuleLoader
 
 # ─── Node / edge type constants ──────────────────────────────────────────────
 
@@ -85,11 +86,16 @@ class CPGGraphBuilder:
         paths = query.find_path("request.args.get", "cursor.execute")
     """
 
-    def __init__(self, parser: Parser) -> None:
+    def __init__(
+        self,
+        parser: Parser,
+        taint_loader: TaintRuleLoader | None = None,
+    ) -> None:
         self._parser = parser
         self.graph = nx.MultiDiGraph()
         self._call_graph_builder: CallGraphBuilder | None = None
         self._dataflow = DataFlowBuilder(parser)
+        self._taint_loader = taint_loader
         self._indexed_files: set[str] = set()
         self._cache_dir: Path | None = None
 
@@ -174,13 +180,37 @@ class CPGGraphBuilder:
                 # DATA_FLOW: function → parameter
                 self.graph.add_edge(fid, pid, edge_type=EDGE_DATA_FLOW)
 
-        # 2 — Index AST: find the function body tree-node for each function
+        # 2 — Index AST: find function body tree-nodes and call arguments
         fn_tree_nodes: dict[str, object] = {}  # func_name → tree-sitter Node
+        # (line, caller_func, callee_bare_name) → list of argument expression texts
+        call_args_index: dict[tuple[int, str, str], list[str]] = {}
         for node in Traverser(tree).traverse():
             if node.type in provider.func_def_types:
                 name = provider.extract_function_name(node)
                 if name:
                     fn_tree_nodes[name] = node
+            elif node.type == "call":
+                # Extract argument expressions for positional param matching
+                callee_info = provider.extract_callee_info(node)
+                if callee_info is not None:
+                    bare_name, _full_expr, _is_method = callee_info
+                    args_node = node.child_by_field_name("arguments")
+                    if args_node is not None:
+                        args: list[str] = []
+                        for child in args_node.named_children:
+                            text = child.text.decode("utf-8") if child.text else ""
+                            if text:
+                                args.append(text)
+                        if args:
+                            line = node.start_point[0] + 1
+                            # Find enclosing function
+                            encl: str | None = None
+                            for anc in Traverser.get_ancestors(node):
+                                if anc.type in provider.func_def_types:
+                                    encl = provider.extract_function_name(anc)
+                                    break
+                            if encl:
+                                call_args_index[(line, encl, bare_name)] = args
 
         # 3 — Build intra-file call graph and index call edges
         # BUG 15: Reuse already-parsed tree instead of re-parsing
@@ -198,6 +228,10 @@ class CPGGraphBuilder:
                 expression=edge.full_expression,
                 is_resolved=edge.is_resolved,
             )
+            # Attach extracted call argument expressions for positional matching
+            cargs = call_args_index.get((edge.call_line, edge.caller, edge.callee))
+            if cargs:
+                self.graph.nodes[cid]["call_args"] = cargs
             # CALLS edge: caller function → call site
             caller_fid = func_nodes.get(edge.caller)
             if caller_fid:
@@ -264,6 +298,10 @@ class CPGGraphBuilder:
             # that is the actual sink.  This edge bridges that gap.
             self._add_rhs_to_lhs_edges(path)
 
+        # 5 — Label taint sources and sinks on assignment nodes
+        if self._taint_loader is not None:
+            self._label_taint_nodes(path, language)
+
     def add_directory(self, dir_path: str | Path, use_cache: bool = True) -> None:
         """Recursively add all source files in *dir_path*.
 
@@ -293,6 +331,13 @@ class CPGGraphBuilder:
                         for _, d in self.graph.nodes(data=True)
                         if d.get("file_path")
                     }
+                    # Re-label taint nodes when loader is present
+                    # (cache was built without labels or with different rules)
+                    if self._taint_loader is not None:
+                        for fpath in sorted(self._indexed_files):
+                            lang = detect_by_extension(fpath)
+                            if lang:
+                                self._label_taint_nodes(fpath, lang)
                     return
             except (pickle.PickleError, EOFError, KeyError, OSError, ValueError, TypeError):
                 pass  # Corrupted cache — rebuild
@@ -459,15 +504,46 @@ class CPGGraphBuilder:
             if not caller_var_refs:
                 continue
 
-            # Create edges: all caller var_refs → all callee params
-            # (over-approximation that is safe for taint tracking)
-            for arg_vid in caller_var_refs:
-                for param_nid in param_nodes:
-                    self.graph.add_edge(
-                        arg_vid,
-                        param_nid,
-                        edge_type=EDGE_DATA_FLOW,
-                    )
+            # ── Positional arg→param matching ──────────────────────
+            # When call_args were extracted during add_file(), use them
+            # for precise positional matching (arg_i → param_i).
+            # Fall back to all-to-all otherwise.
+            call_args: list[str] = data.get("call_args", [])
+            # Sort params by param_index so param_nodes[i] is the i-th param
+            sorted_params = sorted(
+                param_nodes,
+                key=lambda pid: self.graph.nodes[pid].get("param_index", 0),
+            )
+            # Build var_name → var_ref node id lookup (first-write wins)
+            varref_by_name: dict[str, str] = {}
+            for vid in caller_var_refs:
+                vname = self.graph.nodes[vid].get("var_name", "")
+                if vname and vname not in varref_by_name:
+                    varref_by_name[vname] = vid
+
+            did_positional = False
+            if call_args and 0 < len(call_args) <= len(sorted_params):
+                for i, arg_text in enumerate(call_args):
+                    if i >= len(sorted_params):
+                        break
+                    matched_vid = varref_by_name.get(arg_text)
+                    if matched_vid is not None:
+                        self.graph.add_edge(
+                            matched_vid,
+                            sorted_params[i],
+                            edge_type=EDGE_DATA_FLOW,
+                        )
+                        did_positional = True
+
+            # Fall back to all-to-all if positional matching didn't fire
+            if not did_positional:
+                for arg_vid in caller_var_refs:
+                    for param_nid in param_nodes:
+                        self.graph.add_edge(
+                            arg_vid,
+                            param_nid,
+                            edge_type=EDGE_DATA_FLOW,
+                        )
 
             # DATA_FLOW edges through the call_site node itself:
             #   var_ref → call_site → callee_function → param
@@ -557,6 +633,38 @@ class CPGGraphBuilder:
                             aid,
                             edge_type=EDGE_DATA_FLOW,
                         )
+
+    # ── Taint node labeling ────────────────────────────────────────────────
+
+    def _label_taint_nodes(self, file_path: str, language: str) -> None:
+        """Tag ``NODE_ASSIGNMENT`` nodes with taint source / sink categories.
+
+        Uses the :class:`TaintRuleLoader` to match each assignment's
+        right-hand-side expression against source and sink patterns.
+        A matching node gets a ``taint_category`` attribute set to the
+        corresponding vulnerability category (e.g. ``"sql_injection"``).
+        """
+        if self._taint_loader is None:
+            return
+
+        for _nid, data in self.graph.nodes(data=True):
+            if data.get("file_path") != file_path:
+                continue
+            if data.get("node_type") != NODE_ASSIGNMENT:
+                continue
+            source_text = data.get("source", "")
+            if not source_text:
+                continue
+
+            # Check source patterns first, then sink patterns
+            cat = self._taint_loader.match_source(language, source_text)
+            if cat:
+                data["taint_category"] = cat
+                continue
+
+            cat = self._taint_loader.match_sink(language, source_text)
+            if cat:
+                data["taint_category"] = cat
 
     @property
     def node_count(self) -> int:

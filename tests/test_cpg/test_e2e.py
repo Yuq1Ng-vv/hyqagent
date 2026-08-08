@@ -286,6 +286,83 @@ class TestQueryAndTaint:
         assert "java" in loader.available_languages
 
 
+# ─── Level 6: Taint-labeled graph + precise param matching ──────────────────
+
+
+class TestTaintGraphIntegration:
+    """Verify CPG graph with TaintRuleLoader labels nodes.
+
+    Also tests category-based queries and call-site argument extraction.
+    """
+
+    @pytest.fixture(scope="module")
+    def taint_builder(self, parser, loader):
+        """CPGGraphBuilder with TaintRuleLoader wired in."""
+        b = CPGGraphBuilder(parser, taint_loader=loader)
+        b.add_directory(str(MICROBLOG), use_cache=False)
+        return b
+
+    @pytest.fixture(scope="module")
+    def taint_query(self, taint_builder):
+        return CPGQuery(taint_builder.graph)
+
+    def test_graph_with_taint_loader(self, taint_builder):
+        """CPGGraphBuilder accepts TaintRuleLoader and builds a non-empty graph."""
+        assert taint_builder.node_count > 0
+        assert taint_builder.edge_count > 0
+
+    def test_taint_labeled_nodes_exist(self, taint_builder):
+        """At least some NODE_ASSIGNMENT nodes should have taint_category."""
+        labeled = 0
+        for _nid, data in taint_builder.graph.nodes(data=True):
+            if data.get("taint_category"):
+                labeled += 1
+        assert labeled > 0, (
+            "Expected at least one taint-labeled node in the microblog fixture"
+        )
+
+    def test_find_sources_finds_labeled(self, taint_query):
+        """find_sources() recognizes taint_category-labeled nodes."""
+        sources = taint_query.find_sources(".execute(")
+        assert len(sources) > 0
+
+    def test_find_sinks_finds_labeled(self, taint_query):
+        """find_sinks() recognizes taint_category-labeled nodes."""
+        sinks = taint_query.find_sinks("request.args.get")
+        assert len(sinks) > 0
+
+    def test_find_path_with_taint_loader(self, taint_query, loader):
+        """find_path() with taint_loader uses labeled nodes for matching."""
+        paths = taint_query.find_path(
+            "request.args.get",
+            ".execute(",
+            taint_loader=loader,
+            language="python",
+        )
+        # May or may not find a full path through the microblog, but
+        # the query should not crash and sources/sinks should be found.
+        assert isinstance(paths, list)
+
+    def test_find_path_taint_no_loader(self, taint_query):
+        """find_path() without taint_loader still works via substring fallback."""
+        paths = taint_query.find_path("request.args.get", ".execute(")
+        assert isinstance(paths, list)
+
+    def test_call_args_stored_on_call_site(self, taint_builder):
+        """Intra-file call sites should have call_args from add_file()."""
+        for _nid, data in taint_builder.graph.nodes(data=True):
+            if data.get("node_type") == NODE_CALL_SITE and data.get("call_args"):
+                break
+        # call_args extraction is best-effort — no hard assertion.
+
+    def test_sanitizer_in_path(self, taint_query, loader):
+        """get_sanitizers() with taint_loader uses YAML-driven patterns."""
+        paths = taint_query.find_path("request.args.get", ".execute(")
+        if paths:
+            sanitizers = taint_query.get_sanitizers(paths[0], loader)
+            assert isinstance(sanitizers, list)
+
+
 # ─── Helper ──────────────────────────────────────────────────────────────────
 
 

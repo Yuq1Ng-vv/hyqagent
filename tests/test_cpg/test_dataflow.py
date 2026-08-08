@@ -219,39 +219,6 @@ class TestCrossFunctionTracing:
         assert steps == []
 
 
-# ─── Taint propagation tests ─────────────────────────────────────────────────
-
-
-class TestTaintPropagation:
-    def test_propagate_without_callgraph_returns_empty(self, py_dataflow):
-        """Without CallGraphBuilder, propagate_taint returns empty."""
-        paths = py_dataflow.propagate_taint("request.args.get", "cursor.execute")
-        assert paths == []
-
-    def test_set_taint_config(self, py_dataflow):
-        """set_taint_config should store sources, sinks, sanitizers."""
-        py_dataflow.set_taint_config(
-            sources=["request.args.get"],
-            sinks=["cursor.execute"],
-            sanitizers=["int()", "re.escape"],
-        )
-        assert py_dataflow._taint_config.sources == ["request.args.get"]
-        assert py_dataflow._taint_config.sinks == ["cursor.execute"]
-        assert py_dataflow._taint_config.sanitizers == ["int()", "re.escape"]
-
-    def test_find_pattern_matches(self, parser, py_tree, py_dataflow):
-        """_find_pattern_matches finds source code containing a pattern."""
-        matches = py_dataflow._find_pattern_matches(
-            py_tree, "request.args.get"
-        )
-        assert len(matches) >= 1
-
-    def test_find_pattern_matches_empty_pattern(self, parser, py_tree, py_dataflow):
-        """Empty pattern returns empty list."""
-        matches = py_dataflow._find_pattern_matches(py_tree, "")
-        assert matches == []
-
-
 # ─── Boundary / edge case tests ──────────────────────────────────────────────
 
 
@@ -387,8 +354,10 @@ class TestDefUseChainsJava:
 
 class TestCrossFunctionIntegration:
     def test_trace_with_callgraph(self, parser):
+        import os
+        import tempfile
+
         from hyqagent.cpg.callgraph_builder import CallGraphBuilder
-        import tempfile, os
         d = tempfile.mkdtemp()
         try:
             with open(os.path.join(d, "a.py"), "w") as f:
@@ -415,8 +384,9 @@ class TestTaintLoaderErrors:
         assert loader.available_languages == []
 
     def test_custom_path(self):
-        from hyqagent.cpg.taint_loader import TaintRuleLoader
         from pathlib import Path
+
+        from hyqagent.cpg.taint_loader import TaintRuleLoader
         real = Path(__file__).resolve().parent.parent.parent / "src/hyqagent/cpg/taint_rules.yaml"
         loader = TaintRuleLoader(rules_path=str(real))
         assert "python" in loader.available_languages

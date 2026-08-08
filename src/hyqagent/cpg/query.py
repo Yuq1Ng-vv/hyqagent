@@ -79,18 +79,29 @@ class CPGQuery:
         source_pattern: str,
         sink_pattern: str,
         max_depth: int = 20,
+        taint_loader: object | None = None,
+        language: str = "",
     ) -> list[GraphPath]:
         """Find all paths from nodes matching source to sink patterns.
 
         Traverses ``DATA_FLOW`` and ``CALLS`` edges via BFS.  Returns up
         to 20 distinct paths, sorted shortest-first.
+
+        When *taint_loader* and *language* are provided, prefers
+        ``taint_category``-labeled nodes over substring matching.
         """
         # Exclude function nodes from source matching: function bodies
         # contain source/sink patterns as substring matches (e.g. the
         # parameter name `req` in `HttpServletRequest req`), but function
         # nodes are not the actual taint entry points — assignments are.
-        sources = self._find_nodes(source_pattern, exclude_types={NODE_FUNCTION})
-        sinks = set(self._find_nodes(sink_pattern, exclude_types={NODE_FUNCTION}))
+        sources = self._find_taint_nodes(
+            source_pattern, taint_loader, language, exclude_types={NODE_FUNCTION},
+        )
+        sinks = set(
+            self._find_taint_nodes(
+                sink_pattern, taint_loader, language, exclude_types={NODE_FUNCTION},
+            )
+        )
         if not sources or not sinks:
             return []
 
@@ -128,7 +139,8 @@ class CPGQuery:
 
             node_data = self._graph.nodes.get(node_id, {})
             ntype = node_data.get("node_type", "")
-            if ntype in (NODE_SOURCE, NODE_ASSIGNMENT):
+            has_taint = bool(node_data.get("taint_category"))
+            if ntype in (NODE_SOURCE, NODE_ASSIGNMENT) or has_taint:
                 source_nodes.append(self._to_graph_node(node_id, node_data))
 
             # Reverse: follow predecessors (DATA_FLOW + CALLS edges only)
@@ -156,7 +168,8 @@ class CPGQuery:
 
             node_data = self._graph.nodes.get(node_id, {})
             ntype = node_data.get("node_type", "")
-            if ntype == NODE_SINK:
+            has_taint = bool(node_data.get("taint_category"))
+            if ntype == NODE_SINK or has_taint:
                 sink_nodes.append(self._to_graph_node(node_id, node_data))
 
             # Forward: follow successors (DATA_FLOW + CALLS edges only)
@@ -294,6 +307,46 @@ class CPGQuery:
                     matches.append(nid)
                     break
         return matches
+
+    def _find_taint_nodes(
+        self,
+        pattern: str,
+        taint_loader: object | None,
+        language: str,
+        max_results: int = 200,
+        exclude_types: set[str] | None = None,
+    ) -> list[str]:
+        """Find nodes by taint_category label (preferred) or substring fallback.
+
+        When *taint_loader* and *language* are provided, first searches for
+        nodes whose ``taint_category`` attribute matches the category
+        resolved from *pattern*.  Falls back to plain ``_find_nodes``
+        substring matching when the loader is unavailable or no labeled
+        nodes match.
+        """
+        if taint_loader is not None and language:
+            # Resolve which taint category the pattern matches
+            cat = None
+            if hasattr(taint_loader, "match_source"):
+                cat = taint_loader.match_source(language, pattern)
+            if cat is None and hasattr(taint_loader, "match_sink"):
+                cat = taint_loader.match_sink(language, pattern)
+
+            if cat is not None:
+                # Search for nodes already labeled with this category
+                matches: list[str] = []
+                for nid, data in self._graph.nodes(data=True):
+                    if len(matches) >= max_results:
+                        break
+                    if exclude_types and data.get("node_type") in exclude_types:
+                        continue
+                    if data.get("taint_category") == cat:
+                        matches.append(nid)
+                if matches:
+                    return matches
+
+        # Fall back to plain substring matching
+        return self._find_nodes(pattern, max_results, exclude_types)
 
     def _bfs_paths(
         self,
