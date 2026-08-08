@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.16 完成后 (2026-08-06)
+> 上次更新: Session 1.18 完成后 (2026-08-08)
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -95,12 +95,21 @@
   - **BUG 20-26**: 安全/null 检查、缓存 FIFO 淘汰、YAML 校验、Windows 路径兼容等
   - ureport2 完整 CPG 图验证: **76,481 节点 / 239,706 边** / 缓存 0.3s 加载
   - XXE 跨文件 sink 检测确认 (`saxReader.read` @ ReportParser → DesignerServletAction)
+- [x] **Session 1.17** — 测试策略与语言战略 (commit: `a3573b6`)
+  - 测试缺口分析文档：3 项严重缺口 + 4 项中缺口
+  - 语言优先级确立：PHP > Go，但 Java 优先打磨
+  - 基准数据集调研（OWASP Benchmark、SARD、SecuriBench Micro 等）
+- [x] **Session 1.18** — 真实项目端到端验证 + JS 函数提取修复 (commit: `205c454`)
+  - **rwtests/**: 新增 vulpy (Flask, 8 vulns) + dvna (Express, 9 vulns)
+  - **JS 修复**: `function_query` 新增 assignment_expression 模式，`appHandler.js` 0→13 函数
+  - **新增 310 tests**: 6 个新测试文件 + fixtures + frameworks 测试扩展
+  - 测试从 372 → **714** tests, 0 failures
 
 ## Phase 1 最终指标
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **372** tests, 0 failures |
+| 测试 | **714** tests, 0 failures |
 | 源码模块 | **23** 个 |
 | 源码行数 | **~5,700** 行 |
 | 支持语言 | **3** 种 (Python/JavaScript/Java) |
@@ -108,14 +117,16 @@
 | Taint 规则 | **3** 语言 × 10 类别 (Java 含 XXE) |
 | CPG 图规模 | ureport2: 76K 节点 / 240K 边 |
 | CPG 缓存 | 首次 822s → 后续 **0.3s** (~2700x) |
+| 真实项目测试集 | **3** 项目 (ureport2/Java + vulpy/Flask + dvna/Express) |
 | 已知 Bug | **26/26** 全部修复 ✅ |
-| ruff | 自动修复完成 |
+| ruff | clean |
 | mypy | 24 pre-existing（类型标注 + stub 缺失） |
 
 ## Phase 2-5: 待开始
 
 ## 当前阻塞
 - 无
+- **剩余技术债**: propagate_taint 重构、跨函数精确参数匹配、ureport2 回归测试
 
 ## 文档索引
 
