@@ -122,8 +122,17 @@
   - **Query 集成**: `get_cfg_for_function`/`get_entry_block`/`is_reachable`/`dominates` 四种查询方法
   - **PDG/SSA/别名分析路线图**: 确认 Control Dependence 应 CFG 后立即做，SSA 按需引入，别名分析不做完整版
   - 测试总计: **788 tests, 0 failures** (+43 new CFG tests)
+- [x] **Session 1.22** — Control Dependence 分析
+  - **DominanceAnalyzer**: 静态工具类（compute_dominators / compute_post_dominators / compute_control_dependence），纯集合运算，不依赖 NetworkX
+  - **Query 扩展**: post_dominates / get_control_dependents / is_control_dependent_on
+  - **算法**: post-dominance frontier → CDG（Ferrante 1987），仅分支节点（≥2 successors）产生控制依赖
+  - 测试总计: **801 tests, 0 failures** (+13 CDG tests)
 
 ## Phase 1 最终指标
+
+| 维度 | 数据 |
+|------|------|
+| 测试 | **801** tests, 0 failures |
 
 | 维度 | 数据 |
 |------|------|

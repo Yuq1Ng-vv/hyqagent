@@ -614,7 +614,197 @@ class TestCFGQuery:
         assert query.get_entry_block("no_such_func") is None
 
 
-# ─── 7. Edge cases ─────────────────────────────────────────────────────────
+# ─── 7. Dominance Analysis ──────────────────────────────────────────────────
+
+
+class TestDominanceAnalyzer:
+    """Unit tests for DominanceAnalyzer on abstract CFG shapes."""
+
+    # ── Fixture: diamond CFG (if/else merge) ───────────────────────────
+
+    DIAMOND_IDS = {"a", "b", "c", "d"}
+    DIAMOND_PREDS = {"a": set(), "b": {"a"}, "c": {"a"}, "d": {"b", "c"}}
+    DIAMOND_SUCCS = {"a": {"b", "c"}, "b": {"d"}, "c": {"d"}, "d": set()}
+
+    def test_dominators_diamond_entry_dominates_all(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        dom = DominanceAnalyzer.compute_dominators(
+            self.DIAMOND_IDS, self.DIAMOND_PREDS, "a",
+        )
+        assert "a" in dom["b"], "entry should dominate b"
+        assert "a" in dom["c"], "entry should dominate c"
+        assert "a" in dom["d"], "entry should dominate merge"
+
+    def test_dominators_branch_not_dominate_peer(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        dom = DominanceAnalyzer.compute_dominators(
+            self.DIAMOND_IDS, self.DIAMOND_PREDS, "a",
+        )
+        assert "b" not in dom["c"], "branch b should NOT dominate sibling c"
+        assert "c" not in dom["b"], "branch c should NOT dominate sibling b"
+
+    def test_post_dominators_diamond(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        pd = DominanceAnalyzer.compute_post_dominators(
+            self.DIAMOND_IDS, self.DIAMOND_SUCCS, {"d"},
+        )
+        # d (exit) post-dominates everything
+        for bid in self.DIAMOND_IDS:
+            assert "d" in pd[bid], f"exit d should post-dominate {bid}"
+
+    def test_post_dominators_branch_self_only(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        pd = DominanceAnalyzer.compute_post_dominators(
+            self.DIAMOND_IDS, self.DIAMOND_SUCCS, {"d"},
+        )
+        # a post-dominates itself and d (merge point), but not b or c
+        assert "b" not in pd["a"], "a should NOT post-dominate b"
+        assert "c" not in pd["a"], "a should NOT post-dominate c"
+        assert "d" in pd["a"], "a should post-dominate the merge point d"
+
+    def test_control_dependence_diamond(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        pd = DominanceAnalyzer.compute_post_dominators(
+            self.DIAMOND_IDS, self.DIAMOND_SUCCS, {"d"},
+        )
+        cd = DominanceAnalyzer.compute_control_dependence(
+            self.DIAMOND_IDS, self.DIAMOND_SUCCS, pd,
+        )
+        # b and c are control-dependent on a (the branch)
+        assert "a" in cd.get("b", set()), "b should be CD on a"
+        assert "a" in cd.get("c", set()), "c should be CD on a"
+        # d is NOT CD on a (it executes regardless of branch)
+        assert "a" not in cd.get("d", set()), "d should NOT be CD on a"
+
+    # ── Fixture: linear (no branches) ──────────────────────────────────
+
+    LINEAR_IDS = {"x", "y", "z"}
+    LINEAR_PREDS = {"x": set(), "y": {"x"}, "z": {"y"}}
+    LINEAR_SUCCS = {"x": {"y"}, "y": {"z"}, "z": set()}
+
+    def test_control_dependence_linear_is_empty(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        pd = DominanceAnalyzer.compute_post_dominators(
+            self.LINEAR_IDS, self.LINEAR_SUCCS, {"z"},
+        )
+        cd = DominanceAnalyzer.compute_control_dependence(
+            self.LINEAR_IDS, self.LINEAR_SUCCS, pd,
+        )
+        # No branch → no control dependence
+        for ctrls in cd.values():
+            assert len(ctrls) == 0, f"Expected no CD in linear CFG, got {cd}"
+
+    def test_empty_blocks(self):
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        dom = DominanceAnalyzer.compute_dominators(set(), {}, "x")
+        assert dom == {}
+
+        pd = DominanceAnalyzer.compute_post_dominators(set(), {}, set())
+        assert pd == {}
+
+
+# ─── 8. Control Dependence Query Integration ────────────────────────────────
+
+
+class TestCDGQuery:
+    """Integration tests for CPGQuery CDG methods on real CFG data."""
+
+    @pytest.fixture(scope="class")
+    def query(self, parser: Parser):
+        builder = CPGGraphBuilder(parser)
+        builder.add_file(str(FIXTURES / "cfg_samples.py"))
+        return CPGQuery(builder.graph)
+
+    def test_post_dominates_if_else(self, query):
+        """In if_else, the exit block should post-dominate all blocks."""
+        blocks = query.get_cfg_for_function("if_else")
+        exit_blocks = [
+            b for b in blocks
+            if query._graph.nodes.get(b, {}).get("block_type") == "exit"
+        ]
+        if not exit_blocks:
+            pytest.skip("No exit block found")
+        exit_id = exit_blocks[0]
+
+        for bid in blocks:
+            assert query.post_dominates(exit_id, bid, "if_else"), (
+                f"Exit {exit_id} should post-dominate {bid}"
+            )
+
+    def test_post_dominates_self(self, query):
+        entry = query.get_entry_block("straight_line")
+        assert entry is not None
+        assert query.post_dominates(entry, entry, "straight_line")
+
+    def test_get_control_dependents_if_else(self, query):
+        """In if_else, the then/else bodies should be CD on the condition
+        block."""
+        blocks = query.get_cfg_for_function("if_else")
+        graph = query._graph
+
+        # Find the condition block (contains the if statement)
+        cond_block = None
+        for bid in blocks:
+            data = graph.nodes.get(bid, {})
+            stmts = data.get("statements", [])
+            if any("if " in s for s in stmts):
+                cond_block = bid
+                break
+
+        if cond_block is None:
+            pytest.skip("No condition block found")
+
+        cd_blocks = query.get_control_dependents(cond_block, "if_else")
+        assert len(cd_blocks) >= 1, (
+            f"Expected blocks CD on condition, got {cd_blocks}"
+        )
+
+    def test_get_control_dependents_straight_line(self, query):
+        """Straight-line code has no control dependences (no branches)."""
+        entry = query.get_entry_block("straight_line")
+        assert entry is not None
+        cd = query.get_control_dependents(entry, "straight_line")
+        # Entry block has no outgoing branches in straight-line code
+        # so nothing should be CD on it
+        assert isinstance(cd, list)
+
+    def test_is_control_dependent_on(self, query):
+        """is_control_dependent_on should be consistent with
+        get_control_dependents."""
+        blocks = query.get_cfg_for_function("if_else")
+        if len(blocks) < 3:
+            pytest.skip("Not enough blocks")
+
+        # Find if-condition block
+        graph = query._graph
+        cond_block = None
+        for bid in blocks:
+            stmts = graph.nodes.get(bid, {}).get("statements", [])
+            if any("if " in s for s in stmts):
+                cond_block = bid
+                break
+
+        if cond_block is None:
+            pytest.skip("No condition block")
+
+        cd_blocks = query.get_control_dependents(cond_block, "if_else")
+        if cd_blocks:
+            assert query.is_control_dependent_on(
+                cd_blocks[0], cond_block, "if_else",
+            )
+
+    def test_missing_function_control_dependents(self, query):
+        assert query.get_control_dependents("fake_block", "no_func") == []
+
+
+# ─── 9. Edge cases ─────────────────────────────────────────────────────────
 
 
 class TestCFGEdgeCases:

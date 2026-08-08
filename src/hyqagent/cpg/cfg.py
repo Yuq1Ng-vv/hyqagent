@@ -73,6 +73,172 @@ class CFGEdge:
         return f"CFGEdge({self.source_id!r} -[{self.kind}]→ {self.target_id!r})"
 
 
+# ── Dominance Analysis ─────────────────────────────────────────────────────
+
+
+class DominanceAnalyzer:
+    """Compute dominators, post-dominators, and control dependence.
+
+    All methods work on primitive dictionaries of sets — they are
+    independent of NetworkX, tree-sitter, and the rest of the CPG.
+    This makes them trivially testable and reusable outside graph.py.
+
+    Usage::
+
+        dom = DominanceAnalyzer.compute_dominators(block_ids, preds, entry_id)
+        pd  = DominanceAnalyzer.compute_post_dominators(block_ids, succs, exit_ids)
+        cd  = DominanceAnalyzer.compute_control_dependence(block_ids, succs, pd)
+    """
+
+    @staticmethod
+    def compute_dominators(
+        block_ids: set[str],
+        preds: dict[str, set[str]],
+        entry_id: str,
+    ) -> dict[str, set[str]]:
+        """Iterative dominator computation (Cooper-Harvey-Kennedy 2001 style).
+
+        Returns ``{block_id: set_of_dominator_ids}``.
+        """
+        if not block_ids:
+            return {}
+        all_blocks = block_ids
+        dom: dict[str, set[str]] = {b: set(all_blocks) for b in all_blocks}
+        if entry_id in dom:
+            dom[entry_id] = {entry_id}
+
+        changed = True
+        while changed:
+            changed = False
+            for b in sorted(all_blocks):
+                if b == entry_id:
+                    continue
+                if preds.get(b):
+                    new_dom: set[str] = set(all_blocks)
+                    for p in preds[b]:
+                        new_dom &= dom.get(p, set())
+                    new_dom.add(b)
+                else:
+                    new_dom = {b}
+                if new_dom != dom[b]:
+                    dom[b] = new_dom
+                    changed = True
+        return dom
+
+    @staticmethod
+    def compute_post_dominators(
+        block_ids: set[str],
+        succs: dict[str, set[str]],
+        exit_ids: set[str],
+    ) -> dict[str, set[str]]:
+        """Compute post-dominators by reversing the CFG.
+
+        Post-dominator: block P **post-dominates** block B if every path
+        from B to an exit block must go through P.  This is just dominator
+        computation on the reversed CFG with a virtual EXIT node.
+        """
+        if not block_ids:
+            return {}
+        all_blocks = block_ids
+        # Virtual exit node that connects all real exit blocks
+        virtual_exit = "__virtual_exit__"
+        rev_preds: dict[str, set[str]] = {b: set(succs.get(b, set())) for b in all_blocks}
+        rev_preds[virtual_exit] = set(exit_ids)
+        for exit_id in exit_ids:
+            rev_preds.setdefault(exit_id, set()).add(virtual_exit)
+
+        all_with_virtual = all_blocks | {virtual_exit}
+        pd: dict[str, set[str]] = {b: set(all_with_virtual) for b in all_with_virtual}
+        pd[virtual_exit] = {virtual_exit}
+
+        changed = True
+        while changed:
+            changed = False
+            for b in sorted(all_with_virtual):
+                if b == virtual_exit:
+                    continue
+                if rev_preds.get(b):
+                    new_pd: set[str] = set(all_with_virtual)
+                    for p in rev_preds[b]:
+                        new_pd &= pd.get(p, set())
+                    new_pd.add(b)
+                else:
+                    new_pd = {b}
+                if new_pd != pd[b]:
+                    pd[b] = new_pd
+                    changed = True
+
+        # Remove virtual exit from result
+        result: dict[str, set[str]] = {}
+        for b in all_blocks:
+            result[b] = pd[b] - {virtual_exit}
+        return result
+
+    @staticmethod
+    def _build_ipd_tree(
+        dom: dict[str, set[str]],
+    ) -> dict[str, str | None]:
+        """Build immediate-(post-)dominator tree from dominator sets.
+
+        Returns ``{block_id: immediate_dominator_id | None}``.
+        The entry node's IPD is ``None``.
+        """
+        ipd: dict[str, str | None] = {}
+        for b, doms in dom.items():
+            strict = doms - {b}
+            if not strict:
+                ipd[b] = None
+            else:
+                # The immediate dominator is the unique node in strict
+                # that dominates all other nodes in strict.
+                candidates = set(strict)
+                for d1 in list(candidates):
+                    for d2 in list(candidates):
+                        if d1 != d2 and d1 in dom.get(d2, set()):
+                            candidates.discard(d2)
+                ipd[b] = candidates.pop() if len(candidates) == 1 else None
+        return ipd
+
+    @staticmethod
+    def compute_control_dependence(
+        block_ids: set[str],
+        succs: dict[str, set[str]],
+        post_dom: dict[str, set[str]],
+    ) -> dict[str, set[str]]:
+        """Compute control-dependence sets via post-dominance frontier.
+
+        **Block L is control-dependent on block B** if B has at least two
+        successors and L post-dominates one successor of B but not B
+        itself.  This captures the standard definition: B is a decision
+        point that determines whether L executes.
+
+        Returns ``{block_id: set_of_controlling_block_ids}``.
+        In other words: ``cd[L] = {B | L is control-dependent on B}``.
+        """
+        ipd = DominanceAnalyzer._build_ipd_tree(post_dom)
+
+        cd: dict[str, set[str]] = {b: set() for b in block_ids}
+
+        for b in block_ids:
+            successors = succs.get(b, set())
+            # Only branch nodes (≥2 successors) can be control-dependence sources.
+            # Single-successor nodes only have fallthrough — no decision.
+            if len(successors) < 2:
+                continue
+
+            for s in successors:
+                # Walk up the post-dominator tree from s
+                runner = s
+                while runner is not None and runner != ipd.get(b):
+                    # runner is control-dependent on b
+                    cd.setdefault(runner, set()).add(b)
+                    runner = ipd.get(runner)
+                    if runner == b:
+                        break
+
+        return cd
+
+
 # ── Builder ────────────────────────────────────────────────────────────────
 
 

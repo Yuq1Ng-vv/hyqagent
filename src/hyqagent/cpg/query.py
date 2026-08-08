@@ -546,6 +546,122 @@ class CPGQuery:
             return block_a_id == block_b_id
         return block_a_id in dom[block_b_id]
 
+    # ── Post-dominance & control dependence ───────────────────────────────
+
+    def _collect_cfg_data_for_function(
+        self, func_name: str, file_path: str | None = None
+    ) -> tuple[set[str], dict[str, set[str]], dict[str, set[str]],
+               str | None, set[str]]:
+        """Collect CFG block data from the graph for dominance analysis.
+
+        Returns ``(block_ids, preds, succs, entry_id, exit_ids)``.
+        """
+        block_ids: set[str] = set()
+        preds: dict[str, set[str]] = {}
+        succs: dict[str, set[str]] = {}
+        entry_id: str | None = None
+        exit_ids: set[str] = set()
+
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") != NODE_BASIC_BLOCK:
+                continue
+            if data.get("enclosing_function") != func_name:
+                continue
+            if file_path is not None and data.get("file_path") != file_path:
+                continue
+
+            block_ids.add(nid)
+            preds.setdefault(nid, set())
+            succs.setdefault(nid, set())
+
+            if data.get("block_type") == "entry":
+                entry_id = nid
+            elif data.get("block_type") == "exit":
+                exit_ids.add(nid)
+
+        # Collect CTRL_FLOW edges within this function
+        for u, v, data in self._graph.edges(data=True):
+            if data.get("edge_type") != EDGE_CTRL_FLOW:
+                continue
+            if u not in block_ids or v not in block_ids:
+                continue
+            succs.setdefault(u, set()).add(v)
+            preds.setdefault(v, set()).add(u)
+
+        return block_ids, preds, succs, entry_id, exit_ids
+
+    def post_dominates(
+        self, block_a_id: str, block_b_id: str,
+        func_name: str, file_path: str | None = None,
+    ) -> bool:
+        """Return ``True`` if *block_a_id* post-dominates *block_b_id*.
+
+        A block **P post-dominates B** if every path from B to any exit
+        must go through P.  This is the reverse-path analogue of
+        :meth:`dominates`.
+        """
+        block_ids, _preds, succs, entry_id, exit_ids = (
+            self._collect_cfg_data_for_function(func_name, file_path)
+        )
+        if not block_ids or not exit_ids:
+            return block_a_id == block_b_id
+
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        pd = DominanceAnalyzer.compute_post_dominators(block_ids, succs, exit_ids)
+        if block_a_id not in pd or block_b_id not in pd:
+            return block_a_id == block_b_id
+        return block_a_id in pd[block_b_id]
+
+    def get_control_dependents(
+        self, from_block_id: str,
+        func_name: str, file_path: str | None = None,
+    ) -> list[str]:
+        """Return block IDs that are **control-dependent** on *from_block_id*.
+
+        A block L is control-dependent on B if B is a decision point
+        (branch / loop header) whose outcome determines whether L executes.
+        For example, a sanitizer inside an if-true branch is control-dependent
+        on the if-condition block — if the condition is false, the sanitizer
+        does not execute.
+
+        Returns the list of block IDs that are control-dependent on
+        *from_block_id*.
+        """
+        block_ids, _preds, succs, entry_id, exit_ids = (
+            self._collect_cfg_data_for_function(func_name, file_path)
+        )
+        if not block_ids or not exit_ids:
+            return []
+
+        from hyqagent.cpg.cfg import DominanceAnalyzer
+
+        pd = DominanceAnalyzer.compute_post_dominators(block_ids, succs, exit_ids)
+        cd = DominanceAnalyzer.compute_control_dependence(block_ids, succs, pd)
+
+        if from_block_id not in cd:
+            return []
+
+        # cd[L] = {B | L is control-dependent on B}
+        # We want: which L are control-dependent on from_block_id?
+        return sorted(
+            lid for lid, controllers in cd.items()
+            if from_block_id in controllers
+        )
+
+    def is_control_dependent_on(
+        self, block_a_id: str, block_b_id: str,
+        func_name: str, file_path: str | None = None,
+    ) -> bool:
+        """Return ``True`` if *block_a_id* is control-dependent on *block_b_id*.
+
+        In other words: does the decision at *block_b_id* determine whether
+        *block_a_id* executes?  (Block A depends on block B.)
+        """
+        return block_a_id in self.get_control_dependents(
+            block_b_id, func_name, file_path,
+        )
+
     @staticmethod
     def _to_graph_node(node_id: str, data: dict) -> GraphNode:
         """Convert a NetworkX node to a :class:`GraphNode`."""
