@@ -1,0 +1,126 @@
+# Dangerous function call detection rules.
+# Substring matching. Patterns are checked against source text.
+
+rules:
+  # ── Dynamic code execution ──────────────────────────────────────────
+  - id: DANGER-001
+    patterns: ['eval(', 'exec(', 'Function(']
+    severity: high
+    message: "动态代码执行"
+    languages: [python, javascript]
+    cwe: "CWE-95"
+
+  - id: DANGER-002
+    patterns: ['vm.runInNewContext(', 'vm.runInThisContext(', 'vm.compileFunction(']
+    severity: high
+    message: "Node.js 沙箱执行"
+    languages: [javascript]
+    cwe: "CWE-95"
+
+  # ── Command execution ───────────────────────────────────────────────
+  - id: DANGER-003
+    patterns: ['os.system(', 'os.popen(']
+    severity: high
+    message: "操作系统命令执行"
+    languages: [python]
+    cwe: "CWE-78"
+
+  - id: DANGER-004
+    patterns: ['subprocess.call(', 'subprocess.Popen(', 'subprocess.run(',
+               'subprocess.check_output(', 'subprocess.check_call(']
+    severity: high
+    message: "子进程命令执行"
+    languages: [python]
+    cwe: "CWE-78"
+
+  - id: DANGER-005
+    patterns: ['Runtime.getRuntime().exec(', 'ProcessBuilder(']
+    severity: high
+    message: "Java 命令执行"
+    languages: [java]
+    cwe: "CWE-78"
+
+  - id: DANGER-006
+    patterns: ['child_process.exec(', 'child_process.spawn(',
+               'child_process.execSync(', 'child_process.spawnSync(']
+    severity: high
+    message: "Node.js 命令执行"
+    languages: [javascript]
+    cwe: "CWE-78"
+
+  # ── Unsafe deserialization ──────────────────────────────────────────
+  - id: DANGER-007
+    patterns: ['pickle.loads(', 'pickle.load(', 'marshal.loads(',
+               'yaml.load(', 'yaml.unsafe_load(']
+    severity: high
+    message: "不安全的 Python 反序列化"
+    languages: [python]
+    cwe: "CWE-502"
+
+  - id: DANGER-008
+    patterns: ['ObjectInputStream(', 'readObject(']
+    severity: medium
+    message: "Java 反序列化（需配合用户可控输入评估）"
+    languages: [java]
+    cwe: "CWE-502"
+
+  # ── File operations ─────────────────────────────────────────────────
+  - id: DANGER-009
+    patterns: ['fs.readFile(', 'fs.writeFile(', 'fs.readFileSync(',
+               'fs.writeFileSync(']
+    severity: medium
+    message: "文件读写（检查路径是否用户可控）"
+    languages: [javascript]
+    cwe: "CWE-73"
+
+  - id: DANGER-010
+    patterns: ['open(', 'file(']
+    severity: low
+    message: "文件操作（检查路径是否用户可控）"
+    languages: [python]
+    cwe: "CWE-73"
+
+  # ── XPATH / LDAP injection sinks ────────────────────────────────────
+  - id: DANGER-011
+    patterns: ['XPath.evaluate(', 'XPath.compile(']
+    severity: medium
+    message: "XPath 查询（可能 XPath 注入）"
+    languages: [java]
+    cwe: "CWE-643"
+
+  - id: DANGER-012
+    patterns: ['ldap.search(', 'ldapSearch(']
+    severity: medium
+    message: "LDAP 查询（可能 LDAP 注入）"
+    languages: [java]
+    cwe: "CWE-90"
+
+  # ── Template rendering (SSTI risk) ──────────────────────────────────
+  - id: DANGER-013
+    patterns: ['render_template_string(', 'jinja2.Template(']
+    severity: medium
+    message: "Jinja2 模板渲染（可能 SSTI）"
+    languages: [python]
+    cwe: "CWE-1336"
+
+  - id: DANGER-014
+    patterns: ['Freemarker', 'Template.process(']
+    severity: medium
+    message: "模板引擎渲染（可能 SSTI）"
+    languages: [java]
+    cwe: "CWE-1336"
+
+  # ── Reflection / Dynamic invocation ─────────────────────────────────
+  - id: DANGER-015
+    patterns: ['Method.invoke(', 'Class.forName(']
+    severity: low
+    message: "Java 反射调用"
+    languages: [java]
+    cwe: "CWE-470"
+
+  - id: DANGER-016
+    patterns: ['getattr(', 'setattr(', '__import__(']
+    severity: low
+    message: "Python 动态属性/导入"
+    languages: [python]
+    cwe: "CWE-470"

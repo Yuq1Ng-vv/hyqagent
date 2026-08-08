@@ -1,0 +1,103 @@
+# Configuration issue detection rules.
+# These patterns flag misconfigurations that are NOT data-flow problems.
+
+rules:
+  # ── Debug / Dev mode in production ──────────────────────────────────
+  - id: CONFIG-001
+    patterns: ['DEBUG\s*=\s*True']
+    severity: medium
+    message: "生产环境 DEBUG 模式开启 — 可能泄漏调用栈和敏感信息"
+    languages: [python]
+
+  - id: CONFIG-002
+    patterns: ['ENV\s*=\s*["'']development["'']', 'environment\s*:\s*development']
+    severity: low
+    message: "应用运行在 development 模式"
+    languages: []
+
+  # ── Hardcoded Django settings ───────────────────────────────────────
+  - id: CONFIG-003
+    patterns: ['SECRET_KEY\s*=\s*["''][^"'']{1,30}["'']']
+    severity: high
+    message: "Django SECRET_KEY 硬编码且疑似默认值/短密钥"
+    languages: [python]
+
+  - id: CONFIG-004
+    patterns: ['ALLOWED_HOSTS\s*=\s*\[.*\*.*\]']
+    severity: medium
+    message: "Django ALLOWED_HOSTS 包含通配符 *"
+    languages: [python]
+
+  # ── CORS misconfiguration ───────────────────────────────────────────
+  - id: CONFIG-005
+    patterns:
+      - 'Access-Control-Allow-Origin:\s*\*'
+      - 'CORS_ORIGIN_ALLOW_ALL\s*=\s*True'
+      - 'cors\(\)'
+    severity: low
+    message: "CORS 允许所有来源 — 可能允许跨站请求伪造"
+    languages: []
+
+  - id: CONFIG-006
+    patterns: ['allowCredentials\s*:\s*true']
+    severity: medium
+    message: "CORS 允许 Credentials — 与 Allow-Origin: * 组合时极其危险"
+    languages: []
+
+  # ── Secure cookie attributes ────────────────────────────────────────
+  - id: CONFIG-007
+    patterns: ['SESSION_COOKIE_SECURE\s*=\s*False']
+    severity: medium
+    message: "Session Cookie Secure=False — Cookie 可能通过 HTTP 明文传输"
+    languages: [python]
+
+  - id: CONFIG-008
+    patterns: ['SESSION_COOKIE_HTTPONLY\s*=\s*False']
+    severity: low
+    message: "Session Cookie HttpOnly=False — JavaScript 可读取 Cookie"
+    languages: [python]
+
+  - id: CONFIG-009
+    patterns: ['CSRF_COOKIE_SECURE\s*=\s*False']
+    severity: medium
+    message: "CSRF Cookie Secure=False"
+    languages: [python]
+
+  - id: CONFIG-010
+    patterns: ['SAMESITE\s*=\s*None', 'SameSite\s*=\s*None']
+    severity: low
+    message: "Cookie SameSite=None — 容易受 CSRF 攻击"
+    languages: []
+
+  # ── Spring Boot security ────────────────────────────────────────────
+  - id: CONFIG-011
+    patterns: ['security\.basic\.enabled\s*=\s*false']
+    severity: medium
+    message: "Spring Security 基础认证已禁用"
+    languages: [java]
+
+  - id: CONFIG-012
+    patterns: ['management\.endpoints\.web\.exposure\.include\s*=\s*\*']
+    severity: medium
+    message: "Spring Actuator 暴露所有端点 — 可能泄漏敏感信息"
+    languages: [java]
+
+  # ── Password / crypto configuration ─────────────────────────────────
+  - id: CONFIG-013
+    patterns: ['hash\s*=\s*["'']md5["'']', 'hash\s*=\s*["'']sha1["'']']
+    severity: medium
+    message: "使用弱哈希算法 (MD5/SHA1)"
+    languages: []
+
+  - id: CONFIG-014
+    patterns: ['AES.MODE_ECB', 'Cipher\.getInstance\("AES/ECB']
+    severity: medium
+    message: "使用 ECB 模式的 AES — 不安全"
+    languages: [python, java]
+
+  # ── Express-specific ────────────────────────────────────────────────
+  - id: CONFIG-015
+    patterns: ['app.disable\("x-powered-by"\)']
+    severity: low
+    message: "Express X-Powered-By 头未禁用 — 泄漏技术栈信息"
+    languages: [javascript]

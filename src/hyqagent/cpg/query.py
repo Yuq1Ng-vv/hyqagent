@@ -662,6 +662,206 @@ class CPGQuery:
             block_b_id, func_name, file_path,
         )
 
+    # ── Coverage / discovery queries ────────────────────────────────────
+
+    def get_nodes_by_type_in_file(
+        self, node_type: str, file_path: str
+    ) -> list[GraphNode]:
+        """Return all nodes of *node_type* in *file_path*.
+
+        Useful for discovering which assignments / call-sites / basic-blocks
+        exist in a particular source file before running heuristic scoring.
+        """
+        results: list[GraphNode] = []
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") != node_type:
+                continue
+            if data.get("file_path") != file_path:
+                continue
+            results.append(self._to_graph_node(nid, data))
+        results.sort(key=lambda n: n.location)
+        return results
+
+    def get_endpoints_without_source(self) -> list[dict]:
+        """Return every ``NODE_FUNCTION`` that has a framework route annotation
+        but whose body contains **no** ``taint_category``-labelled assignment.
+
+        These are candidates for IDOR / business-logic manual review.
+
+        Heuristic: a function is a "handler" if its decorator list or source
+        includes known route markers (``@app.route``, ``@GetMapping``, ``app.get(``, etc.).
+        """
+        route_markers = [
+            "@app.route", "@app.get", "@app.post", "@app.put", "@app.delete",
+            "@app.patch", "@blueprint.route", "@router.get", "@router.post",
+            "app.get(", "app.post(", "app.put(", "app.delete(",
+            "router.get(", "router.post(",
+            "@GetMapping", "@PostMapping", "@PutMapping", "@DeleteMapping",
+            "@RequestMapping",
+        ]
+
+        result: list[dict] = []
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") != NODE_FUNCTION:
+                continue
+            name = data.get("name", "")
+            source = data.get("source", "")
+            file_path = data.get("file_path", "")
+
+            # Quick check: does this look like a route handler?
+            has_route = any(m in source for m in route_markers) if source else False
+            if not has_route:
+                continue
+
+            # Check whether any assignment in this function has taint_category
+            has_source = False
+            for anid, adata in self._graph.nodes(data=True):
+                if adata.get("node_type") != NODE_ASSIGNMENT:
+                    continue
+                if adata.get("enclosing_function") != name:
+                    continue
+                if file_path and adata.get("file_path") != file_path:
+                    continue
+                if adata.get("taint_category"):
+                    has_source = True
+                    break
+
+            if not has_source:
+                result.append({
+                    "node_id": nid,
+                    "function": name,
+                    "file_path": file_path,
+                    "line": data.get("start_line", 0),
+                })
+
+        return result
+
+    def get_all_sink_candidates(self, language: str = "") -> list[dict]:
+        """Return every ``NODE_ASSIGNMENT`` whose source text looks like a
+        function call — regardless of whether it is labelled.
+
+        These are the "universe" of potential sinks against which coverage
+        ratios are computed.
+        """
+        candidates: list[dict] = []
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") != NODE_ASSIGNMENT:
+                continue
+            src = data.get("source", "")
+            if not src or "(" not in src:
+                continue
+            candidates.append({
+                "node_id": nid,
+                "file_path": data.get("file_path", ""),
+                "start_line": data.get("start_line", 0),
+                "enclosing_function": data.get("enclosing_function", ""),
+                "source": src[:120],
+                "taint_category": data.get("taint_category", ""),
+            })
+
+        # Sort by category first (unlabelled last), then by file+line
+        candidates.sort(key=lambda c: (
+            0 if c["taint_category"] else 1,
+            c["file_path"],
+            c["start_line"],
+        ))
+        return candidates
+
+    def get_labeled_sinks(self) -> list[str]:
+        """Return the node IDs of all ``NODE_ASSIGNMENT`` nodes with a
+        ``taint_category`` attribute.
+
+        Used to compute ``sink_coverage_ratio``.
+        """
+        return [
+            nid
+            for nid, data in self._graph.nodes(data=True)
+            if data.get("node_type") == NODE_ASSIGNMENT
+            and data.get("taint_category")
+        ]
+
+    def get_unlabeled_but_dangerous(
+        self, language: str = ""
+    ) -> list[dict]:
+        """Return ``NODE_ASSIGNMENT`` nodes that are **not** taint-labelled
+        but whose expression looks like a potentially dangerous call.
+
+        Filters source text for common dangerous patterns (``execute(``,
+        ``eval(``, ``system(``, etc.) as a fast pre-filter before the
+        full heuristic scoring in :class:`SinkDiscoverer`.
+        """
+        danger_markers = [
+            "execute", "query", "eval", "exec", "system", "popen",
+            "read", "write", "open(", "process", "send", "load", "dump",
+            "parse", "redirect", "render", "run(",
+        ]
+        candidates: list[dict] = []
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") != NODE_ASSIGNMENT:
+                continue
+            if data.get("taint_category"):
+                continue
+            src = data.get("source", "").lower()
+            if not src or "(" not in src:
+                continue
+            if any(m in src for m in danger_markers):
+                candidates.append({
+                    "node_id": nid,
+                    "file_path": data.get("file_path", ""),
+                    "start_line": data.get("start_line", 0),
+                    "enclosing_function": data.get("enclosing_function", ""),
+                    "source": data.get("source", "")[:120],
+                })
+
+        candidates.sort(key=lambda c: (c["file_path"], c["start_line"]))
+        return candidates
+
+    def get_taint_paths_for_endpoint(
+        self, endpoint_func: str, taint_loader: object | None = None,
+        language: str = "", max_depth: int = 20,
+    ) -> list[GraphPath]:
+        """Find all taint paths that involve sources/sinks in *endpoint_func*.
+
+        Scans assignments in the function body, extracts their
+        ``taint_category``, and runs :meth:`find_path` for each source/sink
+        pair within the same category.
+        """
+        # Collect taint categories in the handler function
+        categories: set[str] = set()
+        source_texts: list[str] = []
+        sink_texts: list[str] = []
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") != NODE_ASSIGNMENT:
+                continue
+            if data.get("enclosing_function") != endpoint_func:
+                continue
+            cat = data.get("taint_category", "")
+            if not cat:
+                continue
+            categories.add(cat)
+            src = data.get("source", "")
+            if src:
+                # Determine if it's a source or sink by matching YAML patterns
+                if taint_loader and language:
+                    if hasattr(taint_loader, "match_source") and taint_loader.match_source(language, src):
+                        source_texts.append(cat)
+                    if hasattr(taint_loader, "match_sink") and taint_loader.match_sink(language, src):
+                        sink_texts.append(cat)
+
+        # For each detected category, find paths
+        all_paths: list[GraphPath] = []
+        seen: set[tuple[str, str]] = set()
+        for cat in categories:
+            for path in self.find_path(cat, cat, max_depth, taint_loader, language):
+                # Deduplicate by first+last node
+                if path and len(path.nodes) >= 2:
+                    key = (path.nodes[0].node_id, path.nodes[-1].node_id)
+                    if key not in seen:
+                        seen.add(key)
+                        all_paths.append(path)
+
+        return all_paths
+
     @staticmethod
     def _to_graph_node(node_id: str, data: dict) -> GraphNode:
         """Convert a NetworkX node to a :class:`GraphNode`."""
