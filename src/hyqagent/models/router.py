@@ -115,12 +115,28 @@ class ModelRouter:
         is configured, it will be used for all tiers (with different models).
         """
         self._providers = providers
-        if cheap_model:
-            self.CHEAP_SPEC.model_id = cheap_model
-        if mid_model:
-            self.MID_SPEC.model_id = mid_model
-        if strong_model:
-            self.STRONG_SPEC.model_id = strong_model
+        # Create instance-level copies so customisation doesn't leak across tests
+        self.CHEAP_SPEC = ModelSpec(
+            tier=ModelTier.CHEAP,
+            model_id=cheap_model or ModelRouter.CHEAP_SPEC.model_id,
+            provider_key=ModelRouter.CHEAP_SPEC.provider_key,
+            cost_per_1k_input=ModelRouter.CHEAP_SPEC.cost_per_1k_input,
+            cost_per_1k_output=ModelRouter.CHEAP_SPEC.cost_per_1k_output,
+        )
+        self.MID_SPEC = ModelSpec(
+            tier=ModelTier.MID,
+            model_id=mid_model or ModelRouter.MID_SPEC.model_id,
+            provider_key=ModelRouter.MID_SPEC.provider_key,
+            cost_per_1k_input=ModelRouter.MID_SPEC.cost_per_1k_input,
+            cost_per_1k_output=ModelRouter.MID_SPEC.cost_per_1k_output,
+        )
+        self.STRONG_SPEC = ModelSpec(
+            tier=ModelTier.STRONG,
+            model_id=strong_model or ModelRouter.STRONG_SPEC.model_id,
+            provider_key=ModelRouter.STRONG_SPEC.provider_key,
+            cost_per_1k_input=ModelRouter.STRONG_SPEC.cost_per_1k_input,
+            cost_per_1k_output=ModelRouter.STRONG_SPEC.cost_per_1k_output,
+        )
 
     # ── Public API ──────────────────────────────────────────────────────
 

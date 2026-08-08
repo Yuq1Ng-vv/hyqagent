@@ -481,8 +481,95 @@ async def _run_deep_audit(
                 fg="yellow",
             )
 
+    # ══════════════════════════════════════════════════════════════════
+    # Step 4: Coverage audit (zero-LLM, differential coverage analysis)
+    # ══════════════════════════════════════════════════════════════════
+    if not quiet:
+        click.echo()
+        click.secho("📊 Coverage audit: differential coverage analysis...", fg="cyan")
+
+    from hyqagent.scanner.coverage_auditor import CoverageAuditor
+
+    # Build CPG query for auditor (reuse or rebuild minimally)
+    cq = _build_cpg_query(file_paths, language)
+    auditor = CoverageAuditor(cq, annotated, language=language)
+    coverage_audit = auditor.audit()
+    session["coverage_audit"] = {
+        "total_entries": coverage_audit.total_entries,
+        "covered": coverage_audit.covered,
+        "coverage_pct": round(coverage_audit.coverage_pct, 2),
+        "high_risk_gaps": len(coverage_audit.high_risk_gaps),
+        "medium_risk_gaps": len(coverage_audit.medium_risk_gaps),
+        "total_gaps": len(coverage_audit.gaps),
+    }
+
+    if not quiet:
+        click.echo(
+            f"   Coverage: {coverage_audit.coverage_pct:.0%} "
+            f"({coverage_audit.covered}/{coverage_audit.total_entries})"
+        )
+        if coverage_audit.high_risk_gaps:
+            click.secho(
+                f"   ⚠ {len(coverage_audit.high_risk_gaps)} high-risk coverage gaps",
+                fg="yellow",
+            )
+            for gap in coverage_audit.high_risk_gaps[:5]:
+                click.echo(f"     - {gap.location}: {gap.reason[:120]}")
+
+    # ══════════════════════════════════════════════════════════════════
+    # Step 5: Completeness Critic (MID-tier LLM, ~$0.02)
+    # ══════════════════════════════════════════════════════════════════
+    if _has_llm_keys(config) and hypotheses:
+        if not quiet:
+            click.echo()
+            click.secho("🔍 Completeness review: what did we miss?...", fg="cyan")
+
+        from hyqagent.models.providers.anthropic_provider import (
+            AnthropicProvider,
+            ProviderConfig,
+        )
+        from hyqagent.scanner.completeness import CompletenessCritic
+
+        mid_provider = AnthropicProvider(
+            ProviderConfig(api_key=config.anthropic_key, base_url=None),
+            max_retries=config.llm_max_retries,
+            timeout_seconds=config.llm_timeout_seconds,
+        )
+
+        critic = CompletenessCritic(mid_provider, config.mid_model)
+        critic_report = await critic.review(
+            project_summary=project_context.get("summary", ""),
+            findings_summary=_format_findings_summary(result),
+            label_breakdown=label_breakdown,
+            coverage={"coverage_pct": coverage_audit.coverage_pct,
+                      "high_risk_gaps": len(coverage_audit.high_risk_gaps)},
+            hypotheses=session.get("hypotheses", []),
+            language=language,
+        )
+        session["completeness_review"] = {
+            "overall": critic_report.overall_assessment[:500],
+            "missed_classes": critic_report.missed_vuln_classes,
+            "assumptions": critic_report.questionable_assumptions,
+            "recommendations": critic_report.recommendations,
+        }
+
+        if not quiet:
+            missed = len(critic_report.missed_vuln_classes)
+            recs = len(critic_report.recommendations)
+            click.echo(f"   Missed classes: {missed}")
+            click.echo(f"   Recommendations: {recs}")
+            for rec in critic_report.recommendations[:3]:
+                click.echo(f"     → {rec[:150]}")
+    elif not quiet:
+        click.echo()
+        click.secho(
+            "⏭  Completeness review skipped — no hypotheses or missing API keys.",
+            fg="yellow",
+        )
+
     # ── Update result ───────────────────────────────────────────────
     result.hypotheses = hypotheses  # type: ignore[attr-defined]
+    result.coverage_audit = coverage_audit  # type: ignore[attr-defined]
     session["status"] = "completed"
     session["completed_at"] = datetime.now(UTC).isoformat()
 
@@ -779,6 +866,37 @@ def _save_session(session_id: str, session: dict[str, Any]) -> None:
     sd = _ensure_session_dir()
     session_file = sd / f"{session_id}.json"
     session_file.write_text(json.dumps(session, indent=2, default=str, ensure_ascii=False))
+
+
+# ── Additional helpers for Phase 3 mitigation strategies ──────────────────
+
+
+def _build_cpg_query(file_paths: list[str], language: str) -> Any:
+    """Build a minimal CPGQuery for coverage auditing and blind scanning."""
+    from hyqagent.cpg.graph import CPGGraphBuilder
+    from hyqagent.cpg.parser import Parser
+    from hyqagent.cpg.query import CPGQuery
+    from hyqagent.cpg.taint_loader import TaintRuleLoader
+
+    taint_loader = TaintRuleLoader()
+    parser = Parser()
+    builder = CPGGraphBuilder(parser, taint_loader=taint_loader)
+    for fp in file_paths:
+        builder.add_file(fp)
+    return CPGQuery(builder.graph)
+
+
+def _format_findings_summary(result: ScanResult) -> str:
+    """Format Phase 2 findings for the Completeness Critic prompt."""
+    lines: list[str] = []
+    for f in result.findings[:15]:
+        sev = getattr(f, "severity", "?")
+        loc = getattr(f, "location", "?")
+        rule = getattr(f, "rule_id", getattr(f, "rule", "?"))
+        lines.append(f"- [{sev}] {rule} at {loc}")
+    if len(result.findings) > 15:
+        lines.append(f"... and {len(result.findings) - 15} more")
+    return "\n".join(lines)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

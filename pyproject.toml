@@ -113,13 +113,14 @@ disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --strict-markers --benchmark-disable"
+addopts = "-v --tb=short --strict-markers --benchmark-disable --asyncio-mode=auto"
 markers = [
     "unit: 单元测试 (deterministic, fast)",
     "integration: 集成测试 (may use mocks)",
     "eval: Eval测试 (probabilistic, slow)",
     "slow: 慢速测试，跳过pre-commit",
     "benchmark: 性能基准测试，默认跳过 (手动运行: pytest --benchmark-only)",
+    "asyncio: 异步测试 (async/await)",
 ]
 
 [tool.coverage.run]
@@ -138,6 +139,7 @@ exclude_also = [
 [dependency-groups]
 dev = [
     "mypy>=2.3.0",
+    "pytest-asyncio>=1.4.0",
     "pytest-benchmark>=5.2.3",
     "ruff>=0.16.1",
 ]
