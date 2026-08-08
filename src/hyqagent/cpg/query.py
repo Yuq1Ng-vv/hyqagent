@@ -38,6 +38,7 @@ class GraphNode:
     location: str = ""
     name: str = ""
     source: str = ""
+    taint_category: str = ""
 
 
 @dataclass
@@ -327,22 +328,38 @@ class CPGQuery:
         nodes match.
         """
         if taint_loader is not None and language:
-            # Resolve which taint category the pattern matches
+            # Resolve which taint category the pattern matches.
+            # Two strategies:
+            #   a) Direct: pattern IS a known category name (e.g. "sql_injection")
+            #      → search taint_category-labeled nodes directly.
+            #   b) Indirect: pattern is a code snippet (e.g. "executeQuery(")
+            #      → use match_source/match_sink to resolve category first.
             cat = None
-            if hasattr(taint_loader, "match_source"):
+            rules = getattr(taint_loader, "rules_for", None)
+            if rules is not None and callable(rules):
+                try:
+                    lang_rules = rules(language)
+                    if pattern in lang_rules.categories:
+                        cat = pattern
+                except (KeyError, AttributeError):
+                    pass
+
+            if cat is None and hasattr(taint_loader, "match_source"):
                 cat = taint_loader.match_source(language, pattern)
             if cat is None and hasattr(taint_loader, "match_sink"):
                 cat = taint_loader.match_sink(language, pattern)
 
             if cat is not None:
-                # Search for nodes already labeled with this category
+                # Search for nodes already labeled with this category.
+                # taint_category is comma-separated (multi-label support).
                 matches: list[str] = []
                 for nid, data in self._graph.nodes(data=True):
                     if len(matches) >= max_results:
                         break
                     if exclude_types and data.get("node_type") in exclude_types:
                         continue
-                    if data.get("taint_category") == cat:
+                    node_cats = data.get("taint_category", "")
+                    if cat in node_cats.split(","):
                         matches.append(nid)
                 if matches:
                     return matches
@@ -838,7 +855,9 @@ class CPGQuery:
             cat = data.get("taint_category", "")
             if not cat:
                 continue
-            categories.add(cat)
+            # Multi-label support: one node may match multiple categories
+            for single_cat in cat.split(","):
+                categories.add(single_cat)
             src = data.get("source", "")
             if src:
                 # Determine if it's a source or sink by matching YAML patterns
@@ -871,4 +890,5 @@ class CPGQuery:
             location=data.get("location", data.get("file_path", "")),
             name=data.get("name", data.get("var_name", data.get("caller", ""))),
             source=data.get("source", data.get("expression", "")),
+            taint_category=data.get("taint_category", ""),
         )

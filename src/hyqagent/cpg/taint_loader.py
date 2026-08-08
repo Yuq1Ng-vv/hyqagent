@@ -175,6 +175,17 @@ class TaintRuleLoader:
                     best_cat = cat_name
         return best_cat
 
+    def match_all_sinks(self, language: str, text: str) -> list[str]:
+        """Return ALL category names whose sink patterns match *text*."""
+        rules = self.rules_for(language)
+        matches: list[str] = []
+        for cat_name, cat in rules.categories.items():
+            for pat in cat.sinks:
+                if pat in text:
+                    matches.append(cat_name)
+                    break
+        return matches
+
     @property
     def available_languages(self) -> list[str]:
         """Languages with rules defined in the YAML file."""

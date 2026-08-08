@@ -119,10 +119,35 @@ class DeterministicScanner:
         # 5. Missing auth
         all_findings.extend(self.scan_missing_auth())
 
-        # Coverage
+        # ── Coverage: collect active taint categories from CONFIRMED findings ─
         coverage = None
         coverage_summary = None
         if self._tracker:
+            # Only count a category as "triggered" when it has a confirmed
+            # source+sink+path — not just because a source node was labeled.
+            # (getParameter matches 8 categories as source; we only care
+            # about categories where an actual sink path was found.)
+            active_categories: set[str] = set()
+            for f in all_findings:
+                cat = f.category
+                if not cat:
+                    continue
+                # Skip PathLabel values and non-vuln scanner categories
+                if cat in ("confirmed_taint", "conditional_sanitized",
+                           "sanitized_taint", "heuristic_sink",
+                           "exposed_no_source", "unreachable_sink",
+                           "dangerous_call", "secret", "config_issue",
+                           "missing_auth"):
+                    continue
+                # Multi-category finding (e.g. "sql_injection,xxe")
+                for single_cat in cat.split(","):
+                    single_cat = single_cat.strip()
+                    if single_cat:
+                        active_categories.add(single_cat)
+
+            if active_categories:
+                self._tracker.set_active_categories(active_categories)
+
             metrics = CoverageMetrics(self._tracker)
             metrics.record_annotated_paths(annotated)
             metrics.record_findings(all_findings)
@@ -342,6 +367,23 @@ class DeterministicScanner:
             src_node = path.nodes[0]
             sink_node = path.nodes[-1]
 
+            # ── Resolve actual vulnerability category from path nodes ──
+            # Collect taint_category from all nodes on the path; prefer the
+            # intersection of source and sink categories (most specific).
+            src_cats = (
+                set(src_node.taint_category.split(","))
+                if src_node.taint_category else set()
+            )
+            sink_cats = (
+                set(sink_node.taint_category.split(","))
+                if sink_node.taint_category else set()
+            )
+            vuln_cats = src_cats & sink_cats
+            if not vuln_cats:
+                # Fall back to union if intersection is empty
+                vuln_cats = src_cats | sink_cats
+            vuln_category = ",".join(sorted(vuln_cats)) if vuln_cats else "confirmed_taint"
+
             severity = "medium"
             if ap.label == PathLabel.CONFIRMED_TAINT:
                 severity = "high"
@@ -358,13 +400,14 @@ class DeterministicScanner:
                     title=title,
                     description=(
                         f"从 {src_node.source[:80]} 到 {sink_node.source[:80]} 的"
-                        f"数据流路径。标签: {ap.label.value}。"
-                        f"消毒器状态: {ap.sanitizer_status.value if ap.sanitizer_status else 'N/A'}。"
+                        f"数据流路径。类别: {vuln_category}。标签: {ap.label.value}。"
+                        f"消毒器状态: "
+                        f"{ap.sanitizer_status.value if ap.sanitizer_status else 'N/A'}。"
                     ),
                     file_path=sink_node.location.split(":")[0] if ":" in sink_node.location else "",
                     line=self._parse_line(sink_node.location),
                     code_snippet=sink_node.source[:200],
-                    category=ap.label.value,
+                    category=vuln_category,
                     confidence="high" if ap.label == PathLabel.CONFIRMED_TAINT else "medium",
                     metadata={
                         "path_length": len(path.nodes),
@@ -372,6 +415,7 @@ class DeterministicScanner:
                         "sanitizer_status": (
                             ap.sanitizer_status.value if ap.sanitizer_status else None
                         ),
+                        "taint_category": vuln_category,
                     },
                 )
             )

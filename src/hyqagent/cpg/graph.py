@@ -714,10 +714,10 @@ class CPGGraphBuilder:
     def _label_taint_nodes(self, file_path: str, language: str) -> None:
         """Tag ``NODE_ASSIGNMENT`` nodes with taint source / sink categories.
 
-        Uses the :class:`TaintRuleLoader` to match each assignment's
-        right-hand-side expression against source and sink patterns.
-        A matching node gets a ``taint_category`` attribute set to the
-        corresponding vulnerability category (e.g. ``"sql_injection"``).
+        A single node can match patterns from multiple categories
+        (e.g. ``getInputStream()`` is both an XXE and SSRF source).
+        The ``taint_category`` attribute is a comma-separated string
+        of all matching categories (e.g. ``"xxe,ssrf,sql_injection"``).
         """
         if self._taint_loader is None:
             return
@@ -731,15 +731,15 @@ class CPGGraphBuilder:
             if not source_text:
                 continue
 
-            # Check source patterns first, then sink patterns
-            cat = self._taint_loader.match_source(language, source_text)
-            if cat:
-                data["taint_category"] = cat
+            # Check ALL source and sink matches — multi-label
+            src_cats = self._taint_loader.match_all_sources(language, source_text)
+            if src_cats:
+                data["taint_category"] = ",".join(src_cats)
                 continue
 
-            cat = self._taint_loader.match_sink(language, source_text)
-            if cat:
-                data["taint_category"] = cat
+            sink_cats = self._taint_loader.match_all_sinks(language, source_text)
+            if sink_cats:
+                data["taint_category"] = ",".join(sink_cats)
 
     @property
     def node_count(self) -> int:
