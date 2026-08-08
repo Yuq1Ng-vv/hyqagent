@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,8 @@ class HyqAgentConfig(BaseSettings):
         HYQAGENT_SCAN_MAX_DEPTH         — CPG traversal depth cap
         HYQAGENT_HEURISTIC_THRESHOLD    — heuristic sink score floor (0-100)
         HYQAGENT_CACHE_DIR              — cache directory on disk
+        HYQAGENT_ANTHROPIC_API_KEY      — Anthropic API key (Phase 3+)
+        HYQAGENT_DEEPSEEK_API_KEY       — DeepSeek API key (Phase 3+)
     """
 
     model_config = SettingsConfigDict(
@@ -31,10 +34,20 @@ class HyqAgentConfig(BaseSettings):
         extra="ignore",
     )
 
-    # ── Model config (Phase 3/4 uses; Phase 2 reserves) ───────────────
-    cheap_model: str = "claude-haiku-4-5-20251001"
+    # ── Model config ───────────────────────────────────────────────────
+    cheap_model: str = "deepseek-v4-flash-0731"
     mid_model: str = "claude-sonnet-5"
     strong_model: str = "claude-opus-5"
+
+    # ── API Keys (Phase 3+) ────────────────────────────────────────────
+    anthropic_api_key: SecretStr = SecretStr("")
+    deepseek_api_key: SecretStr = SecretStr("")
+    deepseek_base_url: str = "https://api.deepseek.com/anthropic"
+
+    # ── Budget (Phase 3+) ──────────────────────────────────────────────
+    max_llm_budget: float = 5.0
+    llm_max_retries: int = 3
+    llm_timeout_seconds: int = 120
 
     # ── Scanner config ─────────────────────────────────────────────────
     default_language: str = ""
@@ -56,3 +69,33 @@ class HyqAgentConfig(BaseSettings):
                 "HYQAGENT_DEFAULT_LANGUAGE in the environment."
             )
         return result
+
+    @property
+    def anthropic_key(self) -> str:
+        """Reveal the Anthropic API key, falling back to env var."""
+        key = self.anthropic_api_key.get_secret_value()
+        if not key:
+            import os
+
+            key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not key:
+            raise ValueError(
+                "Anthropic API key not configured. Set HYQAGENT_ANTHROPIC_API_KEY "
+                "or ANTHROPIC_API_KEY in the environment."
+            )
+        return key
+
+    @property
+    def deepseek_key(self) -> str:
+        """Reveal the DeepSeek API key, falling back to env var."""
+        key = self.deepseek_api_key.get_secret_value()
+        if not key:
+            import os
+
+            key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not key:
+            raise ValueError(
+                "DeepSeek API key not configured. Set HYQAGENT_DEEPSEEK_API_KEY "
+                "or DEEPSEEK_API_KEY in the environment."
+            )
+        return key
