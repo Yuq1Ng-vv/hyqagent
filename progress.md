@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.18 完成后 (2026-08-08)
+> 上次更新: Session 1.19 完成后 (2026-08-08)
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -104,14 +104,21 @@
   - **JS 修复**: `function_query` 新增 assignment_expression 模式，`appHandler.js` 0→13 函数
   - **新增 310 tests**: 6 个新测试文件 + fixtures + frameworks 测试扩展
   - 测试从 372 → **714** tests, 0 failures
+- [x] **Session 1.19** — propagate_taint 重构 + 精确参数匹配 (commit: `27956d2`)
+  - **移除死代码**: dataflow.py -274 行（propagate_taint/_bfs_taint 等 7 个方法）
+  - **污点标签**: CPGGraphBuilder 集成 TaintRuleLoader，自动标记 source/sink
+  - **位置参数匹配**: call_args 提取 + arg→param 1-to-1 边（回退到全连接）
+  - **查询增强**: CPGQuery 支持 taint_category 优先匹配
+  - **测试**: 移除 4 个死测试，新增 8 个集成测试，718 tests total
+  - 净代码 -64 行
 
 ## Phase 1 最终指标
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **714** tests, 0 failures |
+| 测试 | **718** tests, 0 failures |
 | 源码模块 | **23** 个 |
-| 源码行数 | **~5,700** 行 |
+| 源码行数 | **~5,500** 行 |
 | 支持语言 | **3** 种 (Python/JavaScript/Java) |
 | 支持框架 | **5** 种 (Flask/Django/FastAPI/Express/Spring) |
 | Taint 规则 | **3** 语言 × 10 类别 (Java 含 XXE) |
@@ -119,14 +126,14 @@
 | CPG 缓存 | 首次 822s → 后续 **0.3s** (~2700x) |
 | 真实项目测试集 | **3** 项目 (ureport2/Java + vulpy/Flask + dvna/Express) |
 | 已知 Bug | **26/26** 全部修复 ✅ |
-| ruff | clean |
+| ruff | 仅预存问题 |
 | mypy | 24 pre-existing（类型标注 + stub 缺失） |
 
 ## Phase 2-5: 待开始
 
 ## 当前阻塞
 - 无
-- **剩余技术债**: propagate_taint 重构、跨函数精确参数匹配、ureport2 回归测试
+- **剩余技术债**: ureport2 回归测试
 
 ## 文档索引
 
