@@ -133,10 +133,6 @@
 | 维度 | 数据 |
 |------|------|
 | 测试 | **801** tests, 0 failures |
-
-| 维度 | 数据 |
-|------|------|
-| 测试 | **788** tests, 0 failures |
 | 源码模块 | **24** 个 |
 | 源码行数 | **~6,100** 行 |
 | 支持语言 | **3** 种 (Python/JavaScript/Java) |
@@ -151,11 +147,42 @@
 | ruff | 仅预存问题 |
 | mypy | 24 pre-existing（类型标注 + stub 缺失） |
 
-## Phase 2-5: 待开始
+## Phase 2: Deterministic Scanner — ✅ 完成
+
+- [x] **Session 1.14-1.17** — 扫描流水线底层组件
+  - `scanner/deterministic.py` — DeterministicScanner 五阶段扫描
+  - `scanner/annotator.py` — PathAnnotator 10 标签分类 (PathLabel)
+  - `cpg/discovery.py` — SinkDiscoverer + SourceCompletenessChecker
+  - `cpg/coverage.py` — CoverageTracker (~179 盲点检测)
+  - `scanner/coverage_metrics.py` — CoverageMetrics 指标聚合
+- [x] **测试**: 883 tests, 0 failures
+
+## Phase 3: LLM Integration — ✅ 完成
+
+- [x] **Session 1.18** — LLM 深度审计管道 (commit: `1950c36`)
+  - `models/providers/anthropic_provider.py` — Anthropic SDK 封装 (DeepSeek + Claude 双 base_url)
+  - `models/router.py` — CHEAP/MID/STRONG 三档路由 + 复杂度评估
+  - `scanner/hypothesis.py` — CPG 切片 → LLM 假设生成 (tool_use 结构化输出)
+  - `scanner/validator.py` — L1 确定性 + L2 LLM 五问验证
+  - `observability/cost_tracker.py` — 按 phase 成本归因 + 预算控制
+  - `api/cli.py` — `--deep` 模式, `resume`/`sessions` 命令
+  - **设计决策**: 先 Phase 2 扫描 → 再 Phase 0 项目理解 (证据驱动)
+- [x] **质量**: ruff clean, mypy clean (新代码), 883 tests passed
+- [ ] **待完成**: Phase 3 单元测试 (mock LLM), Validator L2 CLI 集成, Resume 完整实现
+
+## 当前指标
+
+| 维度 | 数据 |
+|------|------|
+| 测试 | **883** tests, 0 failures |
+| Phase 3 新增代码 | **10 文件, +2,274 行** |
+| 源码总模块 | **31** 个 |
+| 模型提供商 | **2** (DeepSeek + Anthropic, 同一 Provider 类) |
+| 模型层级 | **3** (CHEAP/MID/STRONG) |
+| CLI 命令 | **4** (scan/scan --deep/resume/sessions) |
 
 ## 当前阻塞
 - 无
-- Phase 1 **技术债全部清零** ✅
 
 ## 文档索引
 
