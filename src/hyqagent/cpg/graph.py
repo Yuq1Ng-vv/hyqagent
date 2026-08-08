@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 import networkx as nx
 
 from hyqagent.cpg.callgraph import SingleFileCallGraph
+from hyqagent.cpg.cfg import CFGBuilder
 from hyqagent.cpg.dataflow import DataFlowBuilder
 from hyqagent.cpg.traversal import Traverser
 
@@ -46,6 +47,9 @@ NODE_SINK = "sink"
 EDGE_AST = "AST"
 EDGE_CALLS = "CALLS"
 EDGE_DATA_FLOW = "DATA_FLOW"
+EDGE_CTRL_FLOW = "CTRL_FLOW"
+
+NODE_BASIC_BLOCK = "basic_block"
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -95,6 +99,7 @@ class CPGGraphBuilder:
         self.graph = nx.MultiDiGraph()
         self._call_graph_builder: CallGraphBuilder | None = None
         self._dataflow = DataFlowBuilder(parser)
+        self._cfg_builder: CFGBuilder | None = None  # created lazily
         self._taint_loader = taint_loader
         self._indexed_files: set[str] = set()
         self._cache_dir: Path | None = None
@@ -297,6 +302,9 @@ class CPGGraphBuilder:
             # to line 235 but never "cross over" to the `list` assignment
             # that is the actual sink.  This edge bridges that gap.
             self._add_rhs_to_lhs_edges(path)
+
+        # 4.6 — Build CFG for each function
+        self._build_cfg(tree, fn_tree_nodes, provider, path)
 
         # 5 — Label taint sources and sinks on assignment nodes
         if self._taint_loader is not None:
@@ -573,6 +581,73 @@ class CPGGraphBuilder:
                     for d in self.graph.get_edge_data(fid, pid).values()
                 ):
                     self.graph.add_edge(fid, pid, edge_type=EDGE_DATA_FLOW)
+
+    # ── Control-flow graph ────────────────────────────────────────────────
+
+    def _build_cfg(
+        self,
+        tree: object,
+        fn_tree_nodes: dict[str, object],
+        provider: object,
+        path: str,
+    ) -> None:
+        """Build the CFG for each function and add nodes/edges to the graph.
+
+        Creates ``NODE_BASIC_BLOCK`` nodes and ``EDGE_CTRL_FLOW`` edges,
+        plus ``EDGE_DATA_FLOW`` edges from each function node to its entry
+        block to keep the graph connected for BFS traversal.
+        """
+        if not fn_tree_nodes:
+            return
+
+        from hyqagent.cpg.cfg import CFGBuilder as _CFGBuilder
+
+        cfg = _CFGBuilder(provider)
+
+        for fn_name, tree_node in fn_tree_nodes.items():
+            # Find the function node in our graph
+            fid = self._find_func_node_id(path, fn_name)
+            if fid is None:
+                continue
+
+            blocks, edges = cfg.build_cfg(tree, tree_node, path)  # type: ignore[arg-type]
+
+            for block in blocks:
+                self.graph.add_node(
+                    block.block_id,
+                    node_type=NODE_BASIC_BLOCK,
+                    file_path=block.file_path,
+                    enclosing_function=block.enclosing_function,
+                    start_line=block.start_line,
+                    end_line=block.end_line,
+                    statements=block.statements,
+                    block_type=block.block_type,
+                )
+
+                # DATA_FLOW edge: function → entry block (connectivity)
+                if block.block_type == "entry":
+                    self.graph.add_edge(
+                        fid, block.block_id, edge_type=EDGE_DATA_FLOW
+                    )
+
+            for edge in edges:
+                self.graph.add_edge(
+                    edge.source_id,
+                    edge.target_id,
+                    edge_type=EDGE_CTRL_FLOW,
+                    ctrl_type=edge.kind,
+                )
+
+    def _find_func_node_id(self, file_path: str, fn_name: str) -> str | None:
+        """Return the graph node ID for a function by file + name."""
+        for nid, data in self.graph.nodes(data=True):
+            if (
+                data.get("node_type") == NODE_FUNCTION
+                and data.get("file_path") == file_path
+                and data.get("name") == fn_name
+            ):
+                return nid
+        return None
 
     # ── Graph properties ─────────────────────────────────────────────────
 

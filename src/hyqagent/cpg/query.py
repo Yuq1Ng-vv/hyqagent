@@ -17,8 +17,10 @@ if TYPE_CHECKING:
 
 from hyqagent.cpg.graph import (
     EDGE_CALLS,
+    EDGE_CTRL_FLOW,
     EDGE_DATA_FLOW,
     NODE_ASSIGNMENT,
+    NODE_BASIC_BLOCK,
     NODE_FUNCTION,
     NODE_SINK,
     NODE_SOURCE,
@@ -404,6 +406,145 @@ class CPGQuery:
                 queue.append((succ, [*node_path, succ], [*edge_path, etype]))
 
         return result
+
+    # ── CFG queries ──────────────────────────────────────────────────────
+
+    def get_cfg_for_function(
+        self, func_name: str, file_path: str | None = None
+    ) -> list[str]:
+        """Return block IDs for *func_name*, sorted by ``start_line``."""
+        blocks: list[tuple[int, str]] = []
+        for nid, data in self._graph.nodes(data=True):
+            if (
+                data.get("node_type") == NODE_BASIC_BLOCK
+                and data.get("enclosing_function") == func_name
+            ) and (file_path is None or data.get("file_path") == file_path):
+                blocks.append((data.get("start_line", 0), nid))
+        blocks.sort(key=lambda x: x[0])
+        return [bid for _line, bid in blocks]
+
+    def get_entry_block(
+        self, func_name: str, file_path: str | None = None
+    ) -> str | None:
+        """Return the entry block ID for *func_name*, or ``None``."""
+        for nid, data in self._graph.nodes(data=True):
+            if (
+                data.get("node_type") == NODE_BASIC_BLOCK
+                and data.get("block_type") == "entry"
+                and data.get("enclosing_function") == func_name
+            ) and (file_path is None or data.get("file_path") == file_path):
+                return nid
+        return None
+
+    def is_reachable(
+        self, from_block_id: str, to_block_id: str, max_depth: int = 200
+    ) -> bool:
+        """Return ``True`` if *to_block_id* is reachable from *from_block_id*
+        via ``EDGE_CTRL_FLOW`` edges.
+        """
+        visited: set[str] = {from_block_id}
+        queue: deque[tuple[str, int]] = deque([(from_block_id, 0)])
+        while queue:
+            cur, depth = queue.popleft()
+            if depth > max_depth:
+                continue
+            if cur == to_block_id and cur != from_block_id:
+                return True
+            for succ in self._graph.successors(cur):
+                if succ in visited:
+                    continue
+                edge_data = self._graph.get_edge_data(cur, succ)
+                for _key, ed in edge_data.items():
+                    if ed.get("edge_type") == EDGE_CTRL_FLOW:
+                        visited.add(succ)
+                        queue.append((succ, depth + 1))
+                        break
+        return False
+
+    def get_reachable_blocks(
+        self, from_block_id: str, max_depth: int = 200
+    ) -> list[str]:
+        """Return all block IDs reachable from *from_block_id* via
+        ``EDGE_CTRL_FLOW`` edges.
+        """
+        visited: set[str] = {from_block_id}
+        queue: deque[tuple[str, int]] = deque([(from_block_id, 0)])
+        while queue:
+            cur, depth = queue.popleft()
+            if depth > max_depth:
+                continue
+            for succ in self._graph.successors(cur):
+                if succ in visited:
+                    continue
+                edge_data = self._graph.get_edge_data(cur, succ)
+                for _key, ed in edge_data.items():
+                    if ed.get("edge_type") == EDGE_CTRL_FLOW:
+                        visited.add(succ)
+                        queue.append((succ, depth + 1))
+                        break
+        return list(visited)
+
+    def dominates(
+        self, block_a_id: str, block_b_id: str, entry_block_id: str
+    ) -> bool:
+        """Return ``True`` if *block_a_id* dominates *block_b_id*.
+
+        Uses the classic iterative data-flow algorithm: a block **X**
+        dominates block **Y** if every path from the entry block to **Y**
+        must go through **X**.
+        """
+        # Collect all basic block IDs on CTRL_FLOW edges
+        block_ids: set[str] = set()
+        for nid, data in self._graph.nodes(data=True):
+            if data.get("node_type") == NODE_BASIC_BLOCK:
+                block_ids.add(nid)
+
+        all_blocks = list(block_ids)
+        if not all_blocks:
+            return block_a_id == block_b_id
+
+        # Predecessor map (reversed CTRL_FLOW edges)
+        preds: dict[str, set[str]] = {b: set() for b in all_blocks}
+        for b in all_blocks:
+            for pred in self._graph.predecessors(b):
+                edge_data = self._graph.get_edge_data(pred, b)
+                for _key, ed in edge_data.items():
+                    if ed.get("edge_type") == EDGE_CTRL_FLOW:
+                        preds[b].add(pred)
+
+        # dom[B] = ∀ blocks (initially); dom[entry] = {entry}
+        dom: dict[str, set[str]] = {}
+        for b in all_blocks:
+            dom[b] = set(all_blocks)
+        entry = entry_block_id if entry_block_id in dom else (
+            all_blocks[0] if all_blocks else entry_block_id
+        )
+        if entry in dom:
+            dom[entry] = {entry}
+
+        # Iterate to fixed point
+        changed = True
+        while changed:
+            changed = False
+            for b in all_blocks:
+                if b == entry:
+                    continue
+                # dom[B] = {B} ∪ ⋂(dom[P] for each predecessor P)
+                if preds[b]:
+                    new_dom = set(all_blocks)
+                    for p in preds[b]:
+                        new_dom &= dom[p]
+                    new_dom.add(b)
+                else:
+                    new_dom = {b}
+                if new_dom != dom[b]:
+                    dom[b] = new_dom
+                    changed = True
+
+        # Check: does A dominate B?
+        if block_a_id not in dom or block_b_id not in dom:
+            return block_a_id == block_b_id
+        return block_a_id in dom[block_b_id]
 
     @staticmethod
     def _to_graph_node(node_id: str, data: dict) -> GraphNode:

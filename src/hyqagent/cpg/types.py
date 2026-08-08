@@ -141,3 +141,39 @@ class TaintConfig:
     sources: list[str] = field(default_factory=list)
     sinks: list[str] = field(default_factory=list)
     sanitizers: list[str] = field(default_factory=list)
+
+
+# ── Control-flow types (used by cpg/cfg.py) ──────────────────────────────
+
+
+@dataclass
+class BasicBlock:
+    """A maximal straight-line sequence of statements — the unit of a CFG.
+
+    Attributes:
+        block_id: Unique identifier, typically ``"bb_<func_id>_<index>"``.
+        file_path: Source file containing this block.
+        enclosing_function: Name of the function this block belongs to.
+        start_line: 1-indexed line of the block's first statement.
+        end_line: 1-indexed line of the block's last statement.
+        statements: Source text of each statement in this block, in order.
+        block_type: Semantic role — ``"entry"``, ``"exit"``, ``"normal"``,
+                    ``"branch"``, or ``"loop_header"``.
+
+    """
+
+    block_id: str
+    file_path: str
+    enclosing_function: str
+    start_line: int
+    end_line: int
+    statements: list[str] = field(default_factory=list)
+    block_type: str = "normal"
+
+    def __post_init__(self) -> None:
+        if not self.block_id:
+            raise ValueError("BasicBlock.block_id must be non-empty")
+        if self.start_line < 0:
+            raise ValueError(
+                f"BasicBlock.start_line must be >= 0, got {self.start_line}"
+            )

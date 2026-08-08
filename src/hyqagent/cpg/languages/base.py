@@ -203,6 +203,54 @@ class LanguageProvider(ABC):
         """
         ...
 
+    # ── CFG helpers (cfg.py delegates to these) ──────────────────────
+
+    @property
+    @abstractmethod
+    def control_flow_node_types(self) -> set[str]:
+        """Set of tree-sitter node types that introduce control-flow transfers.
+
+        These nodes act as basic-block terminators: ``if_statement``,
+        ``for_statement``, ``while_statement``, ``return_statement``, etc.
+
+        Used by :class:`CFGBuilder` to locate block boundaries.
+        """
+        ...
+
+    @property
+    @abstractmethod
+    def statement_types(self) -> set[str]:
+        """Set of tree-sitter node types that represent executable statements.
+
+        Includes assignment, expression, and control-flow node types.
+        Compound structures (``block``, ``module``) are NOT included —
+        only the direct children of a block that form the statement sequence.
+
+        Used by :class:`CFGBuilder` to collect the ordered statement
+        list within each basic block.
+        """
+        ...
+
+    @abstractmethod
+    def get_branch_targets(self, node: Node) -> dict[str, Node | list[Node] | None]:
+        """Return the branch targets for a control-flow *node*.
+
+        The returned dictionary maps semantic role names to their
+        corresponding tree-sitter child nodes:
+
+        * ``"consequence"`` — ``if`` / ``elif`` true branch (Node | None)
+        * ``"alternative"`` — ``else`` / ``elif`` false branch (Node | None)
+        * ``"body"`` — loop / try / with body (Node | None)
+        * ``"handlers"`` — except / catch clauses (list[Node])
+        * ``"finalizer"`` — finally clause (Node | None)
+
+        Args:
+            node: A tree-sitter node whose type is in
+                  :attr:`control_flow_node_types`.
+
+        """
+        ...
+
     # ── Contract validation (debug-only) ────────────────────────────────
 
     def _validate(self) -> list[str]:
@@ -222,6 +270,10 @@ class LanguageProvider(ABC):
             issues.append(f"{type(self).__name__}.func_def_types must be a non-empty set")
         if not isinstance(self.assignment_types, set) or not self.assignment_types:
             issues.append(f"{type(self).__name__}.assignment_types must be a non-empty set")
+        if not isinstance(self.control_flow_node_types, set) or not self.control_flow_node_types:
+            issues.append(f"{type(self).__name__}.control_flow_node_types must be a non-empty set")
+        if not isinstance(self.statement_types, set) or not self.statement_types:
+            issues.append(f"{type(self).__name__}.statement_types must be a non-empty set")
         return issues
 
     # ── Convenience: tree-sitter Language / Parser construction ─────────

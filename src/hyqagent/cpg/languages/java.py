@@ -311,3 +311,70 @@ class JavaAdapter(LanguageProvider):
             )
             and parent.child_by_field_name("name") is node
         )
+
+    # ── CFG ────────────────────────────────────────────────────────────
+
+    @property
+    def control_flow_node_types(self) -> set[str]:
+        return {
+            "if_statement",
+            "for_statement",
+            "enhanced_for_statement",
+            "while_statement",
+            "switch_expression",
+            "try_statement",
+            "try_with_resources_statement",
+            "return_statement",
+            "break_statement",
+            "continue_statement",
+            "throw_statement",
+        }
+
+    @property
+    def statement_types(self) -> set[str]:
+        return (
+            self.control_flow_node_types
+            | {
+                "expression_statement",
+                "local_variable_declaration",
+                "assert_statement",
+                "synchronized_statement",
+                "class_declaration",
+                "method_declaration",
+                "constructor_declaration",
+            }
+        )
+
+    def get_branch_targets(
+        self, node: Node
+    ) -> dict[str, Node | list[Node] | None]:
+        ntype = node.type
+        result: dict[str, Node | list[Node] | None] = {
+            "consequence": None,
+            "alternative": None,
+            "body": None,
+            "handlers": [],
+            "finalizer": None,
+        }
+
+        if ntype == "if_statement":
+            result["consequence"] = node.child_by_field_name("consequence")
+            result["alternative"] = node.child_by_field_name("alternative")
+        elif ntype == "switch_expression":
+            result["body"] = node.child_by_field_name("body")
+        elif ntype in ("try_statement", "try_with_resources_statement"):
+            result["body"] = node.child_by_field_name("body")
+            handlers: list[Node] = []
+            for child in node.named_children:
+                if child.type == "catch_clause":
+                    handlers.append(child)
+            result["handlers"] = handlers
+            result["finalizer"] = node.child_by_field_name("finalizer")
+        elif ntype in ("for_statement", "enhanced_for_statement",
+                       "while_statement"):
+            result["body"] = node.child_by_field_name("body")
+        elif ntype in ("return_statement", "break_statement",
+                       "continue_statement", "throw_statement"):
+            pass  # Unconditional jumps
+
+        return result

@@ -390,3 +390,72 @@ class JavaScriptAdapter(LanguageProvider):
             )
             and parent.child_by_field_name("name") is node
         )
+
+    # ── CFG ────────────────────────────────────────────────────────────
+
+    @property
+    def control_flow_node_types(self) -> set[str]:
+        return {
+            "if_statement",
+            "for_statement",
+            "for_in_statement",
+            "while_statement",
+            "do_statement",
+            "switch_statement",
+            "try_statement",
+            "return_statement",
+            "break_statement",
+            "continue_statement",
+            "throw_statement",
+        }
+
+    @property
+    def statement_types(self) -> set[str]:
+        return (
+            self.control_flow_node_types
+            | {
+                "expression_statement",
+                "variable_declaration",
+                "lexical_declaration",
+                "function_declaration",
+                "class_declaration",
+                "labeled_statement",
+            }
+        )
+
+    def get_branch_targets(
+        self, node: Node
+    ) -> dict[str, Node | list[Node] | None]:
+        ntype = node.type
+        result: dict[str, Node | list[Node] | None] = {
+            "consequence": None,
+            "alternative": None,
+            "body": None,
+            "handlers": [],
+            "finalizer": None,
+        }
+
+        if ntype == "if_statement":
+            result["consequence"] = node.child_by_field_name("consequence")
+            result["alternative"] = node.child_by_field_name("alternative")
+        elif ntype == "switch_statement":
+            result["body"] = node.child_by_field_name("body")
+        elif ntype == "try_statement":
+            result["body"] = node.child_by_field_name("body")
+            handlers: list[Node] = []
+            handler = node.child_by_field_name("handler")
+            if handler is not None:
+                handlers.append(handler)
+            result["handlers"] = handlers
+            result["finalizer"] = node.child_by_field_name("finalizer")
+        elif ntype in ("for_statement", "for_in_statement",
+                       "while_statement", "do_statement"):
+            result["body"] = node.child_by_field_name("body")
+            result["alternative"] = node.child_by_field_name(
+                "alternative"
+            )
+        elif ntype in ("return_statement", "break_statement",
+                       "continue_statement", "throw_statement"):
+            pass  # Unconditional jumps
+
+        return result

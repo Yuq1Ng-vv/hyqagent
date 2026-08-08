@@ -115,15 +115,24 @@
   - **27 个回归测试**: 6 个测试类覆盖图结构/SQL注入/XXE/Java特性/污点标签/大图压力
   - **快加载**: 直接加载 pickle 快照（~30MB），避免 800s 全量重建
   - 测试总计: **745 tests, 0 failures**
+- [x] **Session 1.21** — CPG Control Flow Graph 实现
+  - **CFG 核心算法**: `cfg.py` — CFGBuilder（递归 basic block 构建，leader 识别，边类型: fallthrough/branch_true/branch_false/loop_back/exception/return）
+  - **LanguageProvider 扩展**: 3 种语言适配器新增 `control_flow_node_types`/`statement_types`/`get_branch_targets`
+  - **Graph 集成**: `NODE_BASIC_BLOCK` + `EDGE_CTRL_FLOW` 常量，`_build_cfg` 方法接入 `add_file`
+  - **Query 集成**: `get_cfg_for_function`/`get_entry_block`/`is_reachable`/`dominates` 四种查询方法
+  - **PDG/SSA/别名分析路线图**: 确认 Control Dependence 应 CFG 后立即做，SSA 按需引入，别名分析不做完整版
+  - 测试总计: **788 tests, 0 failures** (+43 new CFG tests)
 
 ## Phase 1 最终指标
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **745** tests, 0 failures |
-| 源码模块 | **23** 个 |
-| 源码行数 | **~5,500** 行 |
+| 测试 | **788** tests, 0 failures |
+| 源码模块 | **24** 个 |
+| 源码行数 | **~6,100** 行 |
 | 支持语言 | **3** 种 (Python/JavaScript/Java) |
+| CPG 边类型 | **4** 种 (AST/CALLS/DATA_FLOW/CTRL_FLOW) |
+| CPG 节点类型 | **8** 种 (+ NODE_BASIC_BLOCK) |
 | 支持框架 | **5** 种 (Flask/Django/FastAPI/Express/Spring) |
 | Taint 规则 | **3** 语言 × 10 类别 (Java 含 XXE) |
 | CPG 图规模 | ureport2: 76K 节点 / 240K 边 |
