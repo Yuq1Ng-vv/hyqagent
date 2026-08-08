@@ -192,16 +192,51 @@
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **1062** tests, 2 skipped, 0 failures |
+| 测试 | **1119** tests, 2 skipped, 0 failures (+57 memory tests) |
 | Phase 3 累计新增代码 | **24 文件, +~5,100 行** |
-| 源码总模块 | **40** 个 (+2: nudge.py + __init__.py) |
+| Phase 4 memory 代码 | **3 文件, +~900 行** (context + crystallizer + retriever) |
+| 源码总模块 | **43** 个 (+3: context.py + crystallizer.py + retriever.py) |
 | 模型提供商 | **2** (DeepSeek + Anthropic, 同一 Provider 类) |
 | 模型层级 | **3** (CHEAP/MID/STRONG) |
 | CLI 命令 | **4** (scan/scan --deep/resume/sessions) |
 | Nudge 类型 | **3** (TERMINAL/CONTINUE/QUALITY) + 3 内置 StopHook |
 | 覆盖盲区缓解 | **3/7** 方案已实现 (CompletenessCritic + 差异覆盖分析 + 盲扫增强) |
 
-## Phase 3 剩余任务（按 DESIGN-IMPLEMENTATION.md §3.3）
+## Phase 3 — ✅ 全部完成
+
+Phase 3 全部 8 项任务已全部完成。
+
+## Phase 4: 长任务能力 — 🔵 进行中
+
+- [x] **memory/context.py** — 三区段上下文模型 (固定/长期/工作)
+  - ZoneBudget token 预算 + TurnRecord 对话轮次
+  - ContextManager: Prompt Cache breakpoints, sliding window, crystallization 触发
+  - snapshot/restore 检查点序列化
+- [x] **memory/crystallizer.py** — 上下文结晶协议
+  - CrystalSummary 结构化摘要 (phase/findings/decisions/questions)
+  - 双语正则提取 (中英文 verdict/confidence 匹配)
+  - should_crystallize_on_phase_change() 阶段边界自动触发
+- [x] **memory/retriever.py** — 混合代码检索
+  - search_exact(): ripgrep → Python re fallback
+  - search_structural(): tree-sitter AST + function name fast-path
+  - search_similar(): difflib.SequenceMatcher dedup (>85%)
+  - mark_analyzed / find_related — 分析进度追踪
+- [x] **测试**: 1119 tests, 0 failures (+57 memory tests)
+
+### Phase 4 剩余任务（按 DESIGN-IMPLEMENTATION.md §Phase 4）
+
+| # | 任务 | 状态 |
+|---|------|------|
+| 1 | ~~三区段上下文模型 + Prompt Caching~~ | ✅ 完成 |
+| 2 | ~~上下文结晶协议~~ | ✅ 完成 |
+| 3 | ~~代码检索 (ripgrep + tree-sitter 混合)~~ | ✅ 完成 |
+| 4 | 检查点管理集成 (checkpoint.py 已存在，待接入 scanner) | 🔵 待集成 |
+| 5 | 收敛检测: VDR/EC/RWC/VCC/C_hat | 📋 计划 |
+| 6 | 补充机制: 反向Sink分析 + 盲扫LLM通道 | 📋 计划 |
+| 7 | 对抗性审查 + 饱和扫描 | 📋 计划 |
+| 8 | Observability 完整集成 (OTel + LangFuse + Prometheus) | 🔵 cost_tracker 已有 |
+| 9 | 信号处理 (SIGTERM/SIGUSR1) + Orchestrator | 📋 计划 |
+| 10 | CLI resume 真正实现 (当前是 stub) | 📋 计划 |
 
 | # | 任务 | 状态 | 预计文件 |
 |---|------|------|---------|
