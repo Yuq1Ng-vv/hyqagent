@@ -13,6 +13,12 @@ For each path, the generator:
 1. Builds a CPG-sliced code context (only the relevant code, not the full file)
 2. Routes to the appropriate model tier via :class:`ModelRouter`
 3. Produces structured :class:`Hypothesis` objects via Anthropic tool_use
+
+When a :class:`NudgeLoop` is provided via *nudge_loop*, each LLM call is
+wrapped in a multi-turn loop that prevents premature termination (empty
+hypotheses, text-only responses, low-confidence submissions).  The nudge
+system is adapted from AutoCVE — see :mod:`hyqagent.scanner.nudge` and
+``docs/AUTOCVE-RESEARCH.md`` for attribution.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ if TYPE_CHECKING:
     from hyqagent.cpg.types import BlindSpot
     from hyqagent.models.providers.anthropic_provider import AnthropicProvider
     from hyqagent.models.router import ModelRouter, Task, TaskType
+    from hyqagent.scanner.nudge import NudgeLoop
 
 logger = structlog.get_logger(__name__)
 
@@ -245,6 +252,7 @@ class HypothesisGenerator:
         mid_provider: AnthropicProvider,
         strong_provider: AnthropicProvider,
         language: str,
+        nudge_loop: NudgeLoop | None = None,
     ) -> None:
         self._query = query
         self._router = router
@@ -257,6 +265,7 @@ class HypothesisGenerator:
         self._cheap = cheap_provider
         self._mid = mid_provider
         self._strong = strong_provider
+        self._nudge_loop = nudge_loop
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -391,17 +400,40 @@ class HypothesisGenerator:
             extra,
         )
 
-        # 4. Call LLM
+        # 4. Call LLM (with nudge protection if configured)
         try:
-            result = await provider.generate_structured(
-                messages=[{"role": "user", "content": user_prompt}],
-                model=model_id,
-                output_schema=HYPOTHESIS_SCHEMA,
-                system=SYSTEM_PROMPT,
-                max_tokens=4096,
-                temperature=0.1,
-            )
-            return self._parse_response(result)
+            if self._nudge_loop is not None:
+                from hyqagent.scanner.nudge import stop_on_empty, stop_on_low_confidence
+
+                nudge_result = await self._nudge_loop.run(
+                    provider=provider,
+                    model=model_id,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    output_schema=HYPOTHESIS_SCHEMA,
+                    system=SYSTEM_PROMPT,
+                    max_tokens=4096,
+                    temperature=0.1,
+                    stop_hooks=[stop_on_empty("hypotheses"), stop_on_low_confidence(0.3)],
+                )
+                if nudge_result.success:
+                    return self._parse_response(nudge_result.data)
+                logger.warning(
+                    "nudge_loop_incomplete",
+                    label=label_str,
+                    reason=nudge_result.termination_reason,
+                    turns=nudge_result.turns,
+                )
+                return []
+            else:
+                result = await provider.generate_structured(
+                    messages=[{"role": "user", "content": user_prompt}],
+                    model=model_id,
+                    output_schema=HYPOTHESIS_SCHEMA,
+                    system=SYSTEM_PROMPT,
+                    max_tokens=4096,
+                    temperature=0.1,
+                )
+                return self._parse_response(result)
         except Exception:
             logger.exception(
                 "hypothesis_generation_failed",

@@ -1,6 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.20 完成后 (2026-08-08)
+> 上次更新: Session 1.21 完成后 (2026-08-09)
+> 最新: Nudge 系统实现 — AutoCVE 借鉴 + 自有扩展
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -115,18 +116,16 @@
   - **27 个回归测试**: 6 个测试类覆盖图结构/SQL注入/XXE/Java特性/污点标签/大图压力
   - **快加载**: 直接加载 pickle 快照（~30MB），避免 800s 全量重建
   - 测试总计: **745 tests, 0 failures**
-- [x] **Session 1.21** — CPG Control Flow Graph 实现
-  - **CFG 核心算法**: `cfg.py` — CFGBuilder（递归 basic block 构建，leader 识别，边类型: fallthrough/branch_true/branch_false/loop_back/exception/return）
-  - **LanguageProvider 扩展**: 3 种语言适配器新增 `control_flow_node_types`/`statement_types`/`get_branch_targets`
-  - **Graph 集成**: `NODE_BASIC_BLOCK` + `EDGE_CTRL_FLOW` 常量，`_build_cfg` 方法接入 `add_file`
-  - **Query 集成**: `get_cfg_for_function`/`get_entry_block`/`is_reachable`/`dominates` 四种查询方法
-  - **PDG/SSA/别名分析路线图**: 确认 Control Dependence 应 CFG 后立即做，SSA 按需引入，别名分析不做完整版
-  - 测试总计: **788 tests, 0 failures** (+43 new CFG tests)
-- [x] **Session 1.22** — Control Dependence 分析
-  - **DominanceAnalyzer**: 静态工具类（compute_dominators / compute_post_dominators / compute_control_dependence），纯集合运算，不依赖 NetworkX
-  - **Query 扩展**: post_dominates / get_control_dependents / is_control_dependent_on
-  - **算法**: post-dominance frontier → CDG（Ferrante 1987），仅分支节点（≥2 successors）产生控制依赖
-  - 测试总计: **801 tests, 0 failures** (+13 CDG tests)
+- [x] **Session 1.21** — AutoCVE 横向对比研究 + Nudge 系统实现
+  - `docs/AUTOCVE-RESEARCH.md` — AutoCVE 架构深度解析（6 Agent/7 Nudge/ReAct Loop/状态机）
+  - `scanner/nudge.py` — 3 种 Nudge + 3 个内置 StopHook（~380 行，借鉴 AutoCVE AGPL v3）
+  - `scanner/hypothesis.py` — 集成 NudgeLoop（可选，空结果/低置信度阻断）
+  - `scanner/validator.py` — 集成 NudgeLoop（inconclusive 无推理阻断）
+  - `scanner/__init__.py` — 重新导出 nudge 公共 API
+  - `tests/test_scanner/test_nudge.py` — 46 tests（配置/继续意图检测/StopHook/NudgeLoop fake provider）
+  - `.env` — DeepSeek API key 配置（gitignored）
+  - **测试总计: 1062 tests, 0 failures** (+46 nudge tests)
+  - **ruff: clean · mypy: no issues**
 
 ## Phase 1 最终指标
 
@@ -193,12 +192,13 @@
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **1016** tests, 2 skipped, 0 failures |
-| Phase 3 新增代码 | **20 文件, +~4,200 行** |
-| 源码总模块 | **38** 个 |
+| 测试 | **1062** tests, 2 skipped, 0 failures |
+| Phase 3 累计新增代码 | **24 文件, +~5,100 行** |
+| 源码总模块 | **40** 个 (+2: nudge.py + __init__.py) |
 | 模型提供商 | **2** (DeepSeek + Anthropic, 同一 Provider 类) |
 | 模型层级 | **3** (CHEAP/MID/STRONG) |
 | CLI 命令 | **4** (scan/scan --deep/resume/sessions) |
+| Nudge 类型 | **3** (TERMINAL/CONTINUE/QUALITY) + 3 内置 StopHook |
 | 覆盖盲区缓解 | **3/7** 方案已实现 (CompletenessCritic + 差异覆盖分析 + 盲扫增强) |
 
 ## Phase 3 剩余任务（按 DESIGN-IMPLEMENTATION.md §3.3）
@@ -212,7 +212,45 @@
 ## Phase 3: 最终状态 — ✅ 核心完成
 
 Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生成 CLI 集成）。
+新增强化: **Nudge 系统**（借鉴 AutoCVE，3 种 Nudge + 3 个 StopHook）。
 下一阶段: **Phase 4 — 长任务能力**（上下文结晶、代码检索、收敛检测、Observability）。
+
+## Phase 4 前置研究: AutoCVE 横向对比 ✅
+
+> 详见 [docs/AUTOCVE-RESEARCH.md](docs/AUTOCVE-RESEARCH.md)
+
+### AutoCVE 是什么
+基于多 Agent 编排的自动化代码审计平台（6 Agent: Orchestrator→Recon→Scan→Triage→Finding→Verification），已在 14 个项目中发现 30 个 CVE（最高 CVSS 9.9）。
+
+### 核心发现
+
+| 维度 | HyqAgent | AutoCVE |
+|------|---------|---------|
+| 技术路线 | 重静态分析（CPG 图），LLM 辅助 | 重 LLM（ReAct Loop），工程师防 LLM 出错 |
+| Agent 架构 | 单 Agent + 丰富工具 | 6 Agent 编排 + Orchestrator 去重合并 |
+| 分析基础 | CPG 图（AST+CallGraph+DataFlow+CFG） | LLM 直接读代码 + Grep + Semgrep |
+| 信念系统 | 贝叶斯更新，7 种 EvidenceStrength | confidence 由 LLM 自行赋值 |
+| 覆盖盲区 | CoverageTracker ~179 盲点 | 无此概念 |
+| 动态验证 | **无** | Docker 沙箱 PoC 执行 |
+| 工程鲁棒性 | 简单调度，一次性 LLM 调用 | 18 种状态转换 + 7 种 Nudge + 自动恢复 |
+
+### AutoCVE 最值得学的三项
+
+1. **Nudge 系统** — 防止 LLM 在证据不足时提前终止（terminal_action_nudge / continue_intent_nudge / stop_hook_blocking / legacy_tool_syntax_nudge / token_budget_continuation / finalizer_recovery）
+2. **上下文管理管线** — 8 步精确管线（tool_result_budget → history_snip → microcompact → collapse → auto-compact → system_prompt → user_context → normalize）
+3. **动态验证沙箱** — Docker 执行 PoC，验证结果可直接接入 HyqAgent 信念系统（ADVERSARIAL_PASS/FAIL）
+
+### HyqAgent 对且 AutoCVE 没做的
+
+- **CPG 图** — AutoCVE 的 LLM 要反复 Read/Grep 理解代码关系，HyqAgent 一次图查询解决
+- **贝叶斯信念** — 多证据融合有数学保证，AutoCVE 的 confidence 是 LLM "感觉"的
+- **CoverageTracker** — HyqAgent 知道自己漏了什么，AutoCVE 不知道
+- **零成本常见模式** — 3350 条规则覆盖的漏洞不花 token
+
+### Phase 4 行动建议
+1. **移植 3 种核心 Nudge** 到现有流水线（不改变架构，最大性价比）
+2. **上下文管线 3 步**（tool_result_budget / history_snip / auto_compact），融入 Phase 4 上下文管理
+3. **动态验证沙箱** 作为 Phase 5 特性
 
 ## 当前阻塞
 - 无
@@ -250,3 +288,4 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
 | [docs/DEVELOPMENT-STANDARDS.md](docs/DEVELOPMENT-STANDARDS.md) | 生产级开发规范 |
 | [docs/CLAUDE-CODE-DEVELOPMENT-GUIDE.md](docs/CLAUDE-CODE-DEVELOPMENT-GUIDE.md) | 用 Claude Code 开发的实操指南 |
 | [docs/CODE-AUDIT-SKILL-ANALYSIS.md](docs/CODE-AUDIT-SKILL-ANALYSIS.md) | 业界 code-audit skill 方案的深度分析与改进建议 |
+| [docs/AUTOCVE-RESEARCH.md](docs/AUTOCVE-RESEARCH.md) | AutoCVE 架构深度解析 + HyqAgent 横向对比 |

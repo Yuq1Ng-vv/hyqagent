@@ -6,6 +6,9 @@ code consistency checks. Filters ~30-40% of obvious false positives.
 L2 (LLM-powered): 5-question verification for high-value hypotheses.
 - Uses MID or STRONG tier depending on severity.
 - Provides detailed reasoning for each verdict.
+- When a :class:`NudgeLoop` is provided, L2 calls are wrapped in a
+  multi-turn loop that prevents premature/incomplete verdicts.
+  Adapted from AutoCVE — see :mod:`hyqagent.scanner.nudge`.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ if TYPE_CHECKING:
     from hyqagent.models.providers.anthropic_provider import AnthropicProvider
     from hyqagent.models.router import ModelRouter
     from hyqagent.scanner.hypothesis import Hypothesis
+    from hyqagent.scanner.nudge import NudgeLoop
 
 logger = structlog.get_logger(__name__)
 
@@ -162,6 +166,7 @@ class Validator:
         mid_provider: AnthropicProvider,
         strong_provider: AnthropicProvider,
         language: str,
+        nudge_loop: NudgeLoop | None = None,
     ) -> None:
         self._query = query
         self._taint_loader = taint_loader
@@ -169,6 +174,7 @@ class Validator:
         self._mid = mid_provider
         self._strong = strong_provider
         self._language = language
+        self._nudge_loop = nudge_loop
 
     # ── L1: Deterministic validation ────────────────────────────────────
 
@@ -297,14 +303,37 @@ class Validator:
         )
 
         try:
-            result = await provider.generate_structured(
-                messages=[{"role": "user", "content": prompt}],
-                model=model_id,
-                output_schema=VALIDATOR_SCHEMA,
-                system=VALIDATOR_SYSTEM,
-                max_tokens=4096,
-                temperature=0.1,
-            )
+            if self._nudge_loop is not None:
+                from hyqagent.scanner.nudge import stop_on_missing_verdict
+
+                nudge_result = await self._nudge_loop.run(
+                    provider=provider,
+                    model=model_id,
+                    messages=[{"role": "user", "content": prompt}],
+                    output_schema=VALIDATOR_SCHEMA,
+                    system=VALIDATOR_SYSTEM,
+                    max_tokens=4096,
+                    temperature=0.1,
+                    stop_hooks=[stop_on_missing_verdict],
+                )
+                if nudge_result.success:
+                    result = nudge_result.data
+                else:
+                    logger.warning(
+                        "nudge_loop_incomplete_l2",
+                        hypothesis_id=hypothesis.id,
+                        reason=nudge_result.termination_reason,
+                    )
+                    result = nudge_result.data if nudge_result.data else {}
+            else:
+                result = await provider.generate_structured(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=model_id,
+                    output_schema=VALIDATOR_SCHEMA,
+                    system=VALIDATOR_SYSTEM,
+                    max_tokens=4096,
+                    temperature=0.1,
+                )
 
             verdict = result.get("verdict", "inconclusive")
             confidence = float(result.get("confidence", hypothesis.confidence))
