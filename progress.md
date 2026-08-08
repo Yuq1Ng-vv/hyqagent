@@ -157,7 +157,7 @@
   - `scanner/coverage_metrics.py` — CoverageMetrics 指标聚合
 - [x] **测试**: 883 tests, 0 failures
 
-## Phase 3: LLM Integration — ✅ 完成
+## Phase 3: LLM Integration — 🔵 进行中
 
 - [x] **Session 1.18** — LLM 深度审计管道 (commit: `1950c36`)
   - `models/providers/anthropic_provider.py` — Anthropic SDK 封装 (DeepSeek + Claude 双 base_url)
@@ -167,19 +167,52 @@
   - `observability/cost_tracker.py` — 按 phase 成本归因 + 预算控制
   - `api/cli.py` — `--deep` 模式, `resume`/`sessions` 命令
   - **设计决策**: 先 Phase 2 扫描 → 再 Phase 0 项目理解 (证据驱动)
-- [x] **质量**: ruff clean, mypy clean (新代码), 883 tests passed
-- [ ] **待完成**: Phase 3 单元测试 (mock LLM), Validator L2 CLI 集成, Resume 完整实现
+- [x] **Session 1.18-1.19** — 覆盖盲区缓解 + Phase 3 单元测试
+  - `scanner/coverage_auditor.py` — 零 LLM 差异覆盖分析（方案 5）
+  - `scanner/completeness.py` — CompletenessCritic（方案 3）
+  - `tests/test_models/test_provider.py` — Provider 测试 (mock Anthropic)
+  - `tests/test_models/test_router.py` — 路由决策 + 复杂度评估测试
+  - `tests/test_observability/test_cost_tracker.py` — 成本追踪测试
+  - `tests/test_scanner/test_validator.py` — L1 验证逻辑测试
+  - `tests/test_scanner/test_coverage_auditor.py` — 覆盖审计测试
+  - `tests/test_scanner/test_completeness.py` — 完整性审查测试
+  - `src/hyqagent/models/router.py` — StrEnum 修复 + 实例级 ModelSpec 副本（测试隔离）
+- [x] **Session 1.20** — Phase 3 收尾: mapper + session
+  - `scanner/mapper.py` — 攻击面映射（Phase 3 Task 3）— 端点分类 + 风险评分 + Phase 3 过滤
+  - `session/schema.sql` — SQLite 表结构（sessions/findings/checkpoints/belief_history）
+  - `session/manager.py` — SessionManager（实现 AuditRepository 协议）
+  - `session/belief.py` — 贝叶斯信念系统（bayes_update + EvidenceStrength 预设）
+  - `session/checkpoint.py` — CheckpointManager（save/load/list，支持中断续扫）
+  - `tests/test_scanner/test_mapper.py` — 19 mapper tests
+  - `tests/test_session/test_belief.py` — 16 belief tests
+  - `tests/test_session/test_manager.py` — 10 session manager tests
+- [x] **质量**: ruff clean, mypy clean (新代码), **1016 tests, 0 failures**
+- [x] **文档同步**: progress.md / 新手友好文档状态标记刷新
 
 ## 当前指标
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **883** tests, 0 failures |
-| Phase 3 新增代码 | **10 文件, +2,274 行** |
-| 源码总模块 | **31** 个 |
+| 测试 | **1016** tests, 2 skipped, 0 failures |
+| Phase 3 新增代码 | **20 文件, +~4,200 行** |
+| 源码总模块 | **38** 个 |
 | 模型提供商 | **2** (DeepSeek + Anthropic, 同一 Provider 类) |
 | 模型层级 | **3** (CHEAP/MID/STRONG) |
 | CLI 命令 | **4** (scan/scan --deep/resume/sessions) |
+| 覆盖盲区缓解 | **3/7** 方案已实现 (CompletenessCritic + 差异覆盖分析 + 盲扫增强) |
+
+## Phase 3 剩余任务（按 DESIGN-IMPLEMENTATION.md §3.3）
+
+| # | 任务 | 状态 | 预计文件 |
+|---|------|------|---------|
+| 3 | 攻击面映射 (mapper.py) — 端点分类 + 风险优先级 | ✅ 完成 | `scanner/mapper.py` |
+| 6 | 会话管理 — SQLite schema + 信念系统 + 检查点 | ✅ 完成 | `session/` 包 (5 文件) |
+| 7 | 报告生成集成 | 🔵 部分（ReportGenerator 已存在，未接入 CLI --deep） | `report/` |
+
+## Phase 3: 最终状态 — ✅ 核心完成
+
+Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生成 CLI 集成）。
+下一阶段: **Phase 4 — 长任务能力**（上下文结晶、代码检索、收敛检测、Observability）。
 
 ## 当前阻塞
 - 无

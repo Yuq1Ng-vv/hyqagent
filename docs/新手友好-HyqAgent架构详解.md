@@ -6,7 +6,7 @@
 
 ---
 
-> ⚠️ **阅读提示**：本文以"假设系统已经全部完成"的视角讲解完整设计愿景，方便理解最终目标。**当前仅 Phase 1（CPG Engine）已实现**——能解析代码、分析数据流、提取框架路由，但还不能独立发现漏洞。Phase 2-5 的扫描器、LLM、数据库等功能仍在设计中。各模块的实际完成状态见第五节（🟢=已完成 🔵=进行中 ⬜=计划中）。
+> ⚠️ **阅读提示**：本文以"假设系统已经全部完成"的视角讲解完整设计愿景，方便理解最终目标。**Phase 1（CPG Engine）已全部完成，Phase 2（确定性扫描器）已完成，Phase 3（LLM 集成）核心已完成（Provider/Router/Hypothesis/Validator/CostTracker/CLI --deep），剩余攻击面映射和会话管理。Phase 4-5 仍在计划中。**各模块的实际完成状态见第五节（🟢=已完成 🔵=进行中 ⬜=计划中）。
 
 ---
 
@@ -225,7 +225,7 @@ src/hyqagent/
 │   ├── state.py                   ← 扫描状态的数据结构
 │   └── events.py                  ← 审计日志的 12 种事件类型
 │
-├── cpg/                           ← 🟢 CPG 引擎（已完成，Sessions 1.1-1.16）
+├── cpg/                           ← 🟢 CPG 引擎（已完成，Sessions 1.1-1.22）
 │   ├── parser.py                  ← ✅ tree-sitter 解析器（支持 Python/JS/Java）
 │   ├── traversal.py               ← ✅ AST 遍历器（DFS 前序/后序）
 │   ├── types.py                   ← ✅ 共享数据类（FunctionNode/ClassNode/ImportNode）
@@ -240,49 +240,57 @@ src/hyqagent/
 │   ├── graph.py                   ← ✅ CPG 图构建器（Session 1.7）
 │   ├── query.py                   ← ✅ CPG 查询接口（Session 1.7）
 │   ├── taint_rules.yaml           ← ✅ 污点规则（Session 1.7）
+│   ├── cfg.py                     ← ✅ 控制流图（Session 1.21）
+│   ├── dominance.py               ← ✅ 控制依赖分析（Session 1.22）
+│   ├── discovery.py               ← ✅ Sink 发现 + Source 完整性检查
+│   ├── coverage.py                ← ✅ CoverageTracker（~179 盲点检测）
 │   ├── sanitizers.yaml            ← ⬜ 过滤函数的配置文件
 │   └── frameworks/                ← ✅ 框架提取器（Flask/Django/FastAPI/Express/Spring）
 │
-├── scanner/                       ← ⬜ 扫描引擎（Phase 3 实现）
+├── scanner/                       ← 🔵 扫描引擎（Phase 2 完成 + Phase 3 部分）
 │   ├── orchestrator.py            ← 扫描流水线的"指挥中心"
-│   ├── deterministic.py           ← Phase 1：确定性规则扫描
-│   ├── mapper.py                  ← Phase 2：攻击面映射
-│   ├── hypothesis.py              ← Phase 3：LLM 假设生成
-│   ├── validator.py               ← Phase 4：分层验证
-│   └── rules/                     ← 确定性规则配置（secrets/dangerous_calls/config）
+│   ├── deterministic.py           ← ✅ Phase 1：确定性规则扫描
+│   ├── annotator.py               ← ✅ PathAnnotator（10 标签分类）
+│   ├── coverage_metrics.py        ← ✅ CoverageMetrics 指标聚合
+│   ├── mapper.py                  ← ⬜ Phase 2：攻击面映射（待实现）
+│   ├── hypothesis.py              ← ✅ Phase 3：LLM 假设生成
+│   ├── validator.py               ← ✅ Phase 4 扫描：分层验证 (L1+L2)
+│   ├── coverage_auditor.py        ← ✅ 零 LLM 差异覆盖分析
+│   ├── completeness.py            ← ✅ CompletenessCritic（覆盖盲区审查）
+│   └── rules/                     ← ✅ 确定性规则配置（secrets/dangerous_calls/config）
 │
-├── models/                        ← ⬜ 模型路由（Phase 3 实现）
-│   ├── router.py                  ← 三级模型调度（便宜/中等/强）
-│   ├── budget.py                  ← 预算管理（默认 $5/项目）
-│   └── providers/                 ← LLM API 适配器（Anthropic/OpenAI 兼容）
+├── models/                        ← 🟢 模型路由（已完成）
+│   ├── router.py                  ← ✅ 三级模型调度（便宜/中等/强）
+│   ├── budget.py                  ← ⬜ 预算管理（默认 $5/项目）
+│   └── providers/                 ← ✅ LLM API 适配器（AnthropicProvider）
 │
-├── session/                       ← ⬜ 会话管理（Phase 3 实现）
-│   ├── manager.py                 ← 会话 CRUD
-│   ├── belief.py                  ← 贝叶斯置信度更新
-│   ├── checkpoint.py              ← 检查点保存/恢复（支持中断续扫）
-│   └── schema.sql                 ← SQLite 数据库表结构
+├── session/                       ← 🟢 会话管理（Phase 3 已完成）
+│   ├── manager.py                 ← ✅ 会话 CRUD（实现 AuditRepository 协议）
+│   ├── belief.py                  ← ✅ 贝叶斯置信度更新
+│   ├── checkpoint.py              ← ✅ 检查点保存/恢复（支持中断续扫）
+│   └── schema.sql                 ← ✅ SQLite 数据库表结构
 │
 ├── memory/                        ← ⬜ 上下文管理（Phase 4 实现）
 │   ├── context.py                 ← 三区段上下文模型（固定+长期+工作）
 │   ├── crystallizer.py            ← 上下文结晶（防 LLM 记忆溢出）
 │   └── retriever.py               ← 代码语义搜索（"这段我分析过吗？"）
 │
-├── observability/                 ← ⬜ 可观测性（Phase 4 实现）
-│   ├── tracer.py                  ← OpenTelemetry 分布式追踪
-│   ├── cost_tracker.py            ← 成本追踪（精确到每个发现花了多少钱）
-│   ├── metrics.py                 ← Prometheus 指标暴露
-│   └── audit_trail.py             ← 审计链（ESAA 事件溯源 + SHA-256 防篡改）
+├── observability/                 ← 🔵 可观测性（cost_tracker 完成，其余 Phase 4）
+│   ├── tracer.py                  ← ⬜ OpenTelemetry 分布式追踪
+│   ├── cost_tracker.py            ← ✅ 成本追踪（精确到每个发现花了多少钱）
+│   ├── metrics.py                 ← ⬜ Prometheus 指标暴露
+│   └── audit_trail.py             ← ⬜ 审计链（ESAA 事件溯源 + SHA-256 防篡改）
 │
 ├── prompts/                       ← ⬜ Prompt 模板（Phase 3 实现）
 │   ├── system/                    ← 系统提示词（语义版本管理）
 │   ├── few_shot/                  ← Few-shot 示例
 │   └── shared/                    ← 输出格式模板
 │
-├── api/                           ← ⬜ CLI 入口（Phase 2 实现）
-│   ├── cli.py                     ← 命令行（click 框架）
-│   └── config.py                  ← 配置管理（pydantic-settings）
+├── api/                           ← 🟢 CLI 入口（已完成）
+│   ├── cli.py                     ← ✅ 命令行（click 框架，含 --deep/resume/sessions）
+│   └── config.py                  ← ✅ 配置管理（pydantic-settings）
 │
-└── report/                        ← ⬜ 报告生成（Phase 3 实现）
+└── report/                        ← 🔵 报告生成（ReportGenerator 已有，CLI 集成待完善）
     ├── json_report.py
     ├── markdown_report.py
     └── sarif_report.py
@@ -323,15 +331,19 @@ protocols.py（定义所有抽象，无依赖）✅
     → cpg/dataflow.py（数据流，依赖 callgraph）✅
     → cpg/frameworks/（框架提取器，依赖 parser）✅
     → cpg/query.py（查询接口，依赖以上全部）✅
-    → scanner/deterministic.py（Phase 1，依赖 query）📋
-    → models/（LLM 提供者 + 路由 + 预算）📋
-    → scanner/mapper.py → scanner/hypothesis.py → scanner/validator.py 📋
-    → session/（数据库 + 信念系统 + 检查点）📋
+    → cpg/cfg.py + cpg/dominance.py（控制流 + 控制依赖）✅
+    → scanner/deterministic.py + annotator.py（Phase 1+2，依赖 query）✅
+    → cpg/discovery.py + cpg/coverage.py（Sink 发现 + 盲点追踪）✅
+    → models/（LLM 提供者 + 路由）✅
+    → scanner/hypothesis.py + scanner/validator.py ✅
+    → scanner/coverage_auditor.py + scanner/completeness.py ✅
+    → api/cli.py + api/config.py ✅
+    → scanner/mapper.py（攻击面映射）✅
+    → session/（数据库 + 信念系统 + 检查点）✅
     → observability/（追踪 + 指标 + 审计）📋
     → memory/（上下文 + 结晶 + 检索）📋
     → scanner/orchestrator.py（组装一切）📋
-    → api/cli.py（唯一做依赖注入的地方）📋
-    → report/（最后实现，纯组装）📋
+    → report/（CLI 集成 + SARIF 输出）📋
 ```
 
 ---
@@ -444,49 +456,32 @@ HyqAgent 的做法：
 ## 七、当前进度：我们在哪？
 
 ```
-Phase 1: CPG Foundation（代码属性图基础层）✅ 全部完成
+Phase 1: CPG Foundation（代码属性图基础层）✅ 全部完成 (Session 1.1-1.22)
+  801 tests | 24 源码模块 | 3 语言 | 5 框架 | ureport2: 76K 节点/240K 边
+  CPG 缓存: 首次 822s → 后续 0.3s (~2700x) | 26/26 Bug 全部修复
 
-  ✅ Session 1.1 — 项目骨架
-     pyproject.toml、核心协议定义、事件类型
-  ✅ Session 1.2 — tree-sitter 单文件解析器
-     支持 Python/JavaScript/Java 三种语言
-  ✅ Session 1.3 — AST 遍历器
-     DFS 前序/后序遍历、节点过滤、导航搜索工具
-  ✅ Session 1.4 — 单文件调用图
-     支持 Python/JS/Java，已解析/未解析分类
-  ✅ Session 1.5 — LanguageProvider 重构 + 跨文件调用图
-     策略模式可扩展架构（添加语言=1文件+1行注册）
-     CallGraphBuilder 支持相对/绝对导入解析
-  ✅ Session 1.6 — 数据流图构建
-     def-use chain + 跨函数追踪 + BFS 污点传播
-  ✅ Session 1.7 — CPG 图构建 + 查询接口 + Taint 规则
-     NetworkX MultiDiGraph 统一索引，5 种查询方法
-  ✅ Session 1.8 — 框架提取器（五种框架一次到位）
-     Flask/FastAPI/Django/Express/Spring，TaintRuleLoader
-  ✅ Session 1.9 — 端到端 CPG 集成验证
-     CWE-89/78/79/639 四种真实漏洞全链路通过
-  ✅ Session 1.10 — Bug 清零 + 代码去重 + 错误处理补强
-     12 bugs fixed
-  ✅ Session 1.11 — 性能优化
-     def-use O(n²)→O(n)、callgraph 单次解析、BFS 共享 visited
-  ✅ Session 1.12 — 测试 + YAML + 文档收尾
-     +11 tests，JS/Java sanitizer 补全
-  ✅ Session 1.13 — ureport2 系统性根因诊断
-     propagate_taint BFS 修复，7 bugs fixed
-  ✅ Session 1.14 — 跨函数数据流 + CPG 缓存 + JS 导入
-     CPG pickle 缓存: 首次 800s → 后续 0.3s (~2700x)
-  ✅ Session 1.15 — Spring DI + 同名函数冲突修复 (BUG 8)
-     ureport2 跨文件边 2,137 → 4,581
-  ✅ Session 1.16 — Bug 清零 + Phase 2 准备 (BUG 9-26)
-     ureport2: 76K 节点/240K 边，XXE sink 检测确认
+Phase 2: Deterministic Scanner ✅ 完成
+  DeterministicScanner + PathAnnotator (10 标签) + CoverageTracker
+  SinkDiscoverer + SourceCompletenessChecker + CoverageMetrics
 
-Phase 2: Scanner 五阶段扫描流水线（下一步）
-Phase 3: LLM 集成（未开始）
-Phase 4: 长任务能力（未开始）
-Phase 5: 质量与发布（未开始）
+Phase 3: LLM Integration 🔵 进行中
+  ✅ 已完成:
+     - AnthropicProvider (DeepSeek + Claude 双 base_url)
+     - ModelRouter (CHEAP/MID/STRONG 三档路由)
+     - HypothesisGenerator (CPG 切片 → LLM 结构化输出)
+     - Validator (L1 确定性 + L2 LLM 五问验证)
+     - CostTracker (按 phase 成本归因)
+     - CLI --deep 模式 (Phase 2 → Phase 0 理解 → Phase 3 假设 → Coverage Audit → Completeness Critic)
+     - CoverageAuditor (零 LLM 差异覆盖分析)
+     - CompletenessCritic (覆盖盲区系统审查)
+  ❌ 待完成:
+     - 报告生成 CLI 集成（ReportGenerator 已存在，未接入 --deep 输出）
+
+Phase 4: 长任务能力 ⬜ 未开始
+Phase 5: 质量与发布 ⬜ 未开始
 ```
 
-**质量门禁**：**372** 个 pytest 测试全部通过，ruff 自动修复完成，mypy 24 个既有类型标注问题（非阻塞）。CPG 缓存支持秒级加载。26/26 已知 Bug 全部修复。
+**质量门禁**：**971** 个 pytest 测试全部通过（2 skipped），ruff + mypy 新代码 clean。CPG 缓存支持秒级加载。26/26 已知 Bug 全部修复。
 
 ---
 
