@@ -259,11 +259,10 @@ class TestTaintPatternMatching:
             f"res.redirect should match open_redirect, got {cat}"
         )
 
-    def test_parse_xml_not_xxe_category(self, loader):
-        """JS has no XXE category — verify the taint loader handles this gracefully."""
+    def test_js_has_xxe_category(self, loader):
+        """JS now has XXE category (Session 1.22 expansion)."""
         rules = loader.rules_for("javascript")
-        # XXE is not a separate category in JS rules (unlike Java)
-        assert "xxe" not in rules.categories, "JS has no XXE category yet"
+        assert "xxe" in rules.categories, "JS should have XXE category after expansion"
 
     def test_unserialize_is_deserialization_sink(self, loader):
         """node-serialize.unserialize() should match deserialization."""

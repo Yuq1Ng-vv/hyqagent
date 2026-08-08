@@ -160,10 +160,12 @@ class TestCategoryListing:
     PYTHON_EXPECTED = {
         "sql_injection", "command_injection", "xss", "path_traversal",
         "ssrf", "deserialization", "open_redirect", "code_injection", "auth_bypass",
+        "xxe", "ssti", "crypto_weakness",
     }
     JS_EXPECTED = {
         "sql_injection", "command_injection", "xss", "path_traversal",
         "ssrf", "deserialization", "open_redirect", "code_injection", "auth_bypass",
+        "xxe", "ssti", "crypto_weakness",
     }
     JAVA_EXPECTED = {
         "sql_injection", "command_injection", "xss", "path_traversal",
