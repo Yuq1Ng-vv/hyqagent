@@ -55,16 +55,36 @@ class JavaScriptAdapter(LanguageProvider):
             (lexical_declaration
               (variable_declarator
                 name: (identifier) @func.name
-                value: (arrow_function
-                  parameters: (formal_parameters) @func.params) @function
+                value: [
+                  (arrow_function
+                    parameters: (formal_parameters) @func.params)
+                  (function_expression
+                    parameters: (formal_parameters) @func.params)
+                ] @function
               )
             )
             (variable_declaration
               (variable_declarator
                 name: (identifier) @func.name
-                value: (arrow_function
-                  parameters: (formal_parameters) @func.params) @function
+                value: [
+                  (arrow_function
+                    parameters: (formal_parameters) @func.params)
+                  (function_expression
+                    parameters: (formal_parameters) @func.params)
+                ] @function
               )
+            )
+            (assignment_expression
+              left: [
+                (member_expression) @func.name
+                (identifier) @func.name
+              ]
+              right: [
+                (function_expression
+                  parameters: (formal_parameters) @func.params)
+                (arrow_function
+                  parameters: (formal_parameters) @func.params)
+              ] @function
             )
         """
 
@@ -87,6 +107,11 @@ class JavaScriptAdapter(LanguageProvider):
     def extract_function_name(self, node: Node) -> str | None:
         name_node = node.child_by_field_name("name")
         if name_node is not None and name_node.text:
+            if name_node.type == "member_expression":
+                # module.exports.fn → extract "fn"
+                prop = name_node.child_by_field_name("property")
+                if prop is not None and prop.text:
+                    return prop.text.decode("utf-8")
             return name_node.text.decode("utf-8")
 
         # Fallback for constructors and arrow functions
@@ -197,6 +222,11 @@ class JavaScriptAdapter(LanguageProvider):
         if name_node is None and name_nodes:
             name_node = name_nodes[0]
         if name_node is None:
+            # For assignment expressions: grab the left side
+            left = node.child_by_field_name("left")
+            if left is not None:
+                name_node = left
+        if name_node is None:
             for child in node.children:
                 if child.type in ("identifier", "property_identifier"):
                     name_node = child
@@ -204,7 +234,16 @@ class JavaScriptAdapter(LanguageProvider):
         if name_node is None:
             return None
 
-        name = name_node.text.decode("utf-8") if name_node.text else ""
+        # Handle member_expression: module.exports.fn → "fn"
+        if name_node.type == "member_expression":
+            prop = name_node.child_by_field_name("property")
+            if prop is not None and prop.text:
+                name = prop.text.decode("utf-8")
+            else:
+                name = name_node.text.decode("utf-8") if name_node.text else ""
+        else:
+            name = name_node.text.decode("utf-8") if name_node.text else ""
+
         params = self.extract_parameters(node, param_nodes)
         decorators: list[str] = []
         source = node.text.decode("utf-8") if node.text else ""
@@ -267,6 +306,7 @@ class JavaScriptAdapter(LanguageProvider):
     def func_def_types(self) -> set[str]:
         return {
             "function_declaration",
+            "function_expression",
             "method_definition",
             "arrow_function",
         }

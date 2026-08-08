@@ -139,7 +139,7 @@ class DjangoExtractor(BaseFrameworkExtractor):
 
         # BUG 12: Match with balanced-quote backreference
         for match in re.finditer(
-            r"(?:path|re_path)\s*\(\s*(?:r)?(?P<quote>[\"'])(.+?)(?P=quote)\s*,\s*(\w+(?:\.\w+)*)",
+            r"(?:path|re_path)\s*\(\s*(?:r)?(?P<quote>[\"'])(.*?)(?P=quote)\s*,\s*(\w+(?:\.\w+)*)",
             source,
         ):
             route = match.group(2)

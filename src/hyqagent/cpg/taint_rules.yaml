@@ -403,7 +403,7 @@ javascript:
       # Angular
       - bypassSecurityTrustHtml(
       - bypassSecurityTrustScript(
-      - [innerHTML]
+      - "[innerHTML]"
       # Svelte
       - '{@html '
       # DOM Range

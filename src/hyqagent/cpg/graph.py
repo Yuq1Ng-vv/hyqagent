@@ -294,7 +294,7 @@ class CPGGraphBuilder:
                         if d.get("file_path")
                     }
                     return
-            except (pickle.PickleError, EOFError, KeyError, OSError):
+            except (pickle.PickleError, EOFError, KeyError, OSError, ValueError, TypeError):
                 pass  # Corrupted cache — rebuild
 
         # ── Build from scratch ─────────────────────────────────────────
