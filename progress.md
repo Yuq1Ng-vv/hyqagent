@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.19 完成后 (2026-08-08)
+> 上次更新: Session 1.20 完成后 (2026-08-08)
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -111,12 +111,16 @@
   - **查询增强**: CPGQuery 支持 taint_category 优先匹配
   - **测试**: 移除 4 个死测试，新增 8 个集成测试，718 tests total
   - 净代码 -64 行
+- [x] **Session 1.20** — ureport2 回归测试 (commit: `cae539b`)
+  - **27 个回归测试**: 6 个测试类覆盖图结构/SQL注入/XXE/Java特性/污点标签/大图压力
+  - **快加载**: 直接加载 pickle 快照（~30MB），避免 800s 全量重建
+  - 测试总计: **745 tests, 0 failures**
 
 ## Phase 1 最终指标
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **718** tests, 0 failures |
+| 测试 | **745** tests, 0 failures |
 | 源码模块 | **23** 个 |
 | 源码行数 | **~5,500** 行 |
 | 支持语言 | **3** 种 (Python/JavaScript/Java) |
@@ -133,7 +137,7 @@
 
 ## 当前阻塞
 - 无
-- **剩余技术债**: ureport2 回归测试
+- Phase 1 **技术债全部清零** ✅
 
 ## 文档索引
 
