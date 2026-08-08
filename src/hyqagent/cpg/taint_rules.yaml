@@ -512,76 +512,278 @@ javascript:
 
 java:
   sources:
+    # ── Shared HTTP input patterns (Servlet API) ─────────────────────────
+    # Variable-agnostic dot-prefixed: .getParameter( matches
+    # req.getParameter(, request.getParameter(, etc.
+
     sql_injection:
-      # Variable-agnostic patterns — matches req.getParameter(,
-      # request.getParameter(, httpRequest.getParameter(, etc.
+      # Servlet API
       - .getParameter(
       - .getParameterValues(
+      - .getParameterMap(
       - .getQueryString(
       - .getHeader(
+      - .getHeaders(
       - .getCookies(
       - .getInputStream(
       - .getReader(
-      # Spring annotation-based injection
+      # Spring MVC
       - "@RequestParam"
       - "@PathVariable"
       - "@RequestBody"
       - "@RequestHeader"
       - "@CookieValue"
+      - "@ModelAttribute"
+      # JAX-RS / Jakarta REST
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+      - "@HeaderParam"
+      - "@CookieParam"
+      - "@MatrixParam"
+      - "@BeanParam"
+      # Struts2
+      - ActionContext.getContext()
+      - ServletActionContext.getRequest()
+      # JSF
+      - .getExternalContext().getRequestParameterMap()
+      # Play Framework
+      - .body().asFormUrlEncoded()
+      # Spark Framework
+      - .queryParams(
+      - .params(
+      # Micronaut
+      - "@QueryValue"
+      - "@Body"
+      # Grails
+      - params.
+      # Vert.x
+      - .request().getParam(
+      # GraphQL
+      - DataFetchingEnvironment.getArgument(
+      - graphql.ExecutionInput
     command_injection:
-      - .getParameter(
-      - .getHeader(
-      - System.getenv(
-      - System.getProperty(
-    xss:
+      # Servlet API
       - .getParameter(
       - .getParameterValues(
       - .getHeader(
+      - .getHeaders(
+      - .getPart(
+      - .getSubmittedFileName(
+      - System.getenv(
+      - System.getProperty(
+      - System.getProperties(
+      # Spring
       - "@RequestParam"
-    path_traversal:
-      - .getParameter(
-      - .getHeader(
-      - "@RequestParam"
-    ssrf:
-      - .getParameter(
-      - .getHeader(
-      - "@RequestParam"
-    deserialization:
-      - .getInputStream(
-      - .getReader(
-      - "@RequestBody"
-      - ObjectInputStream
-    open_redirect:
-      - .getParameter(
-      - .getHeader(
-    code_injection:
-      - .getParameter(
-      - .getHeader(
-      - "@RequestParam"
-    auth_bypass:
-      - .getCookies(
-      - .getHeader("Authorization"
+      - "@PathVariable"
       - "@RequestHeader"
-    xxe:
+      - "@RequestPart"
+      # JAX-RS
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+      - "@HeaderParam"
+    xss:
+      # Servlet API
       - .getParameter(
+      - .getParameterValues(
+      - .getParameterMap(
+      - .getQueryString(
+      - .getHeader(
+      - .getHeaders(
       - .getInputStream(
       - .getReader(
+      - .getCookies(
+      - .getRequestURI(
+      - .getRequestURL(
+      # Spring MVC
+      - "@RequestParam"
+      - "@PathVariable"
+      - "@RequestBody"
+      - "@RequestHeader"
+      - "@CookieValue"
+      - "@ModelAttribute"
+      - "@SessionAttribute"
+      # JAX-RS
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+      - "@HeaderParam"
+      - "@CookieParam"
+    path_traversal:
+      # Servlet API
+      - .getParameter(
+      - .getParameterValues(
+      - .getHeader(
+      - .getPathInfo(
+      - .getPathTranslated(
+      - .getServletPath(
+      - .getRequestURI(
+      - .getRealPath(
+      - .getPart(
+      - .getSubmittedFileName(
+      # Spring MVC
+      - "@RequestParam"
+      - "@PathVariable"
+      - "@RequestPart"
+      - MultipartFile.getOriginalFilename(
+      # JAX-RS
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+      # Common file upload
+      - .getOriginalFilename(
+      - CommonsMultipartFile
+    ssrf:
+      # Servlet API
+      - .getParameter(
+      - .getParameterValues(
+      - .getHeader(
+      - .getQueryString(
+      - .getServerName(
+      - .getRequestURL(
+      - .getRequestURI(
+      # Spring MVC
+      - "@RequestParam"
+      - "@PathVariable"
+      - "@RequestHeader"
+      - "@RequestPart"
+      # JAX-RS
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+      - "@HeaderParam"
+    deserialization:
+      # Servlet API
+      - .getInputStream(
+      - .getReader(
+      - .getParameter(
+      - .getHeader(
+      - .getCookies(
+      - .getPart(
+      # Spring MVC
       - "@RequestBody"
       - "@RequestPart"
+      - "@CookieValue"
+      - MultipartFile
+      # JAX-RS
+      - "@FormParam"
+      # Type indicator
+      - ObjectInputStream
+    open_redirect:
+      # Servlet API
+      - .getParameter(
+      - .getHeader(
+      - .getQueryString(
+      - .getRequestURL(
+      - .getRequestURI(
+      # Spring MVC
+      - "@RequestParam"
+      - "@PathVariable"
+      # JAX-RS
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+    code_injection:
+      # Servlet API
+      - .getParameter(
+      - .getParameterValues(
+      - .getHeader(
+      - .getInputStream(
+      - .getReader(
+      - .getQueryString(
+      # Spring MVC
+      - "@RequestParam"
+      - "@PathVariable"
+      - "@RequestBody"
+      - "@RequestHeader"
+      - "@RequestPart"
+      # JAX-RS
+      - "@QueryParam"
+      - "@FormParam"
+      - "@PathParam"
+      - "@HeaderParam"
+    auth_bypass:
+      # Servlet API
+      - .getCookies(
+      - .getHeader("Authorization"
+      - .getSession().getAttribute(
+      # Spring MVC
+      - "@RequestHeader"
+      - "@CookieValue"
+      # JAX-RS
+      - "@HeaderParam"
+      - "@CookieParam"
+    xxe:
+      # Servlet API
+      - .getParameter(
+      - .getInputStream(
+      - .getReader(
+      - .getPart(
+      # Spring MVC
+      - "@RequestBody"
+      - "@RequestPart"
+      - "@RequestParam"
+      # JAX-RS
+      - "@FormParam"
+    # ── New categories ─────────────────────────────────────────────────────
+    jndi_injection:
+      - .getParameter(
+      - .getHeader(
+      - .getCookies(
+      - "@RequestParam"
+      - "@RequestHeader"
+      - "@PathVariable"
+      - "@CookieValue"
+      - "@HeaderParam"
+    ssti:
+      - .getParameter(
+      - .getHeader(
+      - "@RequestParam"
+      - "@PathVariable"
+      - "@RequestBody"
+      - "@RequestHeader"
+      - "@QueryParam"
+      - "@FormParam"
+    crypto_weakness:
+      # Static detection — no taint sources needed
+      []
 
   sinks:
     sql_injection:
-      # Statement / PreparedStatement execution methods
+      # Statement / PreparedStatement execution
       - .executeQuery(
       - .executeUpdate(
       - .execute(
+      - .executeLargeUpdate(
+      - .executeBatch(
+      - .addBatch(
       - Statement.executeQuery(
       - Statement.executeUpdate(
       - Statement.execute(
+      - PreparedStatement.executeQuery(
+      - PreparedStatement.executeUpdate(
+      - PreparedStatement.execute(
+      # JDBC connection injection (arbitrary driver/URL → RCE)
+      - DriverManager.getConnection(
+      - DataSource.getConnection(
+      - Class.forName(
+      # JDBC native SQL
+      - .createStatement(
+      - .prepareStatement(
+      - .prepareCall(
+      - Connection.prepareCall(
+      - Connection.nativeSQL(
+      # RowSet
+      - RowSet.setCommand(
+      - RowSet.execute(
       # JPA / Hibernate
       - createNativeQuery(
       - createQuery(
       - .createSQLQuery(
+      - createNamedQuery(
+      - .getResultList(
+      - .getSingleResult(
       - EntityManager.createNativeQuery(
       # Spring JdbcTemplate / NamedParameterJdbcTemplate (variable-agnostic)
       - .query(
@@ -591,83 +793,467 @@ java:
       - .queryForRowSet(
       - .update(
       - .batchUpdate(
+      - .execute(
+      - JdbcTemplate.update
+      - JdbcTemplate.execute
+      - NamedParameterJdbcTemplate.update(
+      - NamedParameterJdbcTemplate.query(
+      - .getJdbcTemplate(
       # MyBatis
       - .selectOne(
       - .selectList(
       - .selectMap(
+      - .selectCursor(
+      - .select(
+      - .update(
+      - .delete(
+      - .insert(
       - SqlSession.
-      # JDBC connection injection (arbitrary driver/URL → RCE)
-      - DriverManager.getConnection(
-      - Class.forName(
-      - DataSource.getConnection(
-      # NOTE: JdbcTemplate / NamedParameterJdbcTemplate as type-indicator
-      # patterns were removed — they match imports, type declarations, and
-      # variable names globally, producing high false-positive rates.
-      # Use method-level patterns (.query, .queryForList, etc.) instead.
+      # jOOQ
+      - DSLContext.fetch(
+      - DSLContext.execute(
+      - DSLContext.executeQuery(
+      # Android (common in mobile-backend shared code)
+      - SQLiteDatabase.rawQuery(
+      - SQLiteDatabase.execSQL(
+      # QueryDSL
+      - SQLExpressions
     command_injection:
+      # Runtime / ProcessBuilder
       - Runtime.exec(
       - Runtime.getRuntime().exec(
       - ProcessBuilder(
-      # NOTE: .start( was removed — it matches Thread.start(),
-      # Server.start(), etc. across every Java framework.
-      # ProcessBuilder usage is already covered by the type pattern above.
+      - ProcessBuilder.start(
+      - ProcessBuilder.command(
+      - ProcessBuilder.directory(
+      - ProcessBuilder.inheritIO(
+      # Apache Commons Exec
+      - CommandLine.parse(
+      - CommandLine.addArgument(
+      - DefaultExecutor.execute(
+      - Executor.execute(
+      # Groovy shell
+      - GroovyShell.evaluate(
+      - GroovyShell.run(
+      - String.execute(
+      # JSch remote
+      - ChannelExec.setCommand(
+      - ChannelExec.connect(
+      - ChannelShell.setCommand(
+      # Jython
+      - PythonInterpreter.exec(
+      # ScriptEngine
+      - ScriptEngineManager.getEngineByName(
+      - Invocable.invokeFunction(
+      # Ant
+      - Execute(
+      - Commandline
+      # ZT Exec
+      - ProcessExecutor
     xss:
-      # Variable-agnostic — matches resp.getWriter(), response.getWriter(), etc.
+      # Output writers
+      # NOTE: .print(/.println(/.write(/.format(/.append( deliberately
+      # excluded — too generic (match DecimalFormat, StringBuilder, etc.).
+      # Use dangerous_calls.yaml or more specific patterns for XSS sinks.
       - .getWriter(
       - .getOutputStream(
-      # NOTE: .print( and .println( were removed — they match
-      # System.out.print(), logger.print(), etc. universally.
+      # JSP / Servlet response
+      - RequestDispatcher.forward(
+      - RequestDispatcher.include(
+      - pageContext.setAttribute(
+      # Spring MVC model
+      - ModelAndView
+      - ModelMap.addAttribute(
+      - Model.addAttribute(
+      - RedirectView
+      - RedirectAttributes.addFlashAttribute(
+      - "@ResponseBody"
+      # Spring WebFlux
+      - ServerResponse.ok(
+      - BodyBuilder.body(
+      - BodyInserters.fromObject(
+      - BodyInserters.fromValue(
+      # Thymeleaf
+      - SpringTemplateEngine
+      # JSF / Jakarta Faces
+      - FacesContext.getCurrentInstance()
+      - ExternalContext.redirect(
+      - ResponseWriter.write(
+      # JAX-RS response
+      - Response.ok(
+      - ResponseBuilder.entity(
+      - ResponseBuilder.build(
+      - StreamingOutput
+      # EL injection → XSS
+      - ELProcessor.eval(
+      - ELProcessor.getValue(
+      - ValueExpression.getValue(
+      - MethodExpression.invoke(
+      # JSONP callback
+      - .write(callback
+      # Headers (XSS via header injection)
+      - .addHeader(
+      - .setHeader(
+      # Response body
+      - ResponseEntity
+      - ResponseBodyEmitter.send(
     path_traversal:
+      # File read
       - new FileInputStream(
       - new FileReader(
       - new File(
-      - new FileOutputStream(
-      - new FileWriter(
+      - new RandomAccessFile(
       - Files.read(
       - Files.newInputStream(
+      - Files.readAllBytes(
+      - Files.readAllLines(
+      - Files.newBufferedReader(
+      # File write/delete
+      - new FileOutputStream(
+      - new FileWriter(
       - Files.write(
       - Files.newOutputStream(
       - Files.copy(
+      - Files.move(
+      - Files.delete(
+      - Files.deleteIfExists(
+      - Files.createFile(
+      - Files.createDirectory(
+      - File.delete(
+      - File.renameTo(
+      - File.listFiles(
+      # Directory traversal
+      - Files.list(
+      - Files.walk(
+      # Path operations
       - Paths.get(
+      - Path.resolve(
+      - Path.toFile(
+      - .getAbsolutePath(
+      - .getCanonicalPath(
+      - File.toPath(
+      # Resource loading
+      - getResource(
+      - getResourceAsStream(
+      - ClassLoader.getResource(
+      - ClassLoader.getResourceAsStream(
+      - ServletContext.getResource(
+      - ServletContext.getRealPath(
+      - ServletRequest.getRealPath(
+      # ZIP slip
+      - ZipInputStream
+      - ZipFile.entries(
+      - ZipEntry
+      - .getNextEntry(
+      - JarInputStream
+      - JarEntry
+      - JarFile(
+      # File upload storage
+      - .transferTo(
+      - FileItem.write(
+      # Spring resource
+      - ResourceLoader.getResource(
+      - Resource.getInputStream(
+      - FileSystemResource(
+      - UrlResource(
+      - ClassPathResource(
+      # Commons IO
+      - FileUtils.openInputStream(
+      - FileUtils.writeStringToFile(
+      # Scanner / ImageIO
+      - Scanner(new File(
+      - ImageIO.read(new File(
+      # Groovy GDK
+      - new File(...).text
+      - new File(...).bytes
     ssrf:
+      # java.net.URL
       - new URL(
       - URL.openConnection(
-      - HttpClient.send(
+      - URL.openStream(
+      - URL.getContent(
+      # URLConnection
+      - URLConnection.getInputStream(
+      - URLConnection.connect(
+      - .connect(
+      - HttpsURLConnection
       - HttpURLConnection
+      # Java 11+ HttpClient
+      - HttpClient.send(
+      - HttpClient.newHttpClient(
+      - HttpRequest.newBuilder(
+      - HttpRequest.Builder
+      # OkHttp
+      - OkHttpClient.newCall(
+      - OkHttpClient.newWebSocket(
+      - Request.Builder(
+      - Call.execute(
+      - Call.enqueue(
+      # Apache HttpClient 4.x/5.x
+      - CloseableHttpClient.execute(
+      - HttpClients.createDefault(
+      - HttpClientBuilder
+      - HttpGet
+      - HttpPost
+      - HttpUriRequest
+      - HttpClient.execute(
+      # Spring RestTemplate
+      - RestTemplate.getForObject(
+      - RestTemplate.getForEntity(
+      - RestTemplate.postForObject(
+      - RestTemplate.postForEntity(
+      - RestTemplate.exchange(
+      - RestTemplate.execute(
+      - .getForObject(
+      - .getForEntity(
+      - .postForObject(
+      - .postForEntity(
+      - .exchange(
+      - RestTemplateBuilder.build(
       - RestTemplate.
+      # Spring WebClient / WebFlux
+      - WebClient.create(
+      - WebClient.builder(
+      - .build(
+      - .retrieve(
+      - .bodyToMono(
+      - .bodyToFlux(
       - WebClient.
+      # JAX-RS / Jersey Client
+      - ClientBuilder.newClient(
+      - WebTarget.request(
+      - Invocation.Builder.get(
+      - Invocation.Builder.post(
+      - .target(
+      # Retrofit2
+      - Retrofit.Builder
+      # Unirest
+      - Unirest.get(
+      - Unirest.post(
+      - Unirest.put(
+      # Feign
+      - "@FeignClient"
+      # Play WS
+      - Play.WS.url(
+      # Jsoup
+      - Jsoup.connect(
+      # Image loading via URL
+      - ImageIO.read(new URL(
+      # DNS resolution (rebinding)
+      - InetAddress.getByName(
+      - InetAddress.getAllByName(
     deserialization:
+      # Java native
       - ObjectInputStream.readObject(
+      - ObjectInputStream.readUnshared(
+      - ObjectInputStream.resolveClass(
       - new ObjectInputStream(
+      - ObjectInputStream
+      - Externalizable.readExternal(
       - XMLDecoder(
+      - XMLDecoder.readObject(
+      - java.beans.XMLDecoder
+      # Jackson (variable-agnostic .readValue matches mapper.readValue)
+      - .readValue(
+      - ObjectMapper.readValue(
+      - ObjectMapper.readTree(
+      - ObjectMapper.convertValue(
+      - ObjectMapper.readerFor(
+      - .enableDefaultTyping(
+      - ObjectMapper.enableDefaultTyping(
+      # Fastjson (critically dangerous)
+      - JSON.parse(
+      - JSON.parseObject(
+      - JSON.parseArray(
+      - com.alibaba.fastjson.JSON
+      - JSON2.parse(
+      - JSON2.parseObject(
+      # SnakeYAML
       - SnakeYAML.load(
-      - Jackson ObjectMapper.readValue(
+      - Yaml.load(
+      - Yaml.loadAs(
+      - Yaml.loadAll(
+      - new Yaml(
+      - org.yaml.snakeyaml.Yaml
+      # Gson
       - Gson.fromJson(
+      - GsonBuilder
+      # XStream (variable-agnostic .fromXML covers xstream.fromXML)
       - XStream.fromXML(
       - XStream
+      - .fromXML(
+      - .toXML(
+      # Kryo
       - Kryo.readObject(
+      - Kryo.readClassAndObject(
       - Kryo
+      - new Kryo(
+      # Hessian
       - HessianInput.readObject(
       - HessianInput
+      - Hessian2Input.readObject(
+      - Hessian2Input
+      - HessianProxyFactory.create(
+      - HessianProxyFactory
+      # FST
+      - FSTObjectInput.readObject(
+      - FSTConfiguration.getObjectInput(
+      # Burlap
+      - BurlapInput.readObject(
+      # RMI
+      - UnicastRemoteObject
+      - Naming.lookup(
+      - Registry.lookup(
+      - LocateRegistry.getRegistry(
+      # CORBA
+      - ORB.resolve_initial_references(
+      # JNDI deserialization
+      - InitialContext.lookup(
+      - Context.lookup(
+      # BeanShell
+      - Interpreter.eval(
     open_redirect:
-      # Variable-agnostic
+      # Servlet
       - .sendRedirect(
       - .setHeader("Location"
+      - .addHeader("Location"
+      - Response.sendRedirect(
+      - HttpServletResponse.sendRedirect(
+      # Spring MVC
       - ModelAndView("redirect:"
       - "redirect:"
+      - RedirectView
+      - new RedirectView(
+      - RedirectAttributes
+      # JAX-RS
+      - Response.seeOther(
+      - Response.temporaryRedirect(
+      - Response.status(302
+      - Response.status(303
+      - Response.status(307
+      # JSF
+      - ExternalContext.redirect(
+      # Struts2
+      - ServletRedirectAction
+      # Spark
+      - response.redirect(
+      # Meta refresh
+      - .setHeader("Refresh"
     code_injection:
+      # ScriptEngine (JSR-223)
       - ScriptEngine.eval(
+      - ScriptEngine.compile(
+      - ScriptEngine.put(
+      - CompiledScript.eval(
+      - Invocable.invokeMethod(
+      - Invocable.invokeFunction(
+      - NashornScriptEngine
+      - ScriptEngineManager.getEngineByName(
+      - javax.script.ScriptEngine
+      # Groovy
       - GroovyShell.evaluate(
       - GroovyShell.parse(
-      - javax.script.ScriptEngine
+      - GroovyClassLoader.parseClass(
+      - GroovyScriptEngine.run(
+      - GroovyClassLoader
+      - groovy.lang.GroovyShell
+      # BeanShell
+      - Interpreter.eval(
+      - Interpreter.set(
+      - Interpreter.source(
+      - bsh.Interpreter
+      # SpEL (Spring Expression Language)
+      # NOTE: .getValue(/.setValue( deliberately excluded — too generic,
+      # matches domain object getters. DANGER-019 covers SpEL detection.
+      - ExpressionParser.parseExpression(
+      - SpelExpressionParser.parseExpression(
+      - SpelExpressionParser
+      # OGNL
+      - Ognl.parseExpression(
+      - Ognl.getValue(
+      - Ognl.setValue(
+      - ognl.Ognl
+      # MVEL
+      - MVEL.eval(
+      - MVEL.executeExpression(
+      # JEXL
+      - JexlEngine.createExpression(
+      - JexlExpression.evaluate(
+      - MapContext
+      # Janino
+      - SimpleCompiler.cook(
+      - ScriptEvaluator
+      - ClassBodyEvaluator
+      # Jakarta EL
+      - ELProcessor.eval(
+      - ELProcessor.getValue(
+      - ExpressionFactory.createValueExpression(
+      # Rhino
+      - rhino.Context.evaluateString(
+      # Jython
+      - PythonInterpreter.exec(
+      - PythonInterpreter.eval(
+      # JRuby
+      - ScriptingContainer.runScriptlet(
+      # Drools
+      - TemplateRuntime.eval(
+      # Reflection dispatch
+      - Method.invoke(
+      - Constructor.newInstance(
+      - Field.set(
+      - Field.setAccessible(
+      - Class.forName(
+      - .getMethod(
     auth_bypass:
+      # Spring Security
       - SecurityContext.getAuthentication(
+      - SecurityContextHolder.getContext(
+      - Authentication.getPrincipal(
+      - Authentication.getAuthorities(
+      - Authentication.isAuthenticated(
       - .isAuthenticated(
       - .hasRole(
+      - .hasAuthority(
+      - .hasAnyRole(
+      - .hasAnyAuthority(
+      - .hasPermission(
+      - "@PreAuthorize"
+      - "@PostAuthorize"
+      - "@Secured"
+      - "@RolesAllowed"
+      - "@PermitAll"
+      - "@DenyAll"
+      # Spring Security misconfigurations (detect ABSENCE by checking for "allow all")
+      - anyRequest().permitAll(
+      - .antMatchers("/**").permitAll(
+      - http.csrf().disable(
+      - http.authorizeRequests(
+      - NoOpPasswordEncoder
+      - "{noop}"
+      # Shiro
+      - SecurityUtils.getSubject(
+      - Subject.isAuthenticated(
+      - Subject.hasRole(
+      - Subject.isPermitted(
+      - Subject.checkPermission(
+      - Subject.checkRole(
+      # JWT verification
+      - JWT.require(
+      - JWT.verify(
+      - JWTParser.parse(
+      - JWSObject.verify(
+      - SignedJWT.verify(
+      - Jwts.parser(
+      - JwtParser.parseClaimsJwt(
     xxe:
       # DOM4J / JDOM / dom4j
       - SAXReader
-      - .read(                       # SAXReader.read(), DocumentBuilder.parse()
+      - SAXBuilder
+      - SAXBuilder.build(
+      - DOMBuilder
+      - DocumentHelper.parseText(
+      - DocumentFactory
+      - .read(
       # JAXP (javax.xml.parsers)
       - DocumentBuilder
       - DocumentBuilderFactory
@@ -675,66 +1261,292 @@ java:
       - SAXParserFactory
       - XMLReader
       - XMLInputFactory
-      - .parse(                      # common parse method across JAXP parsers
-      # XPath / XSLT / Validation
-      - XPathExpression
-      - SchemaFactory
+      - .parse(
+      # StAX
+      - XMLInputFactory.createXMLStreamReader(
+      - XMLInputFactory.createXMLEventReader(
+      - XMLStreamReader
+      - XMLEventReader
+      # XSLT / XPath / Validation
       - TransformerFactory
+      - TransformerFactory.newTransformer(
+      - Transformer.transform(
+      - XPathExpression
+      - XPath.evaluate(
+      - XPathExpression.evaluate(
+      - XPathFactory.newXPath(
+      - SchemaFactory
       - Validator
-      # Package indicators (import/type level)
+      # JAXB
+      - JAXBContext.newInstance(
+      - Unmarshaller.unmarshal(
+      - javax.xml.bind.Unmarshaller
+      # Jackson XML
+      - XmlMapper.readValue(
+      # Spring OXM
+      - Jaxb2Marshaller.unmarshal(
+      - Marshaller.unmarshal(
+      # SOAP
+      - javax.xml.soap.SOAPMessage
+      - javax.xml.soap.SOAPPart
+      # DOM Level 3
+      - LSParser.parse(
+      - LSParser.parseWithContext(
+      # Woodstox / Aalto
+      - WstxInputFactory
+      - Stax2XMLInputFactory
+      # Package indicators
       - org.dom4j
       - org.xml.sax
       - javax.xml.parsers
       - org.jdom2
+    # ── New categories ─────────────────────────────────────────────────────
+    jndi_injection:
+      - InitialContext.lookup(
+      - Context.lookup(
+      - InitialDirContext(
+      - InitialLdapContext(
+      - DirContext.search(
+      - LdapContext.search(
+      - javax.naming.InitialContext
+      - javax.naming.Context
+      - "ldap://"
+      - "rmi://"
+      - "dns://"
+      - "iiop://"
+      - JndiTemplate.lookup(
+      - JndiObjectFactoryBean
+      - NamingManager.getObjectInstance(
+      - DirectoryManager.getObjectInstance(
+    ssti:
+      # Freemarker
+      - freemarker.template.Template
+      - Template.process(
+      - FreeMarkerTemplateUtils.processTemplateIntoString(
+      - Configuration.getTemplate(
+      - Environment.process(
+      # Velocity
+      - Velocity.evaluate(
+      - Velocity.mergeTemplate(
+      - VelocityEngine.evaluate(
+      - VelocityEngine.mergeTemplate(
+      - Template.merge(
+      - VelocityContext
+      - org.apache.velocity
+      # Thymeleaf
+      - TemplateEngine.process(
+      - SpringTemplateEngine.process(
+      - Context.setVariable(
+      # Pebble
+      - PebbleTemplate.evaluate(
+      - PebbleEngine.getTemplate(
+      # Mustache
+      - Mustache.execute(
+      - MustacheFactory.compile(
+      - Mustache.compiler(
+      # Handlebars.java
+      - Handlebars.compile(
+      # StringTemplate
+      - STGroup.getInstanceOf(
+      - ST.add(
+      # Groovy Templates
+      - SimpleTemplateEngine.createTemplate(
+      - GStringTemplateEngine.createTemplate(
+      - XmlTemplateEngine.createTemplate(
+      - groovy.text.Template.make(
+      # Rythm / Jade4J / JSP
+      - Rythm.render(
+      - Jade4J.render(
+      - JspServlet
+    crypto_weakness:
+      # Weak hash
+      - MessageDigest.getInstance("MD5"
+      - MessageDigest.getInstance("MD4"
+      - MessageDigest.getInstance("SHA-1"
+      - MessageDigest.getInstance("sha-1"
+      - DigestUtils.md5(
+      - DigestUtils.md5Hex(
+      - DigestUtils.sha(
+      - DigestUtils.shaHex(
+      - DigestUtils.sha1(
+      - DigestUtils.sha1Hex(
+      # Weak encryption
+      - Cipher.getInstance("DES"
+      - Cipher.getInstance("RC4"
+      - Cipher.getInstance("RC2"
+      - Cipher.getInstance("Blowfish"
+      - Cipher.getInstance("AES/ECB"
+      - Cipher.getInstance("AES/CBC/NoPadding"
+      # Weak random
+      - Random(
+      - new Random(
+      - Math.random(
+      - java.util.Random
+      # Weak SSL/TLS
+      - SSLContext.getInstance("TLSv1"
+      - SSLContext.getInstance("TLSv1.0"
+      - SSLContext.getInstance("TLSv1.1"
+      - SSLContext.getInstance("SSLv3"
+      # Hardcoded crypto parameters
+      - IvParameterSpec
+      - GCMParameterSpec
+      - SecureRandom.setSeed(
+      - SecretKeySpec
 
   sanitizers:
     sql_injection:
-      # Parameter binding (PreparedStatement / NamedParameterJdbcTemplate)
-      # NOTE: PreparedStatement as a type-pattern was removed — it matches
-      # imports, parameter types, and method names globally, silently
-      # suppressing valid findings.  Use method-level patterns instead.
+      # Parameter binding (PreparedStatement)
       - .setString(
       - .setInt(
       - .setLong(
       - .setBoolean(
+      - .setDouble(
+      - .setFloat(
+      - .setShort(
+      - .setByte(
       - .setObject(
+      - .setDate(
+      - .setTime(
+      - .setTimestamp(
+      - .setBigDecimal(
+      - .setURL(
+      - .setArray(
+      - .setBlob(
+      - .setClob(
+      - .setNString(
       - .setParameter(
+      # Spring JDBC parameterized
+      - .setParameterList(
+      - MapSqlParameterSource
+      - BeanPropertySqlParameterSource
+      # ESAPI
       - StringEscapeUtils.escapeSql(
       - ESAPI.encoder(
-    # command_injection sanitizers were removed:
-    #   ProcessBuilder( is a sink, not a sanitizer.
-    #   SecurityManager / AccessController enforce JVM permissions, not
-    #   command argument sanitization.
-    #   No reliable command-injection sanitizers remain for Java.
+      - ESAPI.encoder().encodeForSQL(
+      - Codec.MySQL
+      - Codec.Oracle
+      - Encode.forSQL(
+      # MyBatis safe binding
+      - "#{"
+      # jOOQ type-safe
+      - DSL.param(
+      - DSL.value(
+      - DSL.inline(
+      # JPA Criteria API
+      - CriteriaBuilder
+      # PreparedStatement safe constructor
+      - Connection.prepareStatement(
+      - ResultSet
     command_injection: []
     xss:
+      # Apache Commons Text
       - StringEscapeUtils.escapeHtml4(
+      - StringEscapeUtils.escapeEcmaScript(
+      - StringEscapeUtils.escapeJavaScript(
+      - StringEscapeUtils.escapeXml(
+      # OWASP Java Encoder
+      - Encode.forHtml(
+      - Encode.forHtmlAttribute(
+      - Encode.forJavaScript(
+      - Encode.forCssString(
+      - Encode.forCssUrl(
+      - Encode.forXml(
+      - Encode.forXmlAttribute(
+      # ESAPI
       - ESAPI.encoder(
       - ESAPI.validator(
+      # Spring
       - HtmlUtils.htmlEscape(
+      - "@HtmlEscape"
+      # Jsoup
       - Jsoup.clean(
+      # OWASP AntiSamy
+      - AntiSamy
+      - org.owasp.validator.html.Policy
+      # Generic
       - encodeForHTML(
     path_traversal:
       - Path.normalize(
       - Path.toAbsolutePath(
+      - Path.toRealPath(
       - FilenameUtils.getName(
+      - FilenameUtils.normalize(
+      - FilenameUtils.getFullPath(
+      - FilenameUtils.getPath(
+      - File.getCanonicalPath(
+      - .getCanonicalPath(
+      - Paths.get(
+      - ESAPI.validator().getValidFileName(
+      - SecurityManager.checkRead(
+      - AccessController.checkPermission(
+      - ResourceUtils.getFile(
+      # Base-dir pattern
+      - .getCanonicalFile(
     auth_bypass:
       - BCryptPasswordEncoder
       - PasswordEncoder.matches(
+      - Pbkdf2PasswordEncoder
+      - SCryptPasswordEncoder
+      - Argon2PasswordEncoder
+      - DelegatingPasswordEncoder
+      - Keys.hmacShaKeyFor(
+      - parserBuilder().setSigningKey(
+      - "@EnableMethodSecurity"
+      - SecurityFilterChain
     ssrf:
       - new URI(
       - URLValidator
+      - UriComponentsBuilder.fromHttpUrl(
+      - InetAddress.isLoopbackAddress(
+      - InetAddress.isSiteLocalAddress(
+      - InetAddress.isLinkLocalAddress(
+      - org.apache.commons.validator.routines.UrlValidator
+      - URI.getHost(
     deserialization:
       - ValidatingObjectInputStream
       - ObjectInputFilter
+      # Jackson
+      - ObjectMapper.disableDefaultTyping(
+      - ObjectMapper.enableDefaultTyping(
+      - BasicPolymorphicTypeValidator
+      # Gson
+      - GsonBuilder.excludeFieldsWithoutExposeAnnotation(
+      # Kryo
+      - Kryo.setRegistrationRequired(true
+      # XStream
+      - XStream.allowTypesByWildcard(
+      - XStream.denyTypes(
+      - XStream.setTypePermission(
+      # Fastjson safe mode
+      - ParserConfig.getGlobalInstance().setSafeMode(
+      - ParserConfig.getGlobalInstance().setAutoTypeSupport(
+      # Type filtering
+      - ObjectInputFilter.Config.createFilter(
+      - ObjectInputFilter.Config.setObjectInputFilter(
+      # Apache Commons IO serialization
+      - .apache.commons.io.serialization
+      # SnakeYAML SafeConstructor
+      - SafeConstructor
+      - new Yaml(new SafeConstructor
     open_redirect:
       - UriComponentsBuilder
       - ServletUriComponentsBuilder
+      - UriComponentsBuilder.fromHttpUrl(
+      - ESAPI.securityWrapper().isValidRedirectLocation(
     code_injection:
       - StringEscapeUtils
       - ESAPI.validator(
+      # Groovy sandbox
+      - SecureASTCustomizer
+      - CompilerConfiguration.addCompilationCustomizers(
+      # Nashorn
+      - ClassFilter
+      - --no-java
+      # Type safety
+      - ast.literal_eval(
+      - isinstance(
     xxe:
-      # External entity / DTD disabling features
+      # External entity / DTD disablers
       - setFeature(
       - "disallow-doctype-decl"
       - "external-general-entities"
@@ -745,4 +1557,43 @@ java:
       - ACCESS_EXTERNAL_SCHEMA
       - setExpandEntityReferences(false
       - setProperty(XMLConstants.ACCESS_EXTERNAL_DTD
+      - setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA
+      # StAX
+      - XMLInputFactory.SUPPORT_DTD
+      - XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES
+      # JDOM2
+      - SAXBuilder.setFeature(
+      # DOM4J
+      - SAXReader.setFeature(
+      # JAXP
+      - DocumentBuilderFactory.setFeature(
+      # JAXB
+      - Unmarshaller.setProperty(
+      # Jackson XML
+      - XmlMapper.disable(
+      - FromXmlParser.Feature
+      # Woodstox
+      - WstxInputFactory
+      # DOM4J helper
+      - DocumentHelper
+    # ── New category sanitizers ──────────────────────────────────────────
+    jndi_injection:
+      - "allowedJndiProtocols"
+      - "LOG4J_JNDI_TRUSTED"
+      - "com.sun.jndi.ldap.object.trustURLCodebase"
+      - "log4j2.formatMsgNoLookups"
+      - "LOG4J_FORMAT_MSG_NO_LOOKUPS"
+    ssti:
+      - HTMLTemplate
+      - SafeHTML
+      - StringEscapeUtils.escapeHtml4(
+      - .setAutoEscaping(
+    crypto_weakness:
+      - MessageDigest.getInstance("SHA-256"
+      - MessageDigest.getInstance("SHA-384"
+      - MessageDigest.getInstance("SHA-512"
+      - Cipher.getInstance("AES/GCM/NoPadding"
+      - SecureRandom.getInstanceStrong(
+      - SSLContext.getInstance("TLSv1.2"
+      - SSLContext.getInstance("TLSv1.3"
 

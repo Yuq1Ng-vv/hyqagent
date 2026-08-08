@@ -124,3 +124,343 @@ rules:
     message: "Python 动态属性/导入"
     languages: [python]
     cwe: "CWE-470"
+
+  # ── JNDI injection / Log4Shell ──────────────────────────────────────
+  - id: DANGER-017
+    patterns:
+      - 'InitialContext.lookup('
+      - 'InitialDirContext.lookup('
+      - 'Context.lookup('
+      - 'javax.naming.InitialContext'
+      - 'jakarta.naming.InitialContext'
+      - 'NamingManager.getObjectInstance('
+    severity: critical
+    message: "JNDI 注入 — 用户可控的 lookup() 可能导致远程代码执行"
+    languages: [java]
+    cwe: "CWE-917"
+
+  - id: DANGER-018
+    patterns:
+      - 'log4j'
+      - 'log4j-core'
+      - 'JndiLookup'
+      - '${jndi:'
+    severity: critical
+    message: "Log4Shell 特征 — 检测 log4j JNDI 查询注入风险"
+    languages: [java]
+    cwe: "CWE-917"
+
+  # ── Expression Language injection ───────────────────────────────────
+  - id: DANGER-019
+    patterns:
+      - 'SpelExpressionParser'
+      - 'ExpressionParser.parseExpression('
+      - 'spelExpressionParser'
+      - 'StandardEvaluationContext'
+    severity: high
+    message: "Spring SpEL 表达式注入 — 用户可控表达式可能导致 RCE"
+    languages: [java]
+    cwe: "CWE-917"
+
+  - id: DANGER-020
+    patterns:
+      - 'Ognl.parseExpression('
+      - 'Ognl.getValue('
+      - 'Ognl.setValue('
+      - 'ognl.Ognl'
+    severity: critical
+    message: "OGNL 表达式注入 — Struts2 S2-* 系列漏洞核心"
+    languages: [java]
+    cwe: "CWE-917"
+
+  - id: DANGER-021
+    patterns:
+      - 'MVEL.eval('
+      - 'MVEL.executeExpression('
+      - 'JexlEngine.createExpression('
+      - 'JexlExpression.evaluate('
+    severity: high
+    message: "MVEL/JEXL 表达式注入"
+    languages: [java]
+    cwe: "CWE-917"
+
+  # ── Unsafe deserialization (Java expanded) ──────────────────────────
+  - id: DANGER-022
+    patterns:
+      - 'JSON.parseObject('
+      - 'JSON.parse('
+      - 'com.alibaba.fastjson.JSON'
+      - 'com.alibaba.fastjson2.JSON'
+    severity: critical
+    message: "Fastjson 反序列化 — 已知大量 RCE gadget chain"
+    languages: [java]
+    cwe: "CWE-502"
+
+  - id: DANGER-023
+    patterns:
+      - 'Yaml.load('
+      - 'Yaml.loadAs('
+      - 'Yaml.loadAll('
+      - 'new Yaml('
+    severity: high
+    message: "SnakeYAML 不安全加载 — 需使用 SafeConstructor"
+    languages: [java]
+    cwe: "CWE-502"
+
+  - id: DANGER-024
+    patterns:
+      - '.enableDefaultTyping('
+      - 'ObjectMapper.enableDefaultTyping('
+      - 'ObjectMapper.activateDefaultTyping('
+    severity: high
+    message: "Jackson 启用 DefaultTyping — 多态反序列化 RCE 风险"
+    languages: [java]
+    cwe: "CWE-502"
+
+  # ── XXE (expanded) ──────────────────────────────────────────────────
+  - id: DANGER-025
+    patterns:
+      - 'DocumentBuilderFactory.newInstance()'
+      - '.newDocumentBuilder()'
+    severity: high
+    message: "XML DocumentBuilder 创建 — 需禁用外部实体以避免 XXE"
+    languages: [java]
+    cwe: "CWE-611"
+
+  - id: DANGER-026
+    patterns:
+      - 'SAXParserFactory.newInstance()'
+      - 'XMLInputFactory.newFactory()'
+      - 'XMLInputFactory.newInstance()'
+    severity: high
+    message: "XML 解析器工厂创建 — 需安全配置以避免 XXE"
+    languages: [java]
+    cwe: "CWE-611"
+
+  - id: DANGER-027
+    patterns:
+      - 'JAXBContext.newInstance('
+      - 'Unmarshaller.unmarshal('
+      - 'javax.xml.bind.Unmarshaller'
+      - 'jakarta.xml.bind.Unmarshaller'
+    severity: high
+    message: "JAXB 反序列化 — 默认配置易受 XXE 攻击"
+    languages: [java]
+    cwe: "CWE-611"
+
+  # ── Template injection (SSTI) ───────────────────────────────────────
+  - id: DANGER-028
+    patterns:
+      - 'Velocity.evaluate('
+      - 'Velocity.mergeTemplate('
+      - 'Velocity.eval('
+      - 'VelocityContext.put('
+    severity: high
+    message: "Apache Velocity 模板注入 — 用户可控变量/模板可能导致 SSTI"
+    languages: [java]
+    cwe: "CWE-1336"
+
+  - id: DANGER-029
+    patterns:
+      - 'TemplateEngine.process('
+      - 'SpringTemplateEngine.process('
+      - 'Thymeleaf'
+    severity: high
+    message: "Thymeleaf 模板引擎 — 用户可控模板可能导致 SSTI"
+    languages: [java]
+    cwe: "CWE-1336"
+
+  - id: DANGER-030
+    patterns:
+      - 'PebbleEngine'
+      - 'PebbleTemplate.evaluate('
+      - 'Mustache.execute('
+      - 'MustacheFactory.compile('
+      - 'Handlebars.compile('
+    severity: medium
+    message: "模板引擎渲染 (Pebble/Mustache/Handlebars)"
+    languages: [java]
+    cwe: "CWE-1336"
+
+  # ── LDAP injection (expanded) ───────────────────────────────────────
+  - id: DANGER-031
+    patterns:
+      - 'LdapTemplate.search('
+      - 'LdapTemplate.find('
+      - 'LdapTemplate.findOne('
+      - 'LdapTemplate.authenticate('
+      - 'LdapQueryBuilder.query('
+      - 'DirContext.search('
+    severity: high
+    message: "LDAP 查询注入 — 用户输入混入 LDAP 过滤器"
+    languages: [java]
+    cwe: "CWE-90"
+
+  # ── XPath injection (expanded) ──────────────────────────────────────
+  - id: DANGER-032
+    patterns:
+      - 'XPathFactory.newInstance()'
+      - 'XPathExpression.evaluate('
+      - 'Document.selectNodes('
+      - 'DocumentHelper.selectNodes('
+      - 'Node.selectNodes('
+    severity: medium
+    message: "XPath 注入 — 用户可控 XPath 查询"
+    languages: [java]
+    cwe: "CWE-643"
+
+  # ── NoSQL injection ─────────────────────────────────────────────────
+  - id: DANGER-033
+    patterns:
+      - 'BasicDBObject('
+      - 'Document.parse('
+      - 'Filters.regex('
+      - 'Filters.where('
+      - 'collection.find('
+    severity: high
+    message: "NoSQL 注入 — MongoDB/NoSQL 查询可能由用户输入构造"
+    languages: [java]
+    cwe: "CWE-943"
+
+  # ── SQL injection (heuristic) ───────────────────────────────────────
+  - id: DANGER-034
+    patterns:
+      - 'Statement.execute('
+      - 'Statement.executeQuery('
+      - 'Statement.executeUpdate('
+      - '.createStatement('
+    severity: high
+    message: "JDBC Statement（非 PreparedStatement）— 可能 SQL 注入"
+    languages: [java]
+    cwe: "CWE-89"
+
+  # ── Weak cryptography ───────────────────────────────────────────────
+  - id: DANGER-035
+    patterns:
+      - 'MessageDigest.getInstance("MD5")'
+      - 'MessageDigest.getInstance("MD4")'
+      - 'MessageDigest.getInstance("SHA-1")'
+      - 'MessageDigest.getInstance("SHA1")'
+    severity: high
+    message: "弱哈希算法 — MD5/SHA-1 已被破解"
+    languages: [java]
+    cwe: "CWE-328"
+
+  - id: DANGER-036
+    patterns:
+      - 'Cipher.getInstance("DES")'
+      - 'Cipher.getInstance("RC2")'
+      - 'Cipher.getInstance("RC4")'
+      - 'Cipher.getInstance("Blowfish")'
+      - 'Cipher.getInstance("AES/ECB'
+    severity: high
+    message: "弱加密算法 — DES/RC4/ECB 模式不安全"
+    languages: [java]
+    cwe: "CWE-327"
+
+  # ── Insecure random ─────────────────────────────────────────────────
+  - id: DANGER-037
+    patterns:
+      - 'new Random('
+      - 'SecureRandom.setSeed('
+    severity: medium
+    message: "不安全的随机数生成 — Random() 不适用于安全场景"
+    languages: [java]
+    cwe: "CWE-330"
+
+  # ── Insecure TLS/SSL ────────────────────────────────────────────────
+  - id: DANGER-038
+    patterns:
+      - 'SSLContext.getInstance("TLSv1")'
+      - 'SSLContext.getInstance("TLSv1.1")'
+      - 'SSLContext.getInstance("SSLv3")'
+    severity: high
+    message: "不安全的 TLS 版本 — TLSv1/SSLv3 已被弃用"
+    languages: [java]
+    cwe: "CWE-326"
+
+  - id: DANGER-039
+    patterns:
+      - 'TrustManager'
+      - 'X509TrustManager'
+      - 'checkClientTrusted'
+      - 'checkServerTrusted'
+    severity: medium
+    message: "自定义 TrustManager — 可能信任所有证书"
+    languages: [java]
+    cwe: "CWE-295"
+
+  # ── Dynamic code execution (Java) ───────────────────────────────────
+  - id: DANGER-040
+    patterns:
+      - 'GroovyShell.evaluate('
+      - 'GroovyShell.parse('
+      - 'GroovyClassLoader.parseClass('
+    severity: high
+    message: "Groovy 动态代码执行"
+    languages: [java]
+    cwe: "CWE-95"
+
+  - id: DANGER-041
+    patterns:
+      - 'ScriptEngine.eval('
+      - 'ScriptEngineManager.getEngineByName('
+      - 'NashornScriptEngine'
+      - 'Context.eval('
+    severity: high
+    message: "脚本引擎 eval — 用户可控代码执行"
+    languages: [java]
+    cwe: "CWE-95"
+
+  - id: DANGER-042
+    patterns:
+      - 'bsh.Interpreter'
+      - 'Interpreter.eval('
+      - 'Interpreter.source('
+    severity: high
+    message: "BeanShell 脚本执行"
+    languages: [java]
+    cwe: "CWE-95"
+
+  # ── Hardcoded secrets ───────────────────────────────────────────────
+  - id: DANGER-043
+    patterns:
+      - 'String password = "'
+      - 'String apiKey = "'
+      - 'String secretKey = "'
+      - 'String token = "'
+    severity: medium
+    message: "疑似硬编码密钥 — 检查是否为占位符/示例值"
+    languages: [java]
+    cwe: "CWE-798"
+
+  - id: DANGER-044
+    patterns:
+      - 'BasicAWSCredentials('
+      - 'AWSCredentials('
+    severity: high
+    message: "硬编码 AWS 凭证"
+    languages: [java]
+    cwe: "CWE-798"
+
+  # ── CRLF / HTTP header injection ────────────────────────────────────
+  - id: DANGER-045
+    patterns:
+      - 'MimeMessage.setSubject('
+      - 'MimeMessage.setText('
+      - 'Transport.send('
+    severity: low
+    message: "邮件发送 — 检查用户输入是否包含 CRLF 注入"
+    languages: [java]
+    cwe: "CWE-93"
+
+  # ── ProcessBuilder / Command injection (expanded) ───────────────────
+  - id: DANGER-046
+    patterns:
+      - 'CommandLine.parse('
+      - 'DefaultExecutor.execute('
+      - 'ChannelExec.setCommand('
+    severity: high
+    message: "命令执行扩展 — Commons Exec / JSch 远程命令"
+    languages: [java]
+    cwe: "CWE-78"

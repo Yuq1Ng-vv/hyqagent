@@ -18,6 +18,11 @@ CATEGORIES_REQUIRING_SANITIZERS = {
     "path_traversal",
 }
 
+# Categories that may have empty sources (static detection, no taint flow needed)
+STATIC_DETECTION_CATEGORIES = {
+    "crypto_weakness",
+}
+
 
 @pytest.fixture(scope="module")
 def loader() -> TaintRuleLoader:
@@ -34,6 +39,8 @@ class TestTaintRuleCoverage:
     def test_all_categories_have_sources(self, loader, language):
         rules = loader.rules_for(language)
         for cat_name, cat in rules.categories.items():
+            if cat_name in STATIC_DETECTION_CATEGORIES:
+                continue  # static detection categories don't need taint sources
             assert cat.sources, (
                 f"{language}/{cat_name}: has no source patterns"
             )
@@ -161,7 +168,7 @@ class TestCategoryListing:
     JAVA_EXPECTED = {
         "sql_injection", "command_injection", "xss", "path_traversal",
         "ssrf", "deserialization", "open_redirect", "code_injection",
-        "auth_bypass", "xxe",
+        "auth_bypass", "xxe", "jndi_injection", "ssti", "crypto_weakness",
     }
 
     def test_python_categories(self, loader):

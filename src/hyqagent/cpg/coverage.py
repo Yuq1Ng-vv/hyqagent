@@ -31,6 +31,9 @@ _CATEGORY_CWE_MAP: dict[str, str] = {
     "code_injection": "CWE-94",
     "auth_bypass": "CWE-287",
     "xxe": "CWE-611",
+    "jndi_injection": "CWE-917",
+    "ssti": "CWE-1336",
+    "crypto_weakness": "CWE-327",
 }
 
 # Vulnerability categories that are NOT data-flow problems — they can never

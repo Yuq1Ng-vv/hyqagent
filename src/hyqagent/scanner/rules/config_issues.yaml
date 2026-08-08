@@ -101,3 +101,272 @@ rules:
     severity: low
     message: "Express X-Powered-By 头未禁用 — 泄漏技术栈信息"
     languages: [javascript]
+
+  # ── Spring Security CSRF ────────────────────────────────────────────
+  - id: CONFIG-016
+    patterns:
+      - 'csrf\(\)\.disable\(\)'
+      - 'csrf\.disable\(\)'
+      - 'http\.csrf\(\)\.disable\(\)'
+    severity: high
+    message: "Spring Security CSRF 防护已禁用 — 易受跨站请求伪造攻击"
+    languages: [java]
+    cwe: "CWE-352"
+
+  - id: CONFIG-017
+    patterns:
+      - 'security\.enable-csrf\s*:\s*false'
+      - 'security\.enable-csrf\s*=\s*false'
+    severity: high
+    message: "Spring Security CSRF 配置关闭"
+    languages: [java]
+    cwe: "CWE-352"
+
+  # ── Spring Security access control ──────────────────────────────────
+  - id: CONFIG-018
+    patterns:
+      - '\.anyRequest\(\)\.permitAll\(\)'
+      - '\.authorizeRequests\(\)\.anyRequest\(\)\.permitAll\(\)'
+      - 'authorizeRequests\(\)\.anyRequest\(\)\.permitAll\(\)'
+    severity: critical
+    message: "Spring Security 允许所有请求 — 无认证控制"
+    languages: [java]
+    cwe: "CWE-284"
+
+  - id: CONFIG-019
+    patterns:
+      - '\.antMatchers\("/\*\*"\)\.permitAll\(\)'
+      - '\.antMatchers\("/\*\*"\)\.anonymous\(\)'
+    severity: critical
+    message: "Spring Security 通配符路径免认证 — 可能暴露敏感端点"
+    languages: [java]
+    cwe: "CWE-284"
+
+  # ── CORS misconfig (Spring) ─────────────────────────────────────────
+  - id: CONFIG-020
+    patterns:
+      - 'allowedOrigins\("\*"\)'
+      - 'allowedOrigins\("\*"'
+      - '\.allowedOrigins\(\*\)'
+    severity: high
+    message: "Spring CORS 允许所有来源 — 与 allowCredentials 组合时极危险"
+    languages: [java]
+    cwe: "CWE-942"
+
+  - id: CONFIG-021
+    patterns:
+      - '@CrossOrigin\(origins\s*=\s*"\*"\)'
+      - '@CrossOrigin\(\*\)'
+    severity: medium
+    message: "@CrossOrigin 注解允许所有来源"
+    languages: [java]
+    cwe: "CWE-942"
+
+  # ── Security headers disabled ───────────────────────────────────────
+  - id: CONFIG-022
+    patterns:
+      - '\.headers\(\)\.disable\(\)'
+      - 'headers\(\)\.disable\(\)'
+    severity: high
+    message: "Spring Security 所有安全响应头已禁用"
+    languages: [java]
+    cwe: "CWE-693"
+
+  - id: CONFIG-023
+    patterns:
+      - '\.frameOptions\(\)\.disable\(\)'
+      - 'frameOptions\(\)\.disable\(\)'
+    severity: medium
+    message: "Spring Security 点击劫持防护已禁用 (X-Frame-Options)"
+    languages: [java]
+    cwe: "CWE-1021"
+
+  - id: CONFIG-024
+    patterns:
+      - '\.xssProtection\(\)\.disable\(\)'
+      - 'xssProtection\(\)\.disable\(\)'
+    severity: low
+    message: "Spring Security XSS 防护头已禁用"
+    languages: [java]
+    cwe: "CWE-693"
+
+  # ── HSTS missing ────────────────────────────────────────────────────
+  - id: CONFIG-025
+    patterns:
+      - '\.httpStrictTransportSecurity\(\)\.disable\(\)'
+      - 'httpStrictTransportSecurity\(\)\.disable\(\)'
+    severity: medium
+    message: "Spring Security HSTS 已禁用 — 缺少 HTTPS 强制"
+    languages: [java]
+    cwe: "CWE-319"
+
+  # ── Method security disabled ────────────────────────────────────────
+  - id: CONFIG-026
+    patterns:
+      - 'prePostEnabled\s*=\s*false'
+      - 'securedEnabled\s*=\s*false'
+    severity: high
+    message: "Spring 方法级安全注解已禁用 — @PreAuthorize/@Secured 无效"
+    languages: [java]
+    cwe: "CWE-862"
+
+  # ── Cookie security ─────────────────────────────────────────────────
+  - id: CONFIG-027
+    patterns:
+      - 'cookie\.secure\s*:\s*false'
+      - 'cookie\.secure\s*=\s*false'
+      - 'setUseSecureCookie\(false\)'
+    severity: high
+    message: "Cookie Secure 标志关闭 — Cookie 可能通过 HTTP 明文传输"
+    languages: [java]
+    cwe: "CWE-614"
+
+  - id: CONFIG-028
+    patterns:
+      - 'cookie\.http-only\s*:\s*false'
+      - 'cookie\.http-only\s*=\s*false'
+      - 'setUseHttpOnlyCookie\(false\)'
+    severity: medium
+    message: "Cookie HttpOnly 关闭 — JavaScript 可读取 Cookie"
+    languages: [java]
+    cwe: "CWE-1004"
+
+  - id: CONFIG-029
+    patterns:
+      - 'cookie\.same-site\s*:\s*None'
+      - 'cookie\.same-site\s*=\s*None'
+      - 'SameSite\s*=\s*None'
+    severity: low
+    message: "Cookie SameSite=None — 容易受 CSRF 攻击（需同时 Secure=true）"
+    languages: [java]
+    cwe: "CWE-1275"
+
+  # ── DevTools in production ──────────────────────────────────────────
+  - id: CONFIG-030
+    patterns:
+      - 'spring\.devtools\.restart\.enabled\s*:\s*true'
+      - 'spring\.devtools\.restart\.enabled\s*=\s*true'
+      - 'spring\.devtools\.livereload\.enabled\s*:\s*true'
+    severity: high
+    message: "Spring DevTools 在生产环境启用 — 可能允许远程代码修改"
+    languages: [java]
+    cwe: "CWE-489"
+
+  - id: CONFIG-031
+    patterns:
+      - 'spring\.devtools\.remote\.enabled\s*:\s*true'
+      - 'spring\.devtools\.remote\.enabled\s*=\s*true'
+      - 'spring\.devtools\.remote\.secret'
+    severity: critical
+    message: "Spring DevTools 远程调试已启用 — 可远程执行代码"
+    languages: [java]
+    cwe: "CWE-489"
+
+  # ── H2 Console ──────────────────────────────────────────────────────
+  - id: CONFIG-032
+    patterns:
+      - 'spring\.h2\.console\.enabled\s*:\s*true'
+      - 'spring\.h2\.console\.enabled\s*=\s*true'
+      - 'spring\.h2\.console\.settings\.web-allow-others\s*:\s*true'
+    severity: critical
+    message: "H2 数据库控制台已启用 — 可访问内存数据库"
+    languages: [java]
+    cwe: "CWE-862"
+
+  # ── Actuator extended ───────────────────────────────────────────────
+  - id: CONFIG-033
+    patterns:
+      - 'management\.endpoint\.health\.show-details\s*:\s*always'
+      - 'management\.endpoint\.health\.show-details\s*=\s*always'
+    severity: medium
+    message: "Actuator Health 端点显示详细信息 — 泄漏内部状态"
+    languages: [java]
+    cwe: "CWE-200"
+
+  - id: CONFIG-034
+    patterns:
+      - 'management\.endpoint\.env\.enabled\s*:\s*true'
+      - 'management\.endpoint\.configprops\.enabled\s*:\s*true'
+      - 'management\.endpoint\.beans\.enabled\s*:\s*true'
+    severity: medium
+    message: "Actuator 敏感端点已启用 — 泄漏环境变量/配置/Bean"
+    languages: [java]
+    cwe: "CWE-200"
+
+  # ── Error stacktraces ───────────────────────────────────────────────
+  - id: CONFIG-035
+    patterns:
+      - 'server\.error\.include-stacktrace\s*:\s*always'
+      - 'server\.error\.include-stacktrace\s*=\s*always'
+      - 'server\.error\.include-message\s*:\s*always'
+      - 'server\.error\.include-exception\s*:\s*true'
+    severity: medium
+    message: "错误响应包含堆栈跟踪/异常详情 — 信息泄漏"
+    languages: [java]
+    cwe: "CWE-209"
+
+  # ── SQL logging in production ───────────────────────────────────────
+  - id: CONFIG-036
+    patterns:
+      - 'spring\.jpa\.show-sql\s*:\s*true'
+      - 'spring\.jpa\.show-sql\s*=\s*true'
+      - 'spring\.jpa\.properties\.hibernate\.format_sql\s*:\s*true'
+    severity: medium
+    message: "生产环境 SQL 日志输出 — 可能泄漏查询结构和数据"
+    languages: [java]
+    cwe: "CWE-532"
+
+  # ── Sensitive log levels ────────────────────────────────────────────
+  - id: CONFIG-037
+    patterns:
+      - 'logging\.level\.org\.springframework\.security\s*:\s*DEBUG'
+      - 'logging\.level\.org\.springframework\.security\s*=\s*DEBUG'
+      - 'logging\.level\.org\.hibernate\.SQL\s*:\s*DEBUG'
+      - 'logging\.level\.org\.hibernate\.type\.descriptor\.sql\.BasicBinder\s*:\s*TRACE'
+    severity: medium
+    message: "安全/Hibernate SQL 调试日志启用 — 可能泄漏敏感数据"
+    languages: [java]
+    cwe: "CWE-532"
+
+  # ── HTTPS disabled ──────────────────────────────────────────────────
+  - id: CONFIG-038
+    patterns:
+      - 'server\.ssl\.enabled\s*:\s*false'
+      - 'server\.ssl\.enabled\s*=\s*false'
+      - 'security\.require-ssl\s*:\s*false'
+    severity: high
+    message: "HTTPS 已禁用 — 通信明文传输"
+    languages: [java]
+    cwe: "CWE-319"
+
+  # ── Weak TLS configuration ──────────────────────────────────────────
+  - id: CONFIG-039
+    patterns:
+      - 'server\.ssl\.protocol\s*:\s*TLSv1\b'
+      - 'server\.ssl\.protocol\s*=\s*TLSv1\b'
+      - 'server\.ssl\.enabled-protocols\s*:.*TLSv1[^.]'
+    severity: medium
+    message: "使用过时的 TLS 版本 — TLSv1/TLSv1.1 已被弃用"
+    languages: [java]
+    cwe: "CWE-326"
+
+  # ── Jackson default typing ──────────────────────────────────────────
+  - id: CONFIG-040
+    patterns:
+      - 'spring\.jackson\.serialization\.enable-default-typing\s*:\s*true'
+      - 'enable-default-typing\s*:\s*true'
+    severity: critical
+    message: "Jackson DefaultTyping 已启用 — 多态反序列化 RCE 风险"
+    languages: [java]
+    cwe: "CWE-502"
+
+  # ── JMX exposed ─────────────────────────────────────────────────────
+  - id: CONFIG-041
+    patterns:
+      - 'spring\.jmx\.enabled\s*:\s*true'
+      - 'com\.sun\.management\.jmxremote'
+      - 'com\.sun\.management\.jmxremote\.authenticate\s*=\s*false'
+    severity: high
+    message: "JMX 已启用/无认证 — 可远程执行管理操作"
+    languages: [java]
+    cwe: "CWE-862"
