@@ -13,7 +13,7 @@ from hyqagent.api.config import HyqAgentConfig
 class TestHyqAgentConfig:
     def test_defaults(self):
         cfg = HyqAgentConfig()
-        assert cfg.cheap_model == "deepseek-v4-flash-0731"
+        assert cfg.cheap_model == "deepseek-v4-flash"
         assert cfg.mid_model == "claude-sonnet-5"
         assert cfg.strong_model == "claude-opus-5"
         assert cfg.default_language == ""

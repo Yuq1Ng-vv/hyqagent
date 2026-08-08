@@ -81,7 +81,7 @@ class ModelRouter:
     # Default model specs — overridable via HyqAgentConfig
     CHEAP_SPEC = ModelSpec(
         tier=ModelTier.CHEAP,
-        model_id="deepseek-v4-flash-0731",
+        model_id="deepseek-v4-flash",
         provider_key="deepseek",
         cost_per_1k_input=0.00014,  # ¥1/1M tokens ≈ $0.14/1M → $0.00014/1K
         cost_per_1k_output=0.00028,  # ¥2/1M tokens ≈ $0.28/1M → $0.00028/1K

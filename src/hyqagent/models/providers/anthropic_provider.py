@@ -168,24 +168,42 @@ class AnthropicProvider:
             }
         ]
 
+        # Detect DeepSeek endpoint: requiring workarounds for tool_choice and
+        # thinking mode (DeepSeek 默认开启思考模式, which wraps output in
+        # `thinking` blocks that bury the tool_use payload).
+        _is_deepseek = self._config.base_url and "deepseek" in self._config.base_url
+
+        # DeepSeek: disable thinking so tool_use comes back cleanly.
+        _extra_kwargs: dict[str, Any] = dict(kwargs)
+        if _is_deepseek:
+            _extra_kwargs.setdefault("thinking", {"type": "disabled"})
+
         response = await self.generate(
             messages=messages,
             model=model,
-            system=system + "\n\nYou MUST use the provided tool to produce structured output.",
+            system=(
+                system
+                + "\n\nYou MUST call the `"
+                + tool_name
+                + "` tool to produce structured output. Do not respond with text only."
+            ),
             max_tokens=max_tokens,
             temperature=temperature,
             tools=tools,
-            tool_choice={"type": "tool", "name": tool_name},
-            **kwargs,
+            tool_choice=(
+                {"type": "auto"} if _is_deepseek else {"type": "tool", "name": tool_name}
+            ),
+            **_extra_kwargs,
         )
 
-        # Extract tool_use block
+        # Extract tool_use block (skip thinking / redacted_thinking blocks
+        # that DeepSeek may emit even with thinking disabled).
         content = response.get("content", [])
         for block in content:
             if block.get("type") == "tool_use":
                 return block.get("input", {})  # type: ignore[no-any-return]
 
-        # Fallback: try to parse text as JSON
+        # Fallback: parse text blocks as JSON (skip non-structured blocks).
         for block in content:
             if block.get("type") == "text":
                 text = block.get("text", "")
@@ -259,7 +277,10 @@ class AnthropicProvider:
             reraise=True,
         )
         async def _call() -> dict[str, Any]:
-            response = await self._client.messages.create(
+            import asyncio
+
+            response = await asyncio.to_thread(
+                self._client.messages.create,
                 model=model,
                 max_tokens=max_tokens,
                 system=system,

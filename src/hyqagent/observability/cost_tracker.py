@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 
 PRICING: dict[str, dict[str, float]] = {
-    "deepseek-v4-flash-0731": {
+    "deepseek-v4-flash": {
         "input": 0.00014,  # ¥1/1M → ~$0.14/1M → $0.00014/1K
         "output": 0.00028,  # ¥2/1M → ~$0.28/1M → $0.00028/1K
         "cache_read": 0.000003,
@@ -74,7 +74,7 @@ class CostTracker:
     Usage::
 
         tracker = CostTracker(max_budget=5.0)
-        tracker.record("hypothesis_gen", "deepseek-v4-flash-0731",
+        tracker.record("hypothesis_gen", "deepseek-v4-flash",
                         input_tokens=1200, output_tokens=300)
         if tracker.is_budget_exceeded():
             print("Budget exceeded!")

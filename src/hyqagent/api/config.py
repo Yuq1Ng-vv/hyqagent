@@ -35,7 +35,7 @@ class HyqAgentConfig(BaseSettings):
     )
 
     # ── Model config ───────────────────────────────────────────────────
-    cheap_model: str = "deepseek-v4-flash-0731"
+    cheap_model: str = "deepseek-v4-flash"
     mid_model: str = "claude-sonnet-5"
     strong_model: str = "claude-opus-5"
 

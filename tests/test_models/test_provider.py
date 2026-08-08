@@ -61,7 +61,7 @@ class TestAnthropicProviderGenerate:
         mock_response.content = [MagicMock(type="text", text="Hello from Claude")]
         mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
         provider._client.messages = MagicMock()
-        provider._client.messages.create = AsyncMock(return_value=mock_response)
+        provider._client.messages.create = MagicMock(return_value=mock_response)
 
         result = await provider.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -78,7 +78,7 @@ class TestAnthropicProviderGenerate:
         mock_response.content = [MagicMock(type="text", text="ok")]
         mock_response.usage = MagicMock(input_tokens=5, output_tokens=3)
         provider._client.messages = MagicMock()
-        provider._client.messages.create = AsyncMock(return_value=mock_response)
+        provider._client.messages.create = MagicMock(return_value=mock_response)
 
         await provider.generate(
             messages=[{"role": "user", "content": "x"}],
@@ -102,7 +102,7 @@ class TestAnthropicProviderGenerate:
         mock_response.content = [mock_block]
         mock_response.usage = MagicMock(input_tokens=50, output_tokens=20)
         provider._client.messages = MagicMock()
-        provider._client.messages.create = AsyncMock(return_value=mock_response)
+        provider._client.messages.create = MagicMock(return_value=mock_response)
 
         schema = {
             "name": "report_finding",
@@ -166,7 +166,7 @@ class TestAnthropicProviderCountTokens:
         msg = "This is a test message with roughly forty characters"
         count = provider.count_tokens(
             messages=[{"role": "user", "content": msg}],
-            model="deepseek-v4-flash-0731",
+            model="deepseek-v4-flash",
         )
 
         # char/4 = len(msg)/4 ≈ 14, should be in that ballpark

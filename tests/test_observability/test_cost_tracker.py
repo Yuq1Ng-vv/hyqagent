@@ -14,8 +14,8 @@ from hyqagent.observability.cost_tracker import (
 
 class TestPricingTable:
     def test_deepseek_pricing(self) -> None:
-        assert "deepseek-v4-flash-0731" in PRICING
-        p = PRICING["deepseek-v4-flash-0731"]
+        assert "deepseek-v4-flash" in PRICING
+        p = PRICING["deepseek-v4-flash"]
         assert p["input"] < p["output"]
         assert p["input"] < 0.01
 
@@ -56,7 +56,7 @@ class TestCostTracker:
     def test_record_single_call(self, tracker: CostTracker) -> None:
         entry = tracker.record(
             phase="hypothesis_gen",
-            model="deepseek-v4-flash-0731",
+            model="deepseek-v4-flash",
             input_tokens=1000,
             output_tokens=200,
         )
@@ -66,7 +66,7 @@ class TestCostTracker:
         assert len(tracker.entries) == 1
 
     def test_record_multiple_calls(self, tracker: CostTracker) -> None:
-        tracker.record("phase_a", "deepseek-v4-flash-0731", input_tokens=1000, output_tokens=200)
+        tracker.record("phase_a", "deepseek-v4-flash", input_tokens=1000, output_tokens=200)
         tracker.record("phase_b", "claude-sonnet-5", input_tokens=500, output_tokens=100)
         assert len(tracker.entries) == 2
         assert tracker.total_cost() > 0
@@ -74,7 +74,7 @@ class TestCostTracker:
     def test_deepseek_cheaper_than_claude(self, tracker: CostTracker) -> None:
         """DeepSeek should be ~50x cheaper per token than Claude Opus."""
         ds = tracker.record(
-            "test", "deepseek-v4-flash-0731",
+            "test", "deepseek-v4-flash",
             input_tokens=10000, output_tokens=1000,
         )
         opus = tracker.record(
@@ -86,7 +86,7 @@ class TestCostTracker:
         assert opus.cost_usd > ds.cost_usd * 10
 
     def test_budget_not_exceeded_initially(self, tracker: CostTracker) -> None:
-        tracker.record("test", "deepseek-v4-flash-0731", input_tokens=1000, output_tokens=100)
+        tracker.record("test", "deepseek-v4-flash", input_tokens=1000, output_tokens=100)
         assert not tracker.is_budget_exceeded()
 
     def test_budget_exceeded(self, tracker: CostTracker) -> None:
@@ -101,9 +101,9 @@ class TestCostTracker:
         assert tracker.remaining_budget() == 0.0
 
     def test_cost_by_phase(self, tracker: CostTracker) -> None:
-        tracker.record("discovery", "deepseek-v4-flash-0731", input_tokens=1000, output_tokens=200)
+        tracker.record("discovery", "deepseek-v4-flash", input_tokens=1000, output_tokens=200)
         tracker.record("verification", "claude-sonnet-5", input_tokens=500, output_tokens=100)
-        tracker.record("discovery", "deepseek-v4-flash-0731", input_tokens=800, output_tokens=150)
+        tracker.record("discovery", "deepseek-v4-flash", input_tokens=800, output_tokens=150)
 
         by_phase = tracker.cost_by_phase()
         assert "discovery" in by_phase
@@ -112,16 +112,16 @@ class TestCostTracker:
         assert by_phase["verification"] > 0
 
     def test_cost_by_model(self, tracker: CostTracker) -> None:
-        tracker.record("a", "deepseek-v4-flash-0731", input_tokens=1000, output_tokens=200)
+        tracker.record("a", "deepseek-v4-flash", input_tokens=1000, output_tokens=200)
         tracker.record("b", "claude-sonnet-5", input_tokens=500, output_tokens=100)
 
         by_model = tracker.cost_by_model()
-        assert "deepseek-v4-flash-0731" in by_model
+        assert "deepseek-v4-flash" in by_model
         assert "claude-sonnet-5" in by_model
 
     def test_summary(self, tracker: CostTracker) -> None:
-        tracker.record("a", "deepseek-v4-flash-0731", input_tokens=1000, output_tokens=200)
-        tracker.record("b", "deepseek-v4-flash-0731", input_tokens=500, output_tokens=100)
+        tracker.record("a", "deepseek-v4-flash", input_tokens=1000, output_tokens=200)
+        tracker.record("b", "deepseek-v4-flash", input_tokens=500, output_tokens=100)
 
         summary = tracker.summary()
         assert isinstance(summary, CostSummary)
@@ -141,11 +141,11 @@ class TestCostTracker:
     def test_cache_read_tokens_reduce_cost(self, tracker: CostTracker) -> None:
         """Cache reads should be cheaper than fresh reads."""
         no_cache = tracker.record(
-            "a", "deepseek-v4-flash-0731", input_tokens=1000, output_tokens=100,
+            "a", "deepseek-v4-flash", input_tokens=1000, output_tokens=100,
         )
         # Same tokens but with cache reads
         tracker2 = CostTracker()
-        with_cache = tracker2.record("a", "deepseek-v4-flash-0731",
+        with_cache = tracker2.record("a", "deepseek-v4-flash",
                                      input_tokens=1000, output_tokens=100,
                                      cache_read_tokens=500)
         # Cache reads should reduce the cost
