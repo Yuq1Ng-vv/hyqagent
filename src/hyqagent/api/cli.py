@@ -280,28 +280,23 @@ def _run_scan(
     scanners.
     """
     # ── Build CPG graph ──────────────────────────────────────────────
-    try:
-        from hyqagent.cpg.build import CPGBuilder  # type: ignore[import-untyped]
-    except ImportError as err:
-        raise RuntimeError(
-            "CPG build module not available. Ensure the 'hyqagent' package is installed correctly."
-        ) from err
+    from hyqagent.cpg.graph import CPGGraphBuilder  # type: ignore[import-untyped]
+    from hyqagent.cpg.parser import Parser  # type: ignore[import-untyped]
+    from hyqagent.cpg.taint_loader import TaintRuleLoader
 
-    builder = CPGBuilder()
+    taint_loader = TaintRuleLoader()
+    parser = Parser()
+    builder = CPGGraphBuilder(parser, taint_loader=taint_loader)
+
     for fp in file_paths:
-        builder.build_file(fp, language, parse_project=False)
+        builder.add_file(fp)
 
-    graph = builder.finalize()
+    graph = builder.graph
 
     # ── Query layer ──────────────────────────────────────────────────
     from hyqagent.cpg.query import CPGQuery
 
     query = CPGQuery(graph)
-
-    # ── Taint rules ──────────────────────────────────────────────────
-    from hyqagent.cpg.taint_loader import TaintRuleLoader
-
-    taint_loader = TaintRuleLoader()
 
     # ── Discovery / coverage ─────────────────────────────────────────
     from hyqagent.cpg.discovery import (
