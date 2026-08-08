@@ -45,7 +45,7 @@ class HyqAgentConfig(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com/anthropic"
 
     # ── Budget (Phase 3+) ──────────────────────────────────────────────
-    max_llm_budget: float = 5.0
+    max_llm_budget: float = 1.39  # ≈ ¥10 (DeepSeek Flash: ~0.14/百万tokens)
     llm_max_retries: int = 3
     llm_timeout_seconds: int = 120
 
