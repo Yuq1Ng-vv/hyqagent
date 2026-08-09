@@ -30,6 +30,7 @@ dependencies = [
     "tree-sitter-python>=0.25.0",
     "tree-sitter-javascript>=0.25.0",
     "tree-sitter-java>=0.23.5",
+    "docker>=7.1",
 ]
 
 [project.optional-dependencies]
@@ -142,4 +143,5 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-benchmark>=5.2.3",
     "ruff>=0.16.1",
+    "types-docker>=7.2.0.20260806",
 ]

@@ -118,6 +118,27 @@ def main(ctx: click.Context) -> None:
     "or recall (reduce false negatives — LLM gets full code access + tools). "
     "Recall mode implies --deep.",
 )
+@click.option(
+    "--verify",
+    "enable_dynamic_verification",
+    is_flag=True,
+    default=False,
+    help="Enable dynamic PoC verification in Docker sandbox (L6). "
+    "Requires Docker and hyqagent-sandbox image.",
+)
+@click.option(
+    "--sandbox-image",
+    default="hyqagent-sandbox:latest",
+    help="Docker image for sandbox execution.",
+    hidden=True,
+)
+@click.option(
+    "--sandbox-timeout",
+    type=int,
+    default=30,
+    help="Sandbox execution timeout in seconds.",
+    hidden=True,
+)
 @click.pass_context
 def scan(
     ctx: click.Context,
@@ -129,6 +150,9 @@ def scan(
     quiet: bool,
     deep: bool,
     audit_mode: str,
+    enable_dynamic_verification: bool,
+    sandbox_image: str,
+    sandbox_timeout: int,
 ) -> None:
     r"""Audit PATH for security vulnerabilities.
 
@@ -208,6 +232,9 @@ def scan(
                     config,
                     quiet=quiet,
                     audit_mode=audit_mode,
+                    enable_dynamic_verification=enable_dynamic_verification,
+                    sandbox_image=sandbox_image,
+                    sandbox_timeout=sandbox_timeout,
                 )
             )
         except Exception as exc:
@@ -248,6 +275,9 @@ def scan(
             "coverage_audit": deep_data.get("coverage_audit"),
             "phases_completed": deep_data.get("phases_completed", []),
             "validations": deep_data.get("validations", []),
+            "dynamic_verification_results": deep_data.get(
+                "dynamic_verification_results"
+            ),
         }
 
     report_text = generator.generate(
@@ -462,6 +492,9 @@ async def _run_deep_audit(
     config: HyqAgentConfig,
     quiet: bool = False,
     audit_mode: str = "precision",
+    enable_dynamic_verification: bool = False,
+    sandbox_image: str = "hyqagent-sandbox:latest",
+    sandbox_timeout: int = 30,
 ) -> ScanResult:
     """Phase 3+ deep audit powered by :class:`Orchestrator`.
 
@@ -484,6 +517,9 @@ async def _run_deep_audit(
         mode=mode,
         max_agent_turns=config.max_agent_turns,
         tool_result_max_chars=config.tool_result_max_chars,
+        enable_dynamic_verification=enable_dynamic_verification,
+        sandbox_image=sandbox_image,
+        sandbox_timeout=sandbox_timeout,
     )
 
     report = await orch.run(
@@ -506,6 +542,7 @@ async def _run_deep_audit(
         "completeness_review": report.completeness_review,
         "coverage_audit": report.coverage_audit,
         "phases_completed": report.phases_completed,
+        "dynamic_verification_results": report.dynamic_verification_results,
     }
     result.hypotheses = report.hypotheses  # type: ignore[attr-defined]
     result.coverage_audit = report.coverage_audit  # type: ignore[attr-defined]

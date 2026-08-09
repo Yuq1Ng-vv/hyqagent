@@ -126,7 +126,10 @@ if self._audit_mode == AuditMode.RECALL:
 
 ## 下步衔接
 
-- 需要在有 API key 的环境下做 recall mode 的端到端测试（在有已知漏洞的 vulpy/dvna 项目上对比 precision vs recall 的发现数量）
-- `Validator._read_code_for_hypothesis()` 目前只读 source/sink 所在 chunk，未来可以扩展为读完整数据流路径上的所有函数
-- AdversarialReviewer 和 BlindScanReviewer 的 code_contexts wiring 需要在 orchestrator 中补完（目前只做了 HypothesisGenerator 和 Validator 的接入）
+- 需要在有 API key 的环境下做 recall mode 的端到端测试（在有已知漏洞的 vulpy/dvna 项目上对比 precision vs recall 的发现数量和 tokens 成本）
+- `Validator._read_code_for_hypothesis()` 目前只读 source/sink 所在 chunk，未来可扩展为读完整数据流路径上的所有函数
+- 动态验证沙箱（Docker PoC 执行）是 AutoCVE 对比中 HyqAgent 唯一缺失的能力，约 8 个检测项需要运行时确认（反序列化 RCE、JNDI 注入等）
 - 考虑做一个 `RecallModeAdapter` 类集中管理 recall 依赖的构建和注入，减轻 orchestrator 负担
+- CompletenessCritic 的 `project_summary` 可以通过 CodeRetriever 提供更丰富的项目统计（依赖包列表、框架版本等）
+
+> **修正 (2026-08-09)**: "下步衔接"原版错误声称 AdversarialReviewer 和 BlindScanReviewer 的 code_contexts wiring "待补完"，实际代码已在 Session 1.32 中全部完成（`orchestrator.py:746-778` 和 `:928-952`）。5 个 LLM 通道的 recall-mode 接线全部到位。

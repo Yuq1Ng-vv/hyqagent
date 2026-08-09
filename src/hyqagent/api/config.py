@@ -54,6 +54,11 @@ class HyqAgentConfig(BaseSettings):
     max_agent_turns: int = 10  # AgentLoop max turns (recall mode only)
     tool_result_max_chars: int = 8_000  # Cumulative tool result budget (recall only)
 
+    # ── Dynamic verification ────────────────────────────────────────────
+    enable_dynamic_verification: bool = False  # --verify flag
+    sandbox_image: str = "hyqagent-sandbox:latest"
+    sandbox_timeout: int = 30  # seconds per PoC execution
+
     # ── Scanner config ─────────────────────────────────────────────────
     default_language: str = ""
     default_framework: str = ""

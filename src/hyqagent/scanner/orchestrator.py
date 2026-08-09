@@ -60,6 +60,7 @@ class PhaseName(StrEnum):
     BLIND_SCAN = "blind_scan"
     COVERAGE_AUDIT = "coverage_audit"
     COMPLETENESS_CRITIC = "completeness_critic"
+    DYNAMIC_VERIFICATION = "dynamic_verification"
     CONVERGENCE_CHECK = "convergence_check"
 
 
@@ -77,6 +78,7 @@ DEEP_PHASES: list[PhaseName] = [
     PhaseName.BLIND_SCAN,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.COMPLETENESS_CRITIC,
+    PhaseName.DYNAMIC_VERIFICATION,
     PhaseName.CONVERGENCE_CHECK,
 ]
 
@@ -178,6 +180,7 @@ class AuditReport:
     coverage_audit: Any = None  # CoverageAuditResult
     completeness_review: dict[str, Any] | None = None
     convergence: ConvergenceReport | None = None
+    dynamic_verification_results: list[dict[str, Any]] | None = None
     cost_summary: CostSummary = field(default_factory=CostSummary)
     scan_duration_ms: int = 0
     phases_completed: list[str] = field(default_factory=list)
@@ -233,6 +236,8 @@ class Orchestrator:
         saturation_scanner: Any = None,
         reverse_sink_analyzer: Any = None,
         blind_scan_reviewer: Any = None,
+        sandbox_executor: Any = None,  # SandboxExecutor (dynamic PoC verification)
+        poc_generator: Any = None,    # PocGenerator (LLM PoC code generation)
         # ── Observability (injected) ──
         observability: Any = None,  # ObservabilityManager
         # ── LLM layer (injected) ──
@@ -246,6 +251,9 @@ class Orchestrator:
         mode: Any = None,  # AuditMode — lazy-imported to avoid circular deps
         max_agent_turns: int = 10,
         tool_result_max_chars: int = 8_000,
+        enable_dynamic_verification: bool = False,
+        sandbox_image: str = "hyqagent-sandbox:latest",
+        sandbox_timeout: int = 30,
     ) -> None:
         db = str(db_path or self._DEFAULT_DB)
 
@@ -257,6 +265,9 @@ class Orchestrator:
         self._audit_mode = mode
         self._max_agent_turns = max_agent_turns
         self._tool_result_max_chars = tool_result_max_chars
+        self._enable_dynamic_verification = enable_dynamic_verification
+        self._sandbox_image = sandbox_image
+        self._sandbox_timeout = sandbox_timeout
 
         self._session_mgr = session_manager or SessionManager(db)
         self._checkpoint_mgr = checkpoint_manager or CheckpointManager(db)
@@ -277,6 +288,8 @@ class Orchestrator:
         self._saturation_scanner = saturation_scanner
         self._reverse_sink_analyzer = reverse_sink_analyzer
         self._blind_scan_reviewer = blind_scan_reviewer
+        self._sandbox_executor = sandbox_executor
+        self._poc_generator = poc_generator
 
         # LLM
         self._cheap = cheap_provider
@@ -542,6 +555,10 @@ class Orchestrator:
         # ── Post-loop: COMPLETENESS_CRITIC (runs once after convergence) ──
         if PhaseName.COMPLETENESS_CRITIC.value not in completed:
             await self._run_phase(PhaseName.COMPLETENESS_CRITIC)
+
+        # ── Post-loop: DYNAMIC_VERIFICATION (sandbox PoC, if enabled) ──
+        if PhaseName.DYNAMIC_VERIFICATION.value not in completed:
+            await self._run_phase(PhaseName.DYNAMIC_VERIFICATION)
 
     async def _run_phase(self, phase: PhaseName) -> None:
         """Execute a single phase, save checkpoint, and mark completed."""
@@ -1042,6 +1059,144 @@ class Orchestrator:
         except Exception:
             logger.warning("Completeness critic failed — skipping.")
 
+    async def _phase_dynamic_verification(self, state: PipelineState) -> None:
+        """Dynamic PoC verification in Docker sandbox (L6).
+
+        For confirmed CRITICAL/HIGH findings, generate and execute PoC code
+        to validate exploitability at runtime.  Guarded by ``--verify`` flag.
+        """
+        if not self._enable_dynamic_verification:
+            return
+        if self._sandbox_executor is None or self._poc_generator is None:
+            self._log("warn", "Dynamic verification: sandbox not configured — skipping.")
+            return
+
+        # ── Find eligible findings ──
+        findings = state.phase_states.get("findings", [])
+        validations = state.phase_states.get("validations", [])
+
+        # Build a lookup: hypothesis_id → validation verdict + confidence
+        val_map: dict[str, tuple[str, float]] = {}
+        for v in validations:
+            vid = getattr(v, "hypothesis_id", "")
+            vv = getattr(v, "verdict", "")
+            vc = getattr(v, "confidence", 0.0)
+            if vid:
+                val_map[vid] = (vv, vc)
+
+        eligible: list[dict[str, Any]] = []
+        for f in findings:
+            fid = getattr(f, "id", "")
+            sev = getattr(f, "severity", "low")
+            if sev not in ("critical", "high"):
+                continue
+            if fid in val_map:
+                verdict, conf = val_map[fid]
+                if verdict == "confirmed" and conf >= 0.7:
+                    eligible.append({
+                        "id": fid,
+                        "vuln_type": getattr(f, "vuln_type", "unknown"),
+                        "severity": sev,
+                        "source_location": getattr(f, "source_location", ""),
+                        "sink_location": getattr(f, "sink_location", ""),
+                        "description": getattr(f, "description", ""),
+                        "language": getattr(f, "language", "python"),
+                    })
+
+        if not eligible:
+            self._log("info", "Dynamic verification: no eligible findings to verify.")
+            return
+
+        self._log(
+            "phase",
+            f"Dynamic verification: {len(eligible)} finding(s) to verify via sandbox",
+        )
+
+        # ── Build code contexts for eligible findings ──
+        code_contexts: dict[str, str] = {}
+        if self._code_retriever is not None:
+            for f in eligible:
+                fid = f["id"]
+                parts: list[str] = []
+                for loc_attr in ("source_location", "sink_location"):
+                    loc = f.get(loc_attr, "")
+                    if not loc or ":" not in loc:
+                        continue
+                    try:
+                        fp, line_str = loc.rsplit(":", 1)
+                        line_num = int(line_str)
+                    except (ValueError, TypeError):
+                        continue
+                    chunks = self._code_retriever.get_chunks_for_file(fp)
+                    for chunk in chunks:
+                        if chunk.start_line <= line_num <= chunk.end_line:
+                            parts.append(
+                                f"## {chunk.function_name or '<module>'} "
+                                f"({fp}:{chunk.start_line}-{chunk.end_line})\n"
+                                f"```\n{chunk.code[:2000]}\n```"
+                            )
+                            break
+                if parts:
+                    code_contexts[fid] = "\n\n".join(parts)
+
+        # ── Get language ──
+        language = "python"
+        session = await self._session_mgr.get_session(state.session_id)
+        if session:
+            language = session.get("language", "python")
+
+        # ── Run verification ──
+        from hyqagent.scanner.sandbox import verify_findings
+
+        try:
+            results = await verify_findings(
+                findings=eligible,
+                executor=self._sandbox_executor,
+                generator=self._poc_generator,
+                language=language,
+                code_contexts=code_contexts,
+                concurrency=2,
+            )
+        except Exception:
+            logger.exception("Dynamic verification failed — skipping.")
+            return
+
+        state.phase_states["dynamic_verification"] = results
+
+        # ── Summarise ──
+        confirmed = sum(1 for r in results if r.verdict == "confirmed")
+        rejected = sum(1 for r in results if r.verdict == "rejected")
+        inconclusive = sum(1 for r in results if r.verdict == "inconclusive")
+
+        self._log(
+            "info",
+            f"Dynamic verification: {confirmed} confirmed, {rejected} rejected, "
+            f"{inconclusive} inconclusive (of {len(results)} total)",
+        )
+
+        # ── Accumulate into report ──
+        if self._report:
+            self._report.dynamic_verification_results = [
+                {
+                    "finding_id": r.finding_id,
+                    "vuln_type": r.vuln_type,
+                    "severity": r.severity,
+                    "verdict": r.verdict,
+                    "updated_confidence": r.updated_confidence,
+                    "reasoning": r.reasoning,
+                    "poc_code": r.poc_code[:500],
+                    "execution": {
+                        "exit_code": r.execution.exit_code if r.execution else -1,
+                        "timed_out": r.execution.timed_out if r.execution else False,
+                        "stdout": (r.execution.stdout[:200] if r.execution else ""),
+                    } if r.execution else None,
+                }
+                for r in results
+            ]
+
+        if confirmed > 0:
+            state.finding_count += confirmed
+
     async def _phase_convergence_check(self, state: PipelineState) -> None:
         """Evaluate convergence metrics from the latest round."""
         validations = state.phase_states.get("validations", [])
@@ -1493,6 +1648,36 @@ class Orchestrator:
                 provider=self._mid,
                 model=cfg.mid_model,
             )
+
+        # ── Dynamic verification sandbox ─────────────────────────────────
+        if (
+            self._enable_dynamic_verification
+            and self._sandbox_executor is None
+            and self._poc_generator is None
+        ):
+            try:
+                from hyqagent.scanner.sandbox import PocGenerator, SandboxExecutor
+
+                self._sandbox_executor = SandboxExecutor(
+                    image=self._sandbox_image,
+                    timeout=self._sandbox_timeout,
+                )
+                if self._strong is not None:
+                    self._poc_generator = PocGenerator(
+                        provider=self._strong,
+                        model=cfg.strong_model,
+                    )
+                if not self._quiet:
+                    _log = structlog.get_logger()
+                    _log.info(
+                        "dynamic_verification_ready",
+                        image=self._sandbox_image,
+                        timeout=self._sandbox_timeout,
+                        provider="strong" if self._strong is not None else "unavailable",
+                    )
+            except Exception:
+                logger.exception("dynamic_verification_init_failed")
+                self._enable_dynamic_verification = False
 
         # ── Observability ──────────────────────────────────────────────────
         if self._obs_manager is None:
