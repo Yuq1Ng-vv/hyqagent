@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.29 完成后 (2026-08-09)
-> 最新: Phase 4 Task 8 Observability 集成 已完成
+> 上次更新: Session 1.30 完成后 (2026-08-09)
+> 最新: Java 深 — 注解提取 + 框架深化 + 配置扫描 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -301,6 +301,21 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
 1. **移植 3 种核心 Nudge** 到现有流水线（不改变架构，最大性价比）
 2. **上下文管线 3 步**（tool_result_budget / history_snip / auto_compact），融入 Phase 4 上下文管理
 3. **动态验证沙箱** 作为 Phase 5 特性
+
+## Java 深化 (Session 1.30) — ✅ 完成
+
+> **"先做 Java 深"** — 在添加 PHP/Go 语言支持前，深化现有 Java 支持。
+> 详见 [dev-docs/Session-1.30-Java深-注解提取与框架深化.md](dev-docs/Session-1.30-Java深-注解提取与框架深化.md)
+> Commit: `0b42797`
+
+- [x] **JavaAdapter 注解提取** — `extract_decorators()` 从返回 `[]` 到真正的 tree-sitter 注解解析
+- [x] **JAX-RS 框架提取器** — 新增 `cpg/frameworks/jaxrs.py` (~250 lines)，支持 JAX-RS/Jakarta REST 端点发现
+- [x] **Spring 提取器深化** — 控制器验证（降低误报）、`@FeignClient`、Actuator 端点
+- [x] **Java 配置扫描器** — 新增 `scanner/java_config.py` (~380 lines)，pom.xml + properties/yml + web.xml
+- [x] **Orchestrator 接线** — Java 框架列表扩展为 `[SpringExtractor, JaxRsExtractor]`
+- [x] **测试扩展** — +35 新测试 (8 annotations + 15 frameworks + 12 config scanner)
+- [x] **Java 漏洞奇偶** — 新增 5 个 Java 漏洞 fixture (deser/jndi/spel/xxe/ssti)
+- [x] **质量门禁** — ruff 零新增, mypy 零新增, 1457 tests passed
 
 ## 当前阻塞
 - 无
