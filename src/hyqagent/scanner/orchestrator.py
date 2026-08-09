@@ -55,6 +55,7 @@ class PhaseName(StrEnum):
     HYPOTHESIS_GEN = "hypothesis_gen"
     VALIDATION = "validation"
     ADVERSARIAL_REVIEW = "adversarial_review"
+    SATURATION_SCAN = "saturation_scan"
     COVERAGE_AUDIT = "coverage_audit"
     COMPLETENESS_CRITIC = "completeness_critic"
     CONVERGENCE_CHECK = "convergence_check"
@@ -69,6 +70,7 @@ DEEP_PHASES: list[PhaseName] = [
     PhaseName.HYPOTHESIS_GEN,
     PhaseName.VALIDATION,
     PhaseName.ADVERSARIAL_REVIEW,
+    PhaseName.SATURATION_SCAN,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.COMPLETENESS_CRITIC,
     PhaseName.CONVERGENCE_CHECK,
@@ -79,6 +81,7 @@ _CONVERGE_BODY: list[PhaseName] = [
     PhaseName.HYPOTHESIS_GEN,
     PhaseName.VALIDATION,
     PhaseName.ADVERSARIAL_REVIEW,
+    PhaseName.SATURATION_SCAN,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.CONVERGENCE_CHECK,
 ]
@@ -221,6 +224,7 @@ class Orchestrator:
         coverage_auditor_class: Any = None,
         completeness_critic: Any = None,
         adversarial_reviewer: Any = None,
+        saturation_scanner: Any = None,
         # ── LLM layer (injected) ──
         cheap_provider: Any = None,
         mid_provider: Any = None,
@@ -247,6 +251,7 @@ class Orchestrator:
         self._coverage_auditor_class = coverage_auditor_class
         self._completeness_critic = completeness_critic
         self._adversarial_reviewer = adversarial_reviewer
+        self._saturation_scanner = saturation_scanner
 
         # LLM
         self._cheap = cheap_provider
@@ -663,6 +668,53 @@ class Orchestrator:
             f"Adversarial review: {len(results)} reviewed, {overturned} overturned",
         )
 
+    async def _phase_saturation_scan(self, state: PipelineState) -> None:
+        """Saturation scanning — expand attack surface from confirmed vulns.
+
+        Uses confirmed findings (via validation + adversarial review) as
+        seeds to discover adjacent code in the CPG call graph.  Purely
+        graph-based — no LLM cost.
+        """
+        if self._saturation_scanner is None:
+            return
+
+        mode = state.phase_states.get("mode", "deep")
+        if mode == "quick":
+            return
+
+        from hyqagent.scanner.saturation import confirmed_from_state
+
+        confirmed = confirmed_from_state(state)
+        if not confirmed:
+            self._log("info", "Saturation scan: no confirmed findings to seed from")
+            return
+
+        self._log(
+            "phase",
+            f"Saturation scan: expanding from {len(confirmed)} confirmed findings",
+        )
+
+        try:
+            result = await self._saturation_scanner.scan(confirmed)
+        except Exception:
+            logger.warning("Saturation scan failed — skipping.")
+            return
+
+        state.phase_states["saturation_result"] = result
+        state.phase_states["saturation_seeds"] = result.seed_functions
+
+        self._log(
+            "info",
+            result.reasoning,
+        )
+
+        # ── Feed new functions into convergence ─────────────────────────
+        # Saturation-discovered functions that haven't been analyzed yet
+        # extend the endpoint count → convergence requires more rounds.
+        new_funcs = result.total_seeds_generated
+        if new_funcs > 0:
+            state.endpoint_count += new_funcs
+
     async def _phase_coverage_audit(self, state: PipelineState) -> None:
         """Differential coverage audit (zero-LLM)."""
         if self._coverage_auditor_class is None or self._query is None:
@@ -1075,6 +1127,15 @@ class Orchestrator:
                 provider=self._strong,
                 model=cfg.strong_model,
                 nudge_loop=nudge,
+            )
+
+        # ── Saturation scanner ──────────────────────────────────────────
+        if self._saturation_scanner is None and self._query is not None:
+            from hyqagent.scanner.saturation import SaturationScanner
+
+            self._saturation_scanner = SaturationScanner(
+                cpg_query=self._query,
+                max_rounds=4,
             )
 
     @staticmethod
