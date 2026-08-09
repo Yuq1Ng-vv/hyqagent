@@ -467,6 +467,22 @@ class Orchestrator:
             if PhaseName.VALIDATION.value not in completed:
                 await self._run_phase(PhaseName.VALIDATION)
 
+            # ADVERSARIAL_REVIEW — attacker-lens review of rejected hypotheses
+            if PhaseName.ADVERSARIAL_REVIEW.value not in completed:
+                await self._run_phase(PhaseName.ADVERSARIAL_REVIEW)
+
+            # SATURATION_SCAN — expand CPG call graph from confirmed sinks
+            if PhaseName.SATURATION_SCAN.value not in completed:
+                await self._run_phase(PhaseName.SATURATION_SCAN)
+
+            # REVERSE_SINK — reverse BFS from sinks to unrecognised sources
+            if PhaseName.REVERSE_SINK.value not in completed:
+                await self._run_phase(PhaseName.REVERSE_SINK)
+
+            # BLIND_SCAN — LLM reviews endpoints for pattern-blind issues
+            if PhaseName.BLIND_SCAN.value not in completed:
+                await self._run_phase(PhaseName.BLIND_SCAN)
+
             # COVERAGE_AUDIT
             if PhaseName.COVERAGE_AUDIT.value not in completed:
                 await self._run_phase(PhaseName.COVERAGE_AUDIT)
