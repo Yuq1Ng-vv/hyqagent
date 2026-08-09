@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.34 完成后 (2026-08-09)
-> 最新: Phase 5 Task 1 — Golden Dataset (28 用例 + eval harness) 已完成
+> 上次更新: Session 1.35 完成后 (2026-08-09)
+> 最新: Phase 5 Task 3 — LLM Eval (DeepEval) 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -343,13 +343,21 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
   - **Golden 测试总计: 375 pass, 129 skip** (L1-L5, +56 scanner-level)
   - **测试总计: 1891 pass, 131 skip, 0 fail** (+56 golden + 0 regression)
 
+- [x] **Session 1.35** — Task 3: LLM Eval (DeepEval) + Mock Pipeline 测试
+  - **4 新文件**: `mock_responses.py` (7 预构建响应 + FakeProvider), `metrics.py` (4 自定义 DeepEval 指标), `test_llm_eval.py` (4 测试类), `Session-1.35-LLM-Eval-DeepEval.md`
+  - **2 修改**: `conftest.py` (mock_provider fixture), `hypothesis.py` (修复 `Task`/`TaskType` 运行时缺失导入)
+  - **4 确定性 DeepEval 指标**: VulnTypeAccuracy, SeverityAgreement, CWEMapping, VerdictCorrectness (全部无 LLM 依赖)
+  - **Mock 流水线测试**: 166 pass, 15 skip — HypothesisGenerator._parse_response + generate + Validator L1/L2
+  - **Opt-in Real LLM**: `HYQAGENT_EVAL_REAL_LLM=1` 启用 GEval 评测 (2 tests, CI 默认 skip)
+  - **测试总计: 2057 pass, 202 skip, 0 fail** (+166 new + 0 regression)
+
 ### Phase 5 剩余任务
 
 | # | 任务 | 状态 |
 |---|------|------|
 | 1 | Golden Dataset (25-30 labeled cases) | ✅ Session 1.33 完成 |
 | 2 | Scanner-level Golden 测试 (完整扫描流水线回归) | ✅ Session 1.34 完成 |
-| 3 | LLM-based eval (DeepEval) | 🔲 待开始 |
+| 3 | LLM-based eval (DeepEval) | ✅ Session 1.35 完成 |
 | 4 | CI/CD 集成 (GitHub Actions) | 🔲 待开始 |
 | 5 | 文档最终化 + 发布准备 | 🔲 待开始 |
 

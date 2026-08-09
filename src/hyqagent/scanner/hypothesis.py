@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from hyqagent.cpg.query import CPGQuery, GraphPath
     from hyqagent.cpg.types import BlindSpot
     from hyqagent.models.providers.anthropic_provider import AnthropicProvider
-    from hyqagent.models.router import ModelRouter, Task, TaskType
+    from hyqagent.models.router import ModelRouter
     from hyqagent.scanner.nudge import NudgeLoop
 
 logger = structlog.get_logger(__name__)
@@ -478,6 +478,8 @@ class HypothesisGenerator:
         label_str: str,
     ) -> list[Hypothesis]:
         """Generate hypotheses for a single annotated path."""
+        from hyqagent.models.router import Task, TaskType
+
         path = getattr(annotated, "path", None)
         if path is None:
             return []
@@ -523,9 +525,7 @@ class HypothesisGenerator:
         try:
             # ── Recall mode: agentic exploration ──────────────────────
             if self._agent_loop is not None and self._code_retriever is not None:
-                enriched = self._build_recall_prompt(
-                    annotated, label_str, slice_text, path
-                )
+                enriched = self._build_recall_prompt(annotated, label_str, slice_text, path)
                 loop_result = await self._agent_loop.run(
                     messages=[{"role": "user", "content": enriched}],
                     output_schema=HYPOTHESIS_SCHEMA,
@@ -644,8 +644,7 @@ class HypothesisGenerator:
         if slice_text:
             lang = self._language or ""
             parts.append(
-                f"\n### CPG Data-Flow Slice (pre-computed path)\n"
-                f"```{lang}\n{slice_text}\n```"
+                f"\n### CPG Data-Flow Slice (pre-computed path)\n```{lang}\n{slice_text}\n```"
             )
 
         # Full sink function source from CodeRetriever (the "terrain")
@@ -692,8 +691,7 @@ class HypothesisGenerator:
             score = metadata.get("score", 0)
             keywords = metadata.get("keywords", [])
             parts.append(
-                f"\n**Heuristic score**: {score}/100. "
-                f"**Matched keywords**: {', '.join(keywords)}"
+                f"\n**Heuristic score**: {score}/100. **Matched keywords**: {', '.join(keywords)}"
             )
 
         return "\n".join(parts)

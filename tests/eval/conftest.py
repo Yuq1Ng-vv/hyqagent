@@ -10,6 +10,7 @@ Provides:
 - ``golden_by_id`` — ``dict[str, GoldenCase]`` lookup helper
 - ``case`` — parametrized fixture that yields one :class:`GoldenCase` per test
 - ``build_graph_for_case`` — helper to build a CPG for a single fixture
+- ``mock_provider`` — :class:`FakeProvider` with canned LLM responses
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ from tests.eval.golden_loader import GoldenCase, GoldenDatasetLoader
 
 if TYPE_CHECKING:
     from hyqagent.cpg.graph import CPGGraphBuilder
+    from hyqagent.scanner.deterministic import DeterministicScanner
+    from tests.eval.mock_responses import FakeProvider
 
 
 # ── Heavy shared fixtures (module-scoped) ──────────────────────────────────
@@ -110,7 +113,7 @@ def build_scanner_for_case(
     parser: Parser,
     taint_loader: TaintRuleLoader,
     frameworks: list | None = None,
-) -> "DeterministicScanner":
+) -> DeterministicScanner:
     """Build a fully wired :class:`DeterministicScanner` for a single golden case.
 
     Constructs the full dependency chain:
@@ -137,3 +140,19 @@ def build_scanner_for_case(
         annotator,
         frameworks=frameworks,
     )
+
+
+# ── LLM eval fixtures ─────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def mock_provider() -> FakeProvider:
+    """Provide a :class:`FakeProvider` pre-loaded with common canned responses.
+
+    Returns a fresh provider for each test.  Call
+    :meth:`FakeProvider.enqueue` before invoking the component under test
+    to add test-specific responses.
+    """
+    from tests.eval.mock_responses import FakeProvider
+
+    return FakeProvider()
