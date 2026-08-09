@@ -142,21 +142,27 @@ class TestCostTracker:
         entries.pop()
         assert len(tracker.entries) == 1
 
-    def test_cache_read_tokens_reduce_cost(self, tracker: CostTracker) -> None:
-        """Cache reads should be cheaper than fresh reads."""
+    def test_cache_read_tokens_charged_at_lower_rate(self, tracker: CostTracker) -> None:
+        """Cache reads are charged at the cache_read rate, lower than input price."""
+        # No cache: 1000 input + 100 output
         no_cache = tracker.record(
             "a",
             "deepseek-v4-flash",
             input_tokens=1000,
             output_tokens=100,
         )
-        # Same tokens but with cache reads
+        # Cache reads are ADDITIONAL tokens at a cheaper rate
         tracker2 = CostTracker()
         with_cache = tracker2.record(
             "a", "deepseek-v4-flash", input_tokens=1000, output_tokens=100, cache_read_tokens=500
         )
-        # Cache reads should reduce the cost
-        assert with_cache.cost_usd < no_cache.cost_usd
+        # Total cost with cache reads should be higher than without
+        # (extra tokens at cache_read rate), but per-token cost should be lower
+        assert with_cache.cost_usd > no_cache.cost_usd
+        # The marginal cost of cache tokens is much less than input tokens
+        marginal = with_cache.cost_usd - no_cache.cost_usd
+        equivalent_input_cost = (500 / 1000) * 0.00014  # 500 extra input tokens
+        assert marginal < equivalent_input_cost
 
     def test_hypothesis_id_tracking(self, tracker: CostTracker) -> None:
         entry = tracker.record(

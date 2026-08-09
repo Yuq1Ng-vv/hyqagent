@@ -36,8 +36,8 @@ class HyqAgentConfig(BaseSettings):
 
     # ── Model config ───────────────────────────────────────────────────
     cheap_model: str = "deepseek-v4-flash"
-    mid_model: str = "claude-sonnet-5"
-    strong_model: str = "claude-opus-5"
+    mid_model: str = "deepseek-v4-flash"
+    strong_model: str = "deepseek-v4-flash"
 
     # ── API Keys (Phase 3+) ────────────────────────────────────────────
     anthropic_api_key: SecretStr = SecretStr("")

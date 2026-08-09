@@ -564,6 +564,11 @@ class Orchestrator:
         state.current_phase = phase
         self._log("phase", f"Phase: {phase.value}")
 
+        # Wire current phase into LLM providers so cost callbacks are tagged
+        for _prov in (self._cheap, self._mid, self._strong):
+            if _prov is not None:
+                _prov._current_phase = phase.value
+
         method = getattr(self, f"_phase_{phase.value}", None)
         if method is None:
             self._log("warn", f"No handler for phase '{phase.value}' — skipping.")

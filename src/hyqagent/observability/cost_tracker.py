@@ -174,7 +174,7 @@ class CostTracker:
 
         cost = input_k * pricing["input"]
         cost += output_k * pricing["output"]
-        # Cache reads are much cheaper (subtract the diff)
-        if cache_read_tokens > 0:
-            cost -= cache_k * (pricing["input"] - pricing["cache_read"])
+        # Cache reads: some providers (DeepSeek) report them separately from
+        # input_tokens — charge at the cache_read rate instead of full price.
+        cost += cache_k * pricing.get("cache_read", pricing["input"] * 0.1)
         return round(cost, 6)

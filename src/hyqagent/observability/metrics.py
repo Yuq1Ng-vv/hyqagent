@@ -92,7 +92,7 @@ class PrometheusMetrics:
     ) -> None:
         """Record a single LLM API call across counters and histogram."""
         self._llm_calls.labels(model=model, phase=phase, status=status).inc()
-        self._llm_cost.labels(model=model).inc(cost_usd)
+        self._llm_cost.labels(model=model).inc(max(0.0, cost_usd))
         self._llm_latency.labels(model=model, phase=phase).observe(latency_seconds)
 
     def record_finding(self, severity: str, cwe: str = "") -> None:

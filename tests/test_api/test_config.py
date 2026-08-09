@@ -13,8 +13,8 @@ class TestHyqAgentConfig:
     def test_defaults(self):
         cfg = HyqAgentConfig()
         assert cfg.cheap_model == "deepseek-v4-flash"
-        assert cfg.mid_model == "claude-sonnet-5"
-        assert cfg.strong_model == "claude-opus-5"
+        assert cfg.mid_model == "deepseek-v4-flash"
+        assert cfg.strong_model == "deepseek-v4-flash"
         assert cfg.default_language == ""
         assert cfg.scan_max_depth == 20
         assert cfg.heuristic_score_threshold == 60

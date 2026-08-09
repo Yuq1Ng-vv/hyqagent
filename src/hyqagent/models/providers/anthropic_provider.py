@@ -146,14 +146,17 @@ class AnthropicProvider:
 
         # ── Observability callback (CostTracker / Prometheus / AuditTrail) ──
         if self._on_call_complete is not None:
-            with contextlib.suppress(Exception):
+            try:
                 self._on_call_complete(
                     model=model,
+                    phase=getattr(self, "_current_phase", "unknown"),
                     input_tokens=usage.get("input_tokens", 0),
                     output_tokens=usage.get("output_tokens", 0),
                     cache_read_tokens=usage.get("cache_read_input_tokens", 0),
                     latency_ms=elapsed_ms,
                 )
+            except Exception:
+                logger.exception("on_call_complete_callback_failed")
 
         return result
 
