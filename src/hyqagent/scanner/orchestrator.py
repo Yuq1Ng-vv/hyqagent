@@ -571,12 +571,56 @@ class Orchestrator:
         state.phase_states["phase3_targets"] = phase3
 
     async def _phase_hypothesis_gen(self, state: PipelineState) -> None:
-        """Generate LLM hypotheses from annotated paths."""
+        """Generate LLM hypotheses from annotated paths AND seed feedback.
+
+        Seeds come from two sources:
+        - ``saturation_seeds`` — function names adjacent to confirmed vulns
+        - ``reverse_sink_result`` — sinks connected to unrecognised sources
+        """
         annotated = state.phase_states.get("annotated_paths", [])
-        if not annotated or self._hypothesis_gen is None:
+        if self._hypothesis_gen is None:
             return
 
-        hypotheses = await self._hypothesis_gen.generate(annotated)
+        hypotheses: list[Any] = []
+
+        # ── Primary: hypotheses from annotated paths ────────────────────
+        if annotated:
+            hypotheses = await self._hypothesis_gen.generate(annotated)
+
+        # ── Seed feedback: saturation seeds + reverse sink discoveries ──
+        seeds: list[str] = state.phase_states.get("saturation_seeds", []) or []
+        reverse_result = state.phase_states.get("reverse_sink_result")
+        discoveries: list[dict[str, Any]] = []
+        if reverse_result is not None:
+            for d in getattr(reverse_result, "discoveries", []) or []:
+                discoveries.append({
+                    "sink_name": getattr(d, "sink_name", ""),
+                    "sink_file": getattr(d, "sink_file", ""),
+                    "sink_line": getattr(d, "sink_line", 0),
+                    "source_names": getattr(d, "source_names", []) or [],
+                    "taint_category": getattr(d, "taint_category", ""),
+                    "confidence": getattr(d, "confidence", "medium"),
+                })
+
+        if seeds or discoveries:
+            self._log(
+                "info",
+                f"Seed feedback: {len(seeds)} saturation seeds, "
+                f"{len(discoveries)} reverse-sink discoveries",
+            )
+            try:
+                seed_hyps = await self._hypothesis_gen.generate_from_seeds(
+                    seed_functions=list(seeds),
+                    sink_discoveries=discoveries if discoveries else None,
+                )
+                hypotheses.extend(seed_hyps)
+                self._log(
+                    "info",
+                    f"Seed feedback produced {len(seed_hyps)} new hypotheses",
+                )
+            except Exception:
+                logger.warning("Seed feedback hypothesis generation failed — skipping.")
+
         state.phase_states["hypotheses"] = hypotheses
         if self._report:
             self._report.hypotheses = hypotheses

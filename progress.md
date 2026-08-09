@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.26 完成后 (2026-08-09)
-> 最新: Phase 4 反向 Sink 分析 + 盲扫 LLM 通道 已完成
+> 上次更新: Session 1.27 完成后 (2026-08-09)
+> 最新: Phase 4 P0 闭环种子反馈 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -213,6 +213,8 @@ Phase 3 全部 8 项任务已全部完成。
 > **Session 1.25 里程碑**: 饱和扫描 SaturationScanner 已完成（1 新文件、~285 行源码、33 tests）。
 > **Session 1.26 里程碑**: 反向 Sink 分析 + 盲扫 LLM 通道 已完成（2 新文件、~590 行源码、83 tests）。
 > 新增: `scanner/reverse_sink.py`（通道3，零 LLM）+ `scanner/blind_scan.py`（通道2，LLM）、Orchestrator 集成（2 新 Phase + 收敛视角联动）。
+> **Session 1.27 里程碑**: P0 闭环种子反馈 已完成（2 文件修改、+155 行源码、16 tests）。
+> 新增: `HypothesisGenerator.generate_from_seeds()` + `_read_function_source()`、`_phase_hypothesis_gen()` 双源合并（annotated paths + seed feedback）。三通道覆盖生态首次全闭环。
 > CLI `resume` 命令从 stub 变为真实实现，`_run_deep_audit()` 从 ~250 行内联管道简化为 ~30 行 Orchestrator 委托。
 
 - [x] **memory/context.py** — 三区段上下文模型 (固定/长期/工作)
@@ -241,6 +243,7 @@ Phase 3 全部 8 项任务已全部完成。
 | 5 | ~~收敛检测: VDR/EC/RWC/VCC/C_hat~~ | ✅ Session 1.23 完成 |
 | 6 | 补充机制: 反向Sink分析 + 盲扫LLM通道 | ✅ Session 1.26 完成 |
 | 7 | 对抗性审查 + 饱和扫描 | ✅ 全部完成 |
+| P0 | 闭环种子反馈 (seed feedback loop) | ✅ Session 1.27 完成 |
 | 8 | Observability 完整集成 (OTel + LangFuse + Prometheus) | 🔵 cost_tracker 已有 |
 | 9 | ~~信号处理 (SIGTERM/SIGUSR1) + Orchestrator~~ | ✅ Session 1.23 完成 |
 | 10 | ~~CLI resume 真正实现~~ | ✅ Session 1.23 完成 |

@@ -351,7 +351,123 @@ class HypothesisGenerator:
             logger.exception("blind_scan_failed")
             return []
 
+    async def generate_from_seeds(
+        self,
+        seed_functions: list[str],
+        sink_discoveries: list[dict[str, Any]] | None = None,
+    ) -> list[Hypothesis]:
+        """Generate hypotheses from saturation / reverse-sink seed functions.
+
+        These functions were discovered as callers/callees of confirmed
+        vulnerable sinks (saturation) or as sinks connected to unrecognised
+        sources (reverse sink analysis).  The LLM investigates each one for
+        vulnerabilities that the forward taint analysis may have missed.
+
+        Args:
+            seed_functions: Function names from :class:`SaturationScanner`.
+            sink_discoveries: Reverse-sink discovery dicts (each with keys
+                ``sink_name``, ``sink_file``, ``sink_line``,
+                ``source_names``, ``taint_category``, ``confidence``).
+
+        Returns:
+            Generated hypotheses, empty list on failure.
+
+        """
+        if not seed_functions and not sink_discoveries:
+            return []
+
+        graph = getattr(self._query, "_graph", None)
+        parts: list[str] = []
+
+        # ── Seed functions from saturation ──────────────────────────────
+        if seed_functions and graph is not None:
+            parts.append("## Saturation Seeds (callers/callees of confirmed vulns)\n")
+            parts.append(
+                "These functions were discovered by expanding from confirmed "
+                "vulnerable sinks along the CPG call graph.  They are adjacent "
+                "to confirmed vulnerabilities and may share similar flaws.\n"
+            )
+            for seed_name in seed_functions:
+                code = self._read_function_source(seed_name, graph)
+                if code:
+                    parts.append(code)
+                else:
+                    parts.append(f"- **{seed_name}** (source not available)")
+
+        # ── Reverse-sink discoveries ────────────────────────────────────
+        if sink_discoveries:
+            parts.append("\n## Reverse Sink Discoveries (sinks → unrecognised sources)\n")
+            parts.append(
+                "These sinks were found by tracing backwards from function calls.  "
+                "They reach user-input-like sources that the forward taint rules "
+                "did NOT recognise — potential rule gaps.\n"
+            )
+            for disc in sink_discoveries[:15]:
+                sn = disc.get("sink_name", "?")
+                sf = disc.get("sink_file", "")
+                sl = disc.get("sink_line", 0)
+                srcs = ", ".join(disc.get("source_names", []) or [])
+                tc = disc.get("taint_category", "")
+                conf = disc.get("confidence", "medium")
+                label = f" (labelled: {tc})" if tc else " (UNLABELLED)"
+                parts.append(
+                    f"- **{sn}** at `{sf}:{sl}`{label} — "
+                    f"upstream sources: {srcs or 'none found'} "
+                    f"[confidence: {conf}]"
+                )
+
+        if not parts:
+            return []
+
+        parts.append("\n## Task")
+        parts.append(
+            "Investigate the functions above for vulnerabilities.  Pay special "
+            "attention to:\n"
+            "1. Functions adjacent to known sinks — do they pass unsanitised data?\n"
+            "2. Unlabelled sinks with user-input sources — are they dangerous?\n"
+            "3. Each function's parameter flow — does user data reach a sink?\n"
+        )
+
+        user_prompt = "\n".join(parts)
+
+        try:
+            result = await self._cheap.generate_structured(
+                messages=[{"role": "user", "content": user_prompt}],
+                model=self._router.CHEAP_SPEC.model_id,
+                output_schema=HYPOTHESIS_SCHEMA,
+                system=SYSTEM_PROMPT,
+                max_tokens=4096,
+                temperature=0.2,
+            )
+            hyps = self._parse_response(result)
+            logger.info(
+                "generate_from_seeds_complete",
+                seed_count=len(seed_functions),
+                discovery_count=len(sink_discoveries or []),
+                hypotheses=len(hyps),
+            )
+            return hyps
+        except Exception:
+            logger.exception("generate_from_seeds_failed")
+            return []
+
     # ── Internal ────────────────────────────────────────────────────────
+
+    def _read_function_source(self, func_name: str, graph: Any) -> str | None:
+        """Read the source code of a function from the CPG graph.
+
+        Returns a markdown code block, or ``None`` if not found.
+        """
+        for _nid, data in graph.nodes(data=True):
+            if data.get("node_type") == "function" and data.get("name") == func_name:
+                source = data.get("source", "")
+                file_path = data.get("file_path", "")
+                if source:
+                    return (
+                        f"### {func_name} ({file_path})\n"
+                        f"```{self._language}\n{source[:1500]}\n```\n"
+                    )
+        return None
 
     async def _generate_one(
         self,
