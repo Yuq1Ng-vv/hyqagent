@@ -9,6 +9,7 @@ See DESIGN-IMPLEMENTATION.md §4.4 and LONG-RUNNING-AGENT-ARCHITECTURE.md §6.1.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sqlite3
 import uuid
@@ -16,6 +17,17 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+class _CheckpointEncoder(json.JSONEncoder):
+    """JSON encoder that handles dataclass objects and other non-native types."""
+
+    def default(self, o: Any) -> Any:
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        if hasattr(o, "__dict__"):
+            return {k: v for k, v in o.__dict__.items() if not k.startswith("_")}
+        return super().default(o)
 
 
 @dataclass
@@ -38,7 +50,7 @@ class Checkpoint:
             self.id,
             self.session_id,
             self.phase,
-            json.dumps(self.state, ensure_ascii=False),
+            json.dumps(self.state, ensure_ascii=False, cls=_CheckpointEncoder),
             self.file_count,
             self.endpoint_count,
             self.finding_count,

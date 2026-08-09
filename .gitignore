@@ -42,3 +42,5 @@ htmlcov/
 # uv
 uv.lock
 rwtests/
+reports/
+report.json
