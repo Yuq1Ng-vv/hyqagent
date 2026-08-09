@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
-from hyqagent.scanner.annotator import AnnotatedPath, PathLabel
-from hyqagent.scanner.deterministic import Finding, ScanResult
 from hyqagent.cpg.query import GraphNode, GraphPath
 from hyqagent.cpg.types import BlindSpot, CoverageReport
 from hyqagent.report.generator import ReportGenerator
-
+from hyqagent.scanner.annotator import AnnotatedPath, PathLabel
+from hyqagent.scanner.deterministic import Finding, ScanResult
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -312,3 +309,208 @@ class TestReportGeneratorHelpers:
         data = json.loads(text)
         assert data["findings"][0]["metadata"]["list"] == [1, 2]
         assert data["findings"][0]["metadata"]["nested"] == {"a": 1}
+
+
+# ── Deep Audit Report Tests (Session 1.31) ─────────────────────────────────
+
+
+class _FakeHypothesis:
+    """Minimal hypothesis stub for testing deep audit report output."""
+
+    def __init__(self, hid: str, summary: str, confidence: float,
+                 endpoint: str = "", vuln_category: str = ""):
+        self.id = hid
+        self.summary = summary
+        self.confidence = confidence
+        self.endpoint = endpoint
+        self.vuln_category = vuln_category
+
+
+class _FakeConvergence:
+    """Minimal convergence-report stub."""
+
+    def __init__(self, round_num: int = 2, recommendation: str = "converged"):
+        self.round = round_num
+        self.recommendation = recommendation
+
+    @property
+    def summary(self) -> str:
+        return f"Round {self.round}: {self.recommendation}"
+
+
+class _FakeCostSummary:
+    """Minimal cost-summary stub."""
+
+    def __init__(self, total_cost: float = 0.42):
+        self.total_cost = total_cost
+        self.total_input_tokens = 5000
+        self.total_output_tokens = 1200
+
+
+class TestDeepAuditJSONReport:
+    """Verify JSON output includes deep audit sections."""
+
+    def test_deep_audit_json_contains_scan_info_mode(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="json",
+            mode="deep",
+            hypotheses=[_FakeHypothesis("h1", "SQLi in /login", 0.85)],
+            convergence=_FakeConvergence(),
+            cost_summary=_FakeCostSummary(0.42),
+            phases_completed=["cpg_build", "deterministic_scan", "hypothesis_gen"],
+        )
+        data = json.loads(text)
+        assert data["scan_info"]["mode"] == "deep"
+
+    def test_deep_audit_json_hypotheses(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="json",
+            mode="deep",
+            hypotheses=[
+                _FakeHypothesis("h1", "SQLi in /login", 0.85,
+                                endpoint="/login", vuln_category="sql_injection"),
+                _FakeHypothesis("h2", "XSS in /search", 0.60),
+            ],
+        )
+        data = json.loads(text)
+        assert len(data["hypotheses"]) == 2
+        assert data["hypotheses"][0]["id"] == "h1"
+        assert data["hypotheses"][0]["confidence"] == 0.85
+        assert data["hypotheses"][0]["endpoint"] == "/login"
+        assert data["deep_audit"]["hypotheses_count"] == 2
+
+    def test_deep_audit_json_cost(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="json",
+            mode="deep",
+            cost_summary=_FakeCostSummary(0.42),
+        )
+        data = json.loads(text)
+        assert "cost" in data
+        assert data["cost"]["total_cost"] == 0.42
+        assert data["cost"]["prompt_tokens"] == 5000
+        assert data["cost"]["completion_tokens"] == 1200
+        assert data["deep_audit"]["total_llm_cost"] == 0.42
+
+    def test_deep_audit_json_convergence(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="json",
+            mode="deep",
+            convergence=_FakeConvergence(round_num=3, recommendation="converged"),
+        )
+        data = json.loads(text)
+        assert data["convergence"]["rounds"] == 3
+        assert data["convergence"]["status"] == "converged"
+        assert data["deep_audit"]["convergence_rounds"] == 3
+
+    def test_deep_audit_json_phases(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        phases = ["cpg_build", "deterministic_scan", "hypothesis_gen", "convergence_check"]
+        text = g.generate(
+            result, fmt="json",
+            mode="deep",
+            phases_completed=phases,
+        )
+        data = json.loads(text)
+        assert len(data["deep_audit"]["phases_completed"]) == 4
+
+    def test_quick_mode_no_deep_sections(self):
+        """Quick mode must not have deep_audit/hypotheses/cost sections."""
+        g = ReportGenerator()
+        result = ScanResult(findings=[_make_finding()])
+        text = g.generate(result, fmt="json", language="python")
+        data = json.loads(text)
+        assert data["scan_info"]["mode"] == "quick"
+        assert "deep_audit" not in data
+        assert "hypotheses" not in data
+        assert "cost" not in data
+        assert "convergence" not in data
+
+
+class TestDeepAuditMarkdownReport:
+    """Verify Markdown output includes deep audit sections."""
+
+    def test_markdown_shows_deep_mode_label(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="markdown",
+            mode="deep",
+            hypotheses=[_FakeHypothesis("h1", "Test hypothesis", 0.9)],
+        )
+        assert "deep (LLM enhanced)" in text
+        assert "quick" not in text
+
+    def test_markdown_shows_hypotheses_table(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="markdown",
+            mode="deep",
+            hypotheses=[
+                _FakeHypothesis("h1", "SQLi in login", 0.85,
+                                endpoint="/login", vuln_category="sql_injection"),
+            ],
+        )
+        assert "🤖 LLM 假设" in text
+        assert "SQLi in login" in text
+        assert "sql_injection" in text
+
+    def test_markdown_shows_convergence(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="markdown",
+            mode="deep",
+            convergence=_FakeConvergence(round_num=2, recommendation="converged"),
+        )
+        assert "🔄 收敛" in text
+        assert "2" in text
+        assert "converged" in text
+
+    def test_markdown_shows_cost(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="markdown",
+            mode="deep",
+            cost_summary=_FakeCostSummary(0.42),
+        )
+        assert "💰 LLM 成本" in text
+        assert "0.4200" in text
+        assert "5,000" in text
+
+    def test_markdown_summary_table_deep(self):
+        g = ReportGenerator()
+        result = ScanResult(findings=[_make_finding()])
+        text = g.generate(
+            result, fmt="markdown",
+            mode="deep",
+            hypotheses=[_FakeHypothesis("h1", "Test", 0.5)],
+            convergence=_FakeConvergence(),
+            cost_summary=_FakeCostSummary(0.42),
+        )
+        assert "| LLM 假设 | 1 |" in text
+        assert "| 收敛轮次 |" in text
+        assert "| LLM 成本 |" in text
+
+    def test_markdown_shows_phases(self):
+        g = ReportGenerator()
+        result = ScanResult()
+        text = g.generate(
+            result, fmt="markdown",
+            mode="deep",
+            phases_completed=["cpg_build", "hypothesis_gen", "convergence_check"],
+        )
+        assert "📋 执行阶段" in text
+        assert "cpg_build" in text
+        assert "hypothesis_gen" in text

@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.30 完成后 (2026-08-09)
-> 最新: Java 深 — 注解提取 + 框架深化 + 配置扫描 已完成
+> 上次更新: Session 1.31 完成后 (2026-08-09)
+> 最新: 报告 CLI 接入 + 漏洞覆盖盲区分析 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -220,6 +220,8 @@ Phase 3 全部 8 项任务已全部完成。
 > **Session 1.29 里程碑**: Task 8 Observability 集成 已完成（3 新文件 + 3 修改、~1100 行源码 + 43 tests）。
 > 新增: ObservabilityManager (span tracing) + PrometheusMetrics (6 指标) + AuditTrail (SHA-256 审计链)。Provider 观察者回调接线 — CostTracker 首次接收真实数据。
 > CLI `resume` 命令从 stub 变为真实实现，`_run_deep_audit()` 从 ~250 行内联管道简化为 ~30 行 Orchestrator 委托。
+> **Session 1.31 里程碑**: 报告 CLI 接入 + 漏洞覆盖盲区分析 已完成（2 文件修改 + 1 测试文件、+475 行源码、28 tests）。
+> 新增: `generate()` 8 个 deep-audit 参数、JSON 5 个 deep 段（hypotheses/validations/convergence/cost/deep_audit）、Markdown 4 个 deep 章节（LLM假设/收敛/成本/执行阶段）。`resume` 命令新增 `--format`/`--output` 选项。覆盖分析: 200 项矩阵, 最大盲区 AUTH(17)/BUSINESS(12)/SESSION(11)。
 
 - [x] **memory/context.py** — 三区段上下文模型 (固定/长期/工作)
   - ZoneBudget token 预算 + TurnRecord 对话轮次
@@ -257,7 +259,7 @@ Phase 3 全部 8 项任务已全部完成。
 |---|------|------|---------|
 | 3 | 攻击面映射 (mapper.py) — 端点分类 + 风险优先级 | ✅ 完成 | `scanner/mapper.py` |
 | 6 | 会话管理 — SQLite schema + 信念系统 + 检查点 | ✅ 完成 | `session/` 包 (5 文件) |
-| 7 | 报告生成集成 | 🔵 部分（ReportGenerator 已存在，未接入 CLI --deep） | `report/` |
+| 7 | 报告生成集成 | ✅ 完成（Session 1.31: deep-audit 报告 + CLI 接入） | `report/` |
 
 ## Phase 3: 最终状态 — ✅ 核心完成
 

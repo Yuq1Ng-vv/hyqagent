@@ -221,12 +221,28 @@ def scan(
     if fmt == "md":
         fmt = "markdown"
 
+    # Extract deep audit data if present
+    deep_kwargs: dict[str, Any] = {}
+    deep_data = getattr(result, "_deep_audit", None)
+    if deep_data is not None:
+        deep_kwargs = {
+            "mode": "deep",
+            "hypotheses": deep_data.get("hypotheses", []),
+            "convergence": deep_data.get("convergence"),
+            "cost_summary": deep_data.get("cost_summary"),
+            "completeness_review": deep_data.get("completeness_review"),
+            "coverage_audit": deep_data.get("coverage_audit"),
+            "phases_completed": deep_data.get("phases_completed", []),
+            "validations": deep_data.get("validations", []),
+        }
+
     report_text = generator.generate(
         result=result,
         fmt=fmt,
         scan_duration_ms=elapsed_ms,
         files_scanned=len(file_paths),
         language=language,
+        **deep_kwargs,
     )
 
     Path(output).write_text(report_text, encoding="utf-8")
@@ -267,8 +283,29 @@ def scan(
 @main.command()
 @click.argument("session_id")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress progress output.")
+@click.option(
+    "--format",
+    "-F",
+    "report_format",
+    default="json",
+    type=click.Choice(["json", "markdown", "md", "sarif"]),
+    help="Report format (default: json).",
+)
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    type=click.Path(dir_okay=False, writable=True),
+    help="Output file path (auto-generated if not set).",
+)
 @click.pass_context
-def resume(ctx: click.Context, session_id: str, quiet: bool) -> None:
+def resume(
+    ctx: click.Context,
+    session_id: str,
+    quiet: bool,
+    report_format: str,
+    output: str | None,
+) -> None:
     """Resume a previous deep audit session.
 
     Loads the session checkpoint and continues from where it left off.
@@ -345,7 +382,16 @@ def resume(ctx: click.Context, session_id: str, quiet: bool) -> None:
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
     # ── Generate report ─────────────────────────────────────────────
-    _output_report(report, target, language, file_paths, elapsed_ms, quiet)
+    _output_report(
+        report,
+        target,
+        language,
+        file_paths,
+        elapsed_ms,
+        quiet,
+        report_format=report_format,
+        output_path=Path(output) if output else None,
+    )
 
 
 # ── sessions command ───────────────────────────────────────────────────────
@@ -427,7 +473,16 @@ async def _run_deep_audit(
         findings=list(report.findings) if report.findings else [],
         annotated_paths=list(report.annotated_paths) if report.annotated_paths else [],
     )
-    # Attach extra fields for the report generator
+    # Pack deep audit data for the report generator
+    result._deep_audit = {  # type: ignore[attr-defined]
+        "hypotheses": report.hypotheses,
+        "validations": report.validations,
+        "convergence": report.convergence,
+        "cost_summary": report.cost_summary,
+        "completeness_review": report.completeness_review,
+        "coverage_audit": report.coverage_audit,
+        "phases_completed": report.phases_completed,
+    }
     result.hypotheses = report.hypotheses  # type: ignore[attr-defined]
     result.coverage_audit = report.coverage_audit  # type: ignore[attr-defined]
 
@@ -449,6 +504,8 @@ def _output_report(
     file_paths: list[str],
     elapsed_ms: int,
     quiet: bool = False,
+    report_format: str = "json",
+    output_path: Path | None = None,
 ) -> None:
     """Generate and write the audit report file, and print a summary."""
     from hyqagent.report.generator import ReportGenerator
@@ -461,16 +518,43 @@ def _output_report(
     result.hypotheses = report.hypotheses  # type: ignore[attr-defined]
     result.coverage_audit = report.coverage_audit  # type: ignore[attr-defined]
 
+    # Pack deep audit data
+    result._deep_audit = {  # type: ignore[attr-defined]
+        "hypotheses": report.hypotheses,
+        "validations": report.validations,
+        "convergence": report.convergence,
+        "cost_summary": report.cost_summary,
+        "completeness_review": report.completeness_review,
+        "coverage_audit": report.coverage_audit,
+        "phases_completed": report.phases_completed,
+    }
+
+    # Normalize format
+    fmt = report_format
+    if fmt == "md":
+        fmt = "markdown"
+
     generator = ReportGenerator()
     report_text = generator.generate(
         result=result,
-        fmt="json",
+        fmt=fmt,
         scan_duration_ms=elapsed_ms,
         files_scanned=len(file_paths),
         language=language,
+        mode="deep",
+        hypotheses=report.hypotheses,
+        convergence=report.convergence,
+        cost_summary=report.cost_summary,
+        completeness_review=report.completeness_review,
+        coverage_audit=report.coverage_audit,
+        phases_completed=report.phases_completed,
+        validations=report.validations,
     )
 
-    output_path = target / "report.json" if target.is_dir() else target.parent / "report.json"
+    if output_path is None:
+        ext = ".json" if fmt == "json" else ".md" if fmt == "markdown" else ".sarif"
+        base_dir = target if target.is_dir() else target.parent
+        output_path = base_dir / f"report{ext}"
     output_path.write_text(report_text, encoding="utf-8")
 
     n_findings = len(getattr(result, "findings", []))
@@ -482,7 +566,7 @@ def _output_report(
         click.echo(f"   Findings:    {n_findings}")
         if n_hypotheses:
             click.echo(f"   Hypotheses:  {n_hypotheses} (LLM-generated)")
-        click.echo(f"   Report:      {output_path} (json)")
+        click.echo(f"   Report:      {output_path} ({fmt})")
 
         if n_findings > 0:
             from collections import Counter

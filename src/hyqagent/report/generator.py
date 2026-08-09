@@ -35,6 +35,14 @@ class ReportGenerator:
         scan_duration_ms: int = 0,
         files_scanned: int = 0,
         language: str = "",
+        mode: str = "quick",
+        hypotheses: list[Any] | None = None,
+        convergence: Any = None,
+        cost_summary: Any = None,
+        completeness_review: dict[str, Any] | None = None,
+        coverage_audit: Any = None,
+        phases_completed: list[str] | None = None,
+        validations: list[Any] | None = None,
     ) -> str:
         """Generate a report in *fmt* format.
 
@@ -44,14 +52,37 @@ class ReportGenerator:
             scan_duration_ms: Total scan duration in milliseconds.
             files_scanned: Number of source files processed.
             language: Programming language scanned.
+            mode: ``"quick"`` (deterministic only) or ``"deep"`` (LLM-augmented).
+            hypotheses: LLM-generated hypotheses (deep mode only).
+            convergence: :class:`ConvergenceReport` (deep mode only).
+            cost_summary: :class:`CostSummary` (deep mode only).
+            completeness_review: Completeness critic output (deep mode only).
+            coverage_audit: :class:`CoverageAuditResult` (deep mode only).
+            phases_completed: List of completed phase names (deep mode only).
+            validations: :class:`ValidationResult` list (deep mode only).
 
         """
+        # Build a deep-audit context dict for format methods
+        deep_ctx: dict[str, Any] | None = None
+        if mode == "deep":
+            deep_ctx = {
+                "mode": mode,
+                "hypotheses": hypotheses or [],
+                "convergence": convergence,
+                "cost_summary": cost_summary,
+                "completeness_review": completeness_review,
+                "coverage_audit": coverage_audit,
+                "phases_completed": phases_completed or [],
+                "validations": validations or [],
+            }
+
         if fmt in ("markdown", "md"):
             return self._to_markdown(
                 result,
                 scan_duration_ms,
                 files_scanned,
                 language,
+                deep_ctx,
             )
         if fmt == "sarif":
             return self._to_sarif(
@@ -65,6 +96,7 @@ class ReportGenerator:
             scan_duration_ms,
             files_scanned,
             language,
+            deep_ctx,
         )
 
     # ── JSON ──────────────────────────────────────────────────────────
@@ -75,6 +107,7 @@ class ReportGenerator:
         scan_duration_ms: int,
         files_scanned: int,
         language: str,
+        deep_ctx: dict[str, Any] | None = None,
     ) -> str:
         """Produce a rich JSON report."""
         # Build simplified annotated-path summaries
@@ -96,10 +129,12 @@ class ReportGenerator:
 
         label_counts = Counter(ps["label"] for ps in path_summaries)
 
+        is_deep = deep_ctx is not None
+
         output: dict[str, Any] = {
             "scan_info": {
                 "version": self._resolve_version(),
-                "mode": "quick",
+                "mode": deep_ctx["mode"] if deep_ctx is not None else "quick",
                 "duration_ms": scan_duration_ms,
                 "files_scanned": files_scanned,
                 "language": language,
@@ -113,6 +148,68 @@ class ReportGenerator:
             "blind_spot_manifest": self._blind_spot_list(result),
             "stats": getattr(result, "stats", {}) or {},
         }
+
+        # ── Deep audit sections ───────────────────────────────────
+        if deep_ctx is not None:
+            ctx: dict[str, Any] = deep_ctx
+
+            # Hypotheses summary
+            hypotheses: list[dict[str, Any]] = []
+            for h in ctx.get("hypotheses", []):
+                hypotheses.append({
+                    "id": getattr(h, "id", ""),
+                    "summary": getattr(h, "summary", str(h)[:200]),
+                    "confidence": getattr(h, "confidence", 0.0),
+                    "endpoint": getattr(h, "endpoint", ""),
+                    "vuln_category": getattr(h, "vuln_category", ""),
+                })
+            output["hypotheses"] = hypotheses
+
+            # Validations summary
+            validations: list[dict[str, Any]] = []
+            for v in ctx.get("validations", []):
+                validations.append({
+                    "hypothesis_id": getattr(v, "hypothesis_id", ""),
+                    "verdict": str(getattr(v, "verdict", "")),
+                    "evidence_strength": str(getattr(v, "evidence_strength", "")),
+                })
+            output["validations"] = validations
+
+            # Convergence
+            conv = ctx.get("convergence")
+            if conv is not None:
+                output["convergence"] = {
+                    "summary": getattr(conv, "summary", str(conv)),
+                    "rounds": getattr(conv, "round", 0),
+                    "status": str(getattr(conv, "recommendation", "unknown")),
+                }
+
+            # Cost
+            cost = ctx.get("cost_summary")
+            if cost is not None:
+                output["cost"] = {
+                    "total_cost": getattr(cost, "total_cost", 0.0),
+                    "prompt_tokens": getattr(cost, "total_input_tokens", 0),
+                    "completion_tokens": getattr(cost, "total_output_tokens", 0),
+                    "total_tokens": (
+                        getattr(cost, "total_input_tokens", 0)
+                        + getattr(cost, "total_output_tokens", 0)
+                    ),
+                }
+
+            # Deep audit meta
+            output["deep_audit"] = {
+                "phases_completed": ctx.get("phases_completed", []),
+                "hypotheses_count": len(hypotheses),
+                "validations_count": len(validations),
+                "convergence_rounds": (
+                    getattr(conv, "round", 0) if conv is not None else 0
+                ),
+                "total_llm_cost": (
+                    getattr(cost, "total_cost", 0.0) if cost is not None else 0.0
+                ),
+            }
+
         return json.dumps(output, ensure_ascii=False, indent=2)
 
     # ── Markdown ──────────────────────────────────────────────────────
@@ -123,16 +220,19 @@ class ReportGenerator:
         scan_duration_ms: int,
         files_scanned: int,
         language: str,
+        deep_ctx: dict[str, Any] | None = None,
     ) -> str:
         """Produce a human-readable Markdown report."""
         lines: list[str] = []
         findings = getattr(result, "findings", []) or []
+        is_deep = deep_ctx is not None
+        mode_label = "deep (LLM enhanced)" if is_deep else "quick (zero-LLM deterministic)"
 
         # Header
         lines.append("# HyqAgent 扫描报告")
         lines.append("")
         lines.append(f"**版本**: {self._resolve_version()}  ")
-        lines.append("**模式**: quick（零 LLM 确定性扫描）  ")
+        lines.append(f"**模式**: {mode_label}  ")
         lines.append(f"**语言**: {language or 'auto'}  ")
         lines.append(f"**文件数**: {files_scanned}  ")
         lines.append(f"**耗时**: {scan_duration_ms}ms  ")
@@ -158,6 +258,21 @@ class ReportGenerator:
             c = sev_counts.get(sev, 0)
             if c:
                 lines.append(f"| {sev} | {c} |")
+
+        # Deep audit summary
+        if deep_ctx is not None:
+            ctx = deep_ctx
+            hyp_count = len(ctx.get("hypotheses", []))
+            val_count = len(ctx.get("validations", []))
+            conv = ctx.get("convergence")
+            cost = ctx.get("cost_summary")
+            lines.append(f"| LLM 假设 | {hyp_count} |")
+            lines.append(f"| LLM 验证 | {val_count} |")
+            if conv is not None:
+                lines.append(f"| 收敛轮次 | {getattr(conv, 'total_rounds', 0)} |")
+            if cost is not None:
+                lines.append(f"| LLM 成本 | ${getattr(cost, 'total_cost', 0.0):.4f} |")
+
         lines.append("")
 
         # Coverage
@@ -171,6 +286,33 @@ class ReportGenerator:
             lines.append("|------|--------|")
             lines.append(f"| 端点覆盖 | {ep_cov * 100:.1f}% |")
             lines.append(f"| Sink 覆盖 | {sk_cov * 100:.1f}% |")
+            lines.append("")
+
+        # LLM Hypotheses (deep only)
+        if is_deep:
+            hypotheses = ctx.get("hypotheses", [])
+            if hypotheses:
+                lines.append("## 🤖 LLM 假设")
+                lines.append("")
+                lines.append("| # | 摘要 | 置信度 | 端点 | 漏洞类别 |")
+                lines.append("|---|------|--------|------|----------|")
+                for i, h in enumerate(hypotheses, 1):
+                    summary = str(getattr(h, "summary", str(h)[:80]))[:80]
+                    conf = getattr(h, "confidence", 0.0)
+                    endpoint = str(getattr(h, "endpoint", ""))[:40]
+                    vuln_cat = str(getattr(h, "vuln_category", ""))[:20]
+                    lines.append(f"| {i} | {summary} | {conf:.2f} | {endpoint} | {vuln_cat} |")
+                lines.append("")
+
+        # Convergence (deep only)
+        if is_deep and conv is not None:
+            lines.append("## 🔄 收敛信息")
+            lines.append("")
+            lines.append(f"- **轮次**: {getattr(conv, 'total_rounds', 0)}")
+            lines.append(f"- **状态**: {getattr(conv, 'status', 'unknown')}")
+            conv_summary = str(getattr(conv, "summary", ""))
+            if conv_summary:
+                lines.append(f"- **摘要**: {conv_summary}")
             lines.append("")
 
         # Blind spots
@@ -230,6 +372,27 @@ class ReportGenerator:
             lines.append("")
             lines.append("该次扫描未发现任何确定性漏洞。")
             lines.append("")
+
+        # Cost summary (deep only, at the end)
+        if is_deep and cost is not None:
+            lines.append("## 💰 LLM 成本")
+            lines.append("")
+            lines.append("| 指标 | 值 |")
+            lines.append("|------|----|")
+            lines.append(f"| 总成本 | ${getattr(cost, 'total_cost', 0.0):.4f} |")
+            lines.append(f"| Prompt tokens | {getattr(cost, 'total_input_tokens', 0):,} |")
+            lines.append(f"| Completion tokens | {getattr(cost, 'total_output_tokens', 0):,} |")
+            lines.append("")
+
+        # Phases completed (deep only)
+        if is_deep:
+            phases = ctx.get("phases_completed", [])
+            if phases:
+                lines.append("## 📋 执行阶段")
+                lines.append("")
+                for p in phases:
+                    lines.append(f"- ✅ {p}")
+                lines.append("")
 
         return "\n".join(lines)
 
