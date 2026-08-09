@@ -104,8 +104,23 @@ class JavaAdapter(LanguageProvider):
     # ── Decorator extraction ──────────────────────────────────────────
 
     def extract_decorators(self, node: Node) -> list[str]:
-        # Java uses annotations (not yet extracted)
-        return []
+        """Extract Java annotation names from *node*.
+
+        Java annotations live inside the ``modifiers`` node as either
+        ``marker_annotation`` (no arguments, e.g. ``@Override``) or
+        ``annotation`` (with arguments, e.g. ``@GetMapping("/path")``).
+        Returns the full text of each annotation node.
+        """
+        decorators: list[str] = []
+        for child in node.children:
+            if child.type == "modifiers":
+                for modifier in child.children:
+                    if modifier.type in ("marker_annotation", "annotation"):
+                        text = modifier.text.decode("utf-8") if modifier.text else ""
+                        if text:
+                            decorators.append(text)
+                break  # Only the first modifiers block
+        return decorators
 
     # ── Base class extraction ─────────────────────────────────────────
 
@@ -170,7 +185,7 @@ class JavaAdapter(LanguageProvider):
 
         name = name_node.text.decode("utf-8") if name_node.text else ""
         params = self.extract_parameters(node, param_nodes)
-        decorators: list[str] = []
+        decorators = self.extract_decorators(node)
         source = node.text.decode("utf-8") if node.text else ""
 
         func = FunctionNode(
@@ -210,7 +225,7 @@ class JavaAdapter(LanguageProvider):
         name = name_node.text.decode("utf-8") if name_node.text else ""
         source = node.text.decode("utf-8") if node.text else ""
         bases = self.extract_base_classes(node, tree)
-        decorators: list[str] = []
+        decorators = self.extract_decorators(node)
 
         return ClassNode(
             name=name,

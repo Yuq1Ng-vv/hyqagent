@@ -34,6 +34,22 @@ PARITY_FILES: dict[str, dict[str, str]] = {
         "javascript": "parity_pt.js",
         "java": "parity_pt.java",
     },
+    # Java-specific vuln types (Session 1.30)
+    "deserialization": {
+        "java": "parity_deser.java",
+    },
+    "jndi_injection": {
+        "java": "parity_jndi.java",
+    },
+    "code_injection": {
+        "java": "parity_spel.java",
+    },
+    "xxe": {
+        "java": "parity_xxe.java",
+    },
+    "ssti": {
+        "java": "parity_ssti.java",
+    },
 }
 
 
@@ -71,7 +87,7 @@ class TestTaintRuleCompleteness:
         ],
     )
     def test_has_sources(self, loader, language, vuln):
-        sources = loader.all_sources(language)
+        _sources = loader.all_sources(language)
         rules = loader.rules_for(language)
         cat_sources = rules.categories.get(vuln, None)
         assert cat_sources is not None, f"{language} missing {vuln} category"
@@ -220,9 +236,9 @@ class TestCPGGraphConstruction:
         assert builder.node_count > 0
         # Should have functions from all languages
         funcs = builder.nodes_by_type("function")
-        # 9 fixtures × ≥2 functions each = 18 expected
+        # 14 fixtures x >=2 functions each = 28 expected
         # Note: some JS callback-based functions may not be extracted
-        assert len(funcs) >= 14  # at least Python + Java + most JS
+        assert len(funcs) >= 20  # at least Python + Java + most JS + new Java
 
 
 # ── DATA_FLOW edge presence ──────────────────────────────────────────────────
@@ -248,6 +264,12 @@ class TestDataFlowEdgePresence:
             "parity_pt.py",
             "parity_pt.js",
             "parity_pt.java",
+            # Java-specific vuln types (Session 1.30)
+            "parity_deser.java",
+            "parity_jndi.java",
+            "parity_spel.java",
+            "parity_xxe.java",
+            "parity_ssti.java",
         ],
     )
     def test_data_flow_edges_exist(self, parser, filename):

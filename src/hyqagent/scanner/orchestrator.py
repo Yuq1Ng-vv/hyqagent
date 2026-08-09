@@ -1191,9 +1191,10 @@ class Orchestrator:
 
                 frameworks = [ExpressExtractor(cpg_parser)]
             elif language == "java":
+                from hyqagent.cpg.frameworks.jaxrs import JaxRsExtractor
                 from hyqagent.cpg.frameworks.spring import SpringExtractor
 
-                frameworks = [SpringExtractor(cpg_parser)]
+                frameworks = [SpringExtractor(cpg_parser), JaxRsExtractor(cpg_parser)]
         except Exception:
             pass
 

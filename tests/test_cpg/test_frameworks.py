@@ -11,6 +11,7 @@ from hyqagent.cpg.frameworks.django import DjangoExtractor
 from hyqagent.cpg.frameworks.express import ExpressExtractor
 from hyqagent.cpg.frameworks.fastapi import FastAPIExtractor
 from hyqagent.cpg.frameworks.flask import FlaskExtractor
+from hyqagent.cpg.frameworks.jaxrs import JaxRsExtractor
 from hyqagent.cpg.frameworks.spring import SpringExtractor
 from hyqagent.cpg.parser import Parser
 from hyqagent.cpg.taint_loader import TaintRuleLoader
@@ -214,6 +215,249 @@ class TestSpringExtractor:
         for r in routes:
             all_params.extend(r.params)
         assert len(all_params) > 0
+
+
+# ─── JAX-RS / Jakarta REST ───────────────────────────────────────────────────
+
+
+class TestJaxRsExtractor:
+    def test_detect(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        assert ext.detect(str(FIXTURES / "jaxrs_sample.java")) is True
+
+    def test_detect_non_jaxrs(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        # Spring fixture shouldn't be detected as JAX-RS
+        assert ext.detect(str(FIXTURES / "spring_sample.java")) is False
+
+    def test_extract_routes_count(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        assert len(routes) >= 5
+
+    def test_methods_extracted(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        all_methods = set()
+        for r in routes:
+            all_methods.update(r.methods)
+        assert "GET" in all_methods
+        assert "POST" in all_methods
+        assert "PUT" in all_methods
+        assert "DELETE" in all_methods
+
+    def test_route_patterns(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        patterns = [r.route for r in routes]
+        assert any("/api/users" in p for p in patterns)
+        assert any("/api/users/{id}" in p for p in patterns)
+
+    def test_framework_label(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        for r in routes:
+            assert r.framework == "jaxrs"
+
+    def test_path_params_extracted(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        path_params = [
+            p for r in routes for p in r.params if p.source == "path"
+        ]
+        assert len(path_params) >= 1
+        assert any(p.name == "id" for p in path_params)
+
+    def test_query_params_extracted(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        query_params = [
+            p for r in routes for p in r.params if p.source == "query"
+        ]
+        assert len(query_params) >= 1
+        assert any(p.name == "page" for p in query_params)
+
+    def test_form_params_extracted(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        form_params = [
+            p for r in routes for p in r.params if p.source == "form"
+        ]
+        assert len(form_params) >= 1
+        assert any(p.name == "name" for p in form_params)
+
+    def test_auth_detected(self):
+        parser = Parser(languages=["java"])
+        ext = JaxRsExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
+        auth_routes = [r for r in routes if r.auth_required]
+        assert len(auth_routes) >= 2  # @RolesAllowed + @PermitAll + @DenyAll
+
+
+# ─── Spring Deepening (Session 1.30) ──────────────────────────────────────────
+
+
+class TestSpringControllerValidation:
+    """Verify that @RestController/@Controller class-level validation works."""
+
+    def test_controller_with_restcontroller_passes(self):
+        """Methods inside @RestController should be extracted."""
+        parser = Parser(languages=["java"])
+        ext = SpringExtractor(parser)
+        routes = ext.extract_routes(str(FIXTURES / "spring_sample.java"))
+        assert len(routes) >= 3
+
+    def test_non_controller_skipped(self):
+        """Methods inside @Service with mapping annotations should be skipped."""
+        import os
+        import tempfile
+
+        code = """
+        import org.springframework.web.bind.annotation.*;
+        @Service
+        public class MyService {
+            @GetMapping("/data")
+            public String getData() { return "data"; }
+        }
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".java", delete=False
+        ) as tmp:
+            tmp.write(code)
+        try:
+            parser = Parser(languages=["java"])
+            ext = SpringExtractor(parser)
+            routes = ext.extract_routes(tmp.name)
+            assert len(routes) == 0
+        finally:
+            os.unlink(tmp.name)
+
+    def test_controller_annotation_present(self):
+        """@Controller annotated class should still be extracted."""
+        import os
+        import tempfile
+
+        code = """
+        import org.springframework.stereotype.Controller;
+        import org.springframework.web.bind.annotation.*;
+        @Controller
+        public class PageController {
+            @GetMapping("/home")
+            public String home() { return "home"; }
+        }
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".java", delete=False
+        ) as tmp:
+            tmp.write(code)
+        try:
+            parser = Parser(languages=["java"])
+            ext = SpringExtractor(parser)
+            routes = ext.extract_routes(tmp.name)
+            assert len(routes) == 1
+            assert routes[0].route == "/home"
+        finally:
+            os.unlink(tmp.name)
+
+
+class TestSpringCloudFeignClient:
+    """Verify @FeignClient extraction."""
+
+    def test_feign_client_detected(self):
+        import os
+        import tempfile
+
+        code = """
+        import org.springframework.cloud.openfeign.FeignClient;
+        import org.springframework.web.bind.annotation.*;
+        @FeignClient(name="user-svc", url="http://localhost:8081")
+        public interface UserClient {
+            @GetMapping("/users/{id}")
+            UserDTO getUser(@PathVariable long id);
+        }
+        class UserDTO { String name; }
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".java", delete=False
+        ) as tmp:
+            tmp.write(code)
+        try:
+            parser = Parser(languages=["java"])
+            ext = SpringExtractor(parser)
+            routes = ext.extract_routes(tmp.name)
+            assert len(routes) >= 1
+            feign = [r for r in routes if r.framework == "spring-cloud"]
+            assert len(feign) >= 1
+            assert "/users/{id}" in feign[0].route
+        finally:
+            os.unlink(tmp.name)
+
+
+class TestSpringActuator:
+    """Verify Actuator endpoint detection."""
+
+    def test_actuator_endpoint_read(self):
+        import os
+        import tempfile
+
+        code = """
+        import org.springframework.boot.actuate.endpoint.annotation.*;
+        @Endpoint(id="metrics")
+        public class MetricsEndpoint {
+            @ReadOperation
+            public String status() { return "OK"; }
+        }
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".java", delete=False
+        ) as tmp:
+            tmp.write(code)
+        try:
+            parser = Parser(languages=["java"])
+            ext = SpringExtractor(parser)
+            routes = ext.extract_routes(tmp.name)
+            actuator = [r for r in routes if r.framework == "spring-actuator"]
+            assert len(actuator) == 1
+            assert actuator[0].route == "/actuator/metrics"
+            assert "GET" in actuator[0].methods
+        finally:
+            os.unlink(tmp.name)
+
+    def test_actuator_multiple_operations(self):
+        import os
+        import tempfile
+
+        code = """
+        import org.springframework.boot.actuate.endpoint.annotation.*;
+        @WebEndpoint(id="myapp")
+        public class MyAppEndpoint {
+            @ReadOperation
+            public String read() { return "r"; }
+            @WriteOperation
+            public String write() { return "w"; }
+        }
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".java", delete=False
+        ) as tmp:
+            tmp.write(code)
+        try:
+            parser = Parser(languages=["java"])
+            ext = SpringExtractor(parser)
+            routes = ext.extract_routes(tmp.name)
+            actuator = [r for r in routes if r.framework == "spring-actuator"]
+            assert len(actuator) == 2
+        finally:
+            os.unlink(tmp.name)
 
 
 # ─── TaintRuleLoader ─────────────────────────────────────────────────────────

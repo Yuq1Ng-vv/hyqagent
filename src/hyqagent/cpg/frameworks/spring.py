@@ -17,6 +17,7 @@ from hyqagent.cpg.traversal import Traverser
 if TYPE_CHECKING:
     from tree_sitter import Node
 
+    from hyqagent.cpg.languages.base import LanguageProvider
     from hyqagent.cpg.parser import Parser
 
 # Map Spring annotation to HTTP method
@@ -55,6 +56,32 @@ _SPRING_SECURITY_ANNOTATIONS = {
     "Authenticated",
 }
 
+# Class-level controller annotations — methods inside non-controller classes
+# that happen to have a mapping annotation (e.g. @Scheduled inside @Service)
+# should not be treated as HTTP endpoints.
+_SPRING_CONTROLLER_ANNOTATIONS = {
+    "RestController",
+    "Controller",
+    "RequestMapping",
+}
+
+# Spring Cloud / micro-service annotations.
+_SPRING_CLOUD_FEIGN = "FeignClient"
+
+# Spring Boot Actuator endpoint annotations.
+_SPRING_ACTUATOR_ENDPOINT_ANNOTATIONS = {
+    "Endpoint",
+    "WebEndpoint",
+    "RestControllerEndpoint",
+    "ControllerEndpoint",
+}
+
+_SPRING_ACTUATOR_OPERATION_ANNOTATIONS = {
+    "ReadOperation",
+    "WriteOperation",
+    "DeleteOperation",
+}
+
 
 class SpringExtractor(BaseFrameworkExtractor):
     """Extract HTTP routes from Spring Boot / Spring MVC applications."""
@@ -90,6 +117,56 @@ class SpringExtractor(BaseFrameworkExtractor):
 
             method_name = provider.extract_function_name(node)
             if method_name is None:
+                continue
+
+            # ── Actuator endpoints ───────────────────────────────────────
+            actuator = self._find_actuator_endpoint(node)
+            if actuator is not None:
+                endpoint_id, operation = actuator
+                endpoints.append(
+                    HttpEndpoint(
+                        route=f"/actuator/{endpoint_id}",
+                        methods=[operation] if operation else ["GET"],
+                        handler_func=method_name,
+                        file_path=path,
+                        line=self._line(node),
+                        params=[],
+                        auth_required=False,
+                        auth_decorators=[],
+                        framework="spring-actuator",
+                        source_lines=[],
+                    )
+                )
+                continue
+
+            # ── FeignClient methods ──────────────────────────────────────
+            feign_info = self._find_feign_client(node)
+            if feign_info is not None:
+                _feign_name, feign_url = feign_info
+                route_annotation = self._find_route_annotation(node)
+                if route_annotation is not None:
+                    http_method, route_pattern = route_annotation
+                    if feign_url:
+                        route_pattern = _merge_routes(feign_url, route_pattern)
+                    endpoints.append(
+                        HttpEndpoint(
+                            route=route_pattern,
+                            methods=[http_method],
+                            handler_func=method_name,
+                            file_path=path,
+                            line=self._line(node),
+                            params=self._extract_method_params(node, provider),
+                            auth_required=False,
+                            auth_decorators=[],
+                            framework="spring-cloud",
+                            source_lines=[],
+                        )
+                    )
+                continue
+
+            # ── Standard controller endpoints ────────────────────────────
+            # Skip methods whose enclosing class is not a controller
+            if not self._is_controller_class(node):
                 continue
 
             # Check for Spring mapping annotations
@@ -205,6 +282,138 @@ class SpringExtractor(BaseFrameworkExtractor):
                 break  # Only check the first enclosing class
         return ""
 
+    def _is_controller_class(self, method_node: Node) -> bool:
+        """Return ``True`` if the enclosing class is a Spring controller.
+
+        Checks for ``@RestController``, ``@Controller``, or ``@RequestMapping``
+        on the enclosing class.  Methods inside non-controller classes
+        (e.g. ``@Service``, ``@Component``) that happen to carry a mapping
+        annotation are skipped to reduce false positives.
+        """
+        for ancestor in Traverser.get_ancestors(method_node):
+            if ancestor.type == "class_declaration":
+                for child in ancestor.children:
+                    if child.type == "modifiers":
+                        modifiers_text = self._source(child)
+                        for ann_name in _SPRING_CONTROLLER_ANNOTATIONS:
+                            if ann_name in modifiers_text:
+                                return True
+                return False  # Class has no controller annotation
+        return True  # No enclosing class → treat as controller (e.g. Kotlin top-level)
+
+    def _find_feign_client(self, method_node: Node) -> tuple[str, str] | None:
+        """Return ``(name, url)`` if enclosing interface has ``@FeignClient``, else ``None``.
+
+        FeignClient methods define remote HTTP endpoints for declarative
+        service-to-service calls.  The ``url`` can be a hard-coded string
+        or a placeholder (``"${service.url}"``).
+        """
+        for ancestor in Traverser.get_ancestors(method_node):
+            if ancestor.type in ("class_declaration", "interface_declaration"):
+                for child in ancestor.children:
+                    if child.type == "modifiers":
+                        modifiers_text = self._source(child)
+                        if _SPRING_CLOUD_FEIGN in modifiers_text:
+                            feign_name = ""
+                            feign_url = ""
+                            for sub in self._walk_subtree(child):
+                                if sub.type == "annotation":
+                                    ann_text = self._source(sub)
+                                    if _SPRING_CLOUD_FEIGN in ann_text:
+                                        feign_name = (
+                                            self._extract_element_value(sub, "name")
+                                            or ""
+                                        )
+                                        feign_url = (
+                                            self._extract_element_value(sub, "url")
+                                            or ""
+                                        )
+                                        break
+                            return (feign_name, feign_url)
+                break
+        return None
+
+    def _find_actuator_endpoint(
+        self, method_node: Node
+    ) -> tuple[str, str] | None:
+        """Return ``(endpoint_id, operation)`` for Actuator endpoints, or ``None``.
+
+        Spring Boot Actuator ``@Endpoint`` / ``@WebEndpoint`` classes expose
+        management endpoints at ``/actuator/{id}``.  Method-level
+        ``@ReadOperation`` → GET, ``@WriteOperation`` → POST,
+        ``@DeleteOperation`` → DELETE.
+        """
+        for ancestor in Traverser.get_ancestors(method_node):
+            if ancestor.type == "class_declaration":
+                # Check for Actuator endpoint class annotations
+                endpoint_id: str | None = None
+                for child in ancestor.children:
+                    if child.type == "modifiers":
+                        modifiers_text = self._source(child)
+                        is_actuator = any(
+                            ann in modifiers_text
+                            for ann in _SPRING_ACTUATOR_ENDPOINT_ANNOTATIONS
+                        )
+                        if is_actuator:
+                            # Extract endpoint id
+                            for sub in self._walk_subtree(child):
+                                if sub.type == "annotation":
+                                    ann_text = self._source(sub)
+                                    if any(
+                                        ann in ann_text
+                                        for ann in _SPRING_ACTUATOR_ENDPOINT_ANNOTATIONS
+                                    ):
+                                        eid = self._extract_element_value(sub, "id")
+                                        if eid:
+                                            endpoint_id = eid
+                                            break
+
+                if endpoint_id is None:
+                    break
+
+                # Check method for operation annotations
+                for child in method_node.children:
+                    if child.type == "modifiers":
+                        mod_text = self._source(child)
+                        if "ReadOperation" in mod_text:
+                            return (endpoint_id, "GET")
+                        if "WriteOperation" in mod_text:
+                            return (endpoint_id, "POST")
+                        if "DeleteOperation" in mod_text:
+                            return (endpoint_id, "DELETE")
+                # Default: method in an @Endpoint class → GET
+                return (endpoint_id, "GET")
+
+        return None
+
+    @staticmethod
+    def _extract_element_value(ann_node: Node, key: str) -> str | None:
+        """Extract a named element-value pair from an annotation node.
+
+        For ``@FeignClient(name="svc", url="http://...")``, calling
+        ``_extract_element_value(node, "url")`` returns ``"http://..."``.
+        """
+        for child in SpringExtractor._walk_subtree(ann_node):
+            if child.type == "element_value_pair":
+                # The key is the first named child (identifier), not a
+                # named field — tree-sitter Java doesn't use field names
+                # for element_value_pair keys.
+                named_children = [c for c in child.children if c.is_named]
+                if named_children and SpringExtractor._source(named_children[0]) == key:
+                    val = child.child_by_field_name("value")
+                    if (
+                        val is not None
+                        and hasattr(val, "type")
+                        and val.type in ("string_literal", "string")
+                    ):
+                        return SpringExtractor._source(val).strip("\"'")
+                    # Array initializer: url = {"http://..."}
+                    if val and val.type == "array_initializer":
+                        for item in val.named_children:
+                            if item.type in ("string_literal", "string"):
+                                return SpringExtractor._source(item).strip("\"'")
+        return None
+
     def _extract_annotation_value(self, ann_node: Node) -> str | None:
         """Extract the string argument from an annotation like @GetMapping("/path")."""
         for child in self._walk_subtree(ann_node):
@@ -236,7 +445,7 @@ class SpringExtractor(BaseFrameworkExtractor):
 
     # ── Parameter extraction ────────────────────────────────────────────
 
-    def _extract_method_params(self, method_node: Node, provider) -> list[RouteParam]:
+    def _extract_method_params(self, method_node: Node, provider: LanguageProvider) -> list[RouteParam]:
         """Extract parameters with Spring annotations."""
         params: list[RouteParam] = []
         params_node = method_node.child_by_field_name("parameters")
