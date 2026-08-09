@@ -42,7 +42,7 @@ hyqagent/
 │   │   ├── query.py           # ✅ CPG查询接口 — find_path/sources/sinks/call_chain/slice_path
 │   │   ├── taint_rules.yaml   # ✅ 污点规则 — Python/JS/Java × 9 种漏洞类别
 │   │   ├── sanitizers.yaml    # 📋 计划中 — Sanitizer函数配置
-│   │   └── frameworks/        # ✅ 框架提取器 — Flask/Django/FastAPI/Express/Spring + TaintRuleLoader
+│   │   └── frameworks/        # ✅ 框架提取器 — Flask/Django/FastAPI/Express/Spring/JAX-RS + TaintRuleLoader
 │   ├── scanner/               # 📋 设计阶段 — 扫描引擎（详见PLAN.md 第四章）
 │   │   ├── orchestrator.py    # 扫描流水线编排
 │   │   ├── deterministic.py   # Phase 1: 确定性规则

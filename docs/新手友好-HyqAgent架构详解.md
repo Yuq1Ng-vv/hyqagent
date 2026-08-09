@@ -245,7 +245,7 @@ src/hyqagent/
 │   ├── discovery.py               ← ✅ Sink 发现 + Source 完整性检查
 │   ├── coverage.py                ← ✅ CoverageTracker（~179 盲点检测）
 │   ├── sanitizers.yaml            ← ⬜ 过滤函数的配置文件
-│   └── frameworks/                ← ✅ 框架提取器（Flask/Django/FastAPI/Express/Spring）
+│   └── frameworks/                ← ✅ 框架提取器（Flask/Django/FastAPI/Express/Spring/JAX-RS）
 │
 ├── scanner/                       ← 🔵 扫描引擎（Phase 2 完成 + Phase 3 部分）
 │   ├── orchestrator.py            ← 扫描流水线的"指挥中心"

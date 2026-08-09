@@ -170,7 +170,7 @@ graph TB
     C --> K
 ```
 
-> **实现进度**（2026-08-06）：CPG Engine 全线完成——Parser/Traverser/CallGraph/CallGraphBuilder/LanguageProvider/DataFlowBuilder/CPGGraphBuilder/CPGQuery/Framework Extractors (5种)/TaintRuleLoader。~5,700 行源码，372 tests，26 个已知 Bug 全部修复。Core Runtime 的 protocols.py/state.py/events.py 已实现。CPG pickle 缓存支持秒级加载（ureport2: 首次 822s→后续 0.3s）。其余模块（Scan Engine、Model Router、Context Manager、Infrastructure）为设计阶段，仅 `__init__.py` 骨架。详见 `progress.md`。
+> **实现进度**（2026-08-09）：CPG Engine 全线完成——Parser/Traverser/CallGraph/CallGraphBuilder/LanguageProvider/DataFlowBuilder/CPGGraphBuilder/CPGQuery/Framework Extractors (6种)/TaintRuleLoader/JavaConfigScanner。~6,500 行源码，1457 tests。
 
 ### 3.2 模块划分
 
@@ -327,7 +327,7 @@ CPG由五种图组成，存储在同一个NetworkX MultiDiGraph中：
 | CPGGraphBuilder | `cpg/graph.py` | NetworkX MultiDiGraph 统一索引（AST/CALLS/DATA_FLOW 三种边类型） |
 | CPGQuery | `cpg/query.py` | 图查询接口（find_path/find_sources/find_sinks/get_call_chain/slice_path） |
 | taint_rules.yaml | `cpg/taint_rules.yaml` | Python/JS/Java × 9 种漏洞类别完整 source/sink/sanitizer 规则 |
-| Framework Extractors | `cpg/frameworks/` | Flask/FastAPI/Django/Express/Spring 五种框架路由提取 + TaintRuleLoader |
+| Framework Extractors | `cpg/frameworks/` | Flask/FastAPI/Django/Express/Spring/JAX-RS 六种框架路由提取 + TaintRuleLoader |
 | LanguageProvider | `cpg/languages/` | **策略模式可扩展架构**：添加新语言=1个文件+1行注册，核心零改动 |
 | types | `cpg/types.py` | 共享数据类（含 DefUsePair/DataFlowStep/TaintPath 等数据流类型） |
 
