@@ -97,10 +97,12 @@ def _find_callers(graph: Any, func_name: str) -> list[tuple[str, str]]:
                 for caller_id in graph.predecessors(pred):
                     caller_data = graph.nodes.get(caller_id, {})
                     if caller_data.get("node_type") == _NODE_FUNCTION:
-                        results.append((
-                            caller_data.get("name", caller_id),
-                            caller_data.get("file_path", ""),
-                        ))
+                        results.append(
+                            (
+                                caller_data.get("name", caller_id),
+                                caller_data.get("file_path", ""),
+                            )
+                        )
     return results
 
 
@@ -122,10 +124,12 @@ def _find_callees(graph: Any, func_name: str) -> list[tuple[str, str]]:
                 for callee_id in graph.successors(succ):
                     callee_data = graph.nodes.get(callee_id, {})
                     if callee_data.get("node_type") == _NODE_FUNCTION:
-                        results.append((
-                            callee_data.get("name", callee_id),
-                            callee_data.get("file_path", ""),
-                        ))
+                        results.append(
+                            (
+                                callee_data.get("name", callee_id),
+                                callee_data.get("file_path", ""),
+                            )
+                        )
     return results
 
 
@@ -172,6 +176,7 @@ class SaturationScanner:
 
         Returns:
             Aggregated ``SaturationResult`` covering all rounds.
+
         """
         if not confirmed:
             return SaturationResult(reasoning="No confirmed findings to seed saturation.")
@@ -244,24 +249,28 @@ class SaturationScanner:
             # Callers — who calls this vulnerable sink?
             for caller_name, caller_file in _find_callers(graph, func_name):
                 if caller_name not in confirmed_sinks:
-                    seeds.add(SeedPoint(
-                        function_name=caller_name,
-                        file_path=caller_file,
-                        reason="caller_of_sink",
-                        source_finding_id=hid,
-                        source_sink=func_name,
-                    ))
+                    seeds.add(
+                        SeedPoint(
+                            function_name=caller_name,
+                            file_path=caller_file,
+                            reason="caller_of_sink",
+                            source_finding_id=hid,
+                            source_sink=func_name,
+                        )
+                    )
 
             # Callees — what does this sink call?
             for callee_name, callee_file in _find_callees(graph, func_name):
                 if callee_name not in confirmed_sinks:
-                    seeds.add(SeedPoint(
-                        function_name=callee_name,
-                        file_path=callee_file,
-                        reason="callee_of_sink",
-                        source_finding_id=hid,
-                        source_sink=func_name,
-                    ))
+                    seeds.add(
+                        SeedPoint(
+                            function_name=callee_name,
+                            file_path=callee_file,
+                            reason="callee_of_sink",
+                            source_finding_id=hid,
+                            source_sink=func_name,
+                        )
+                    )
 
         # Register initial seeds as seen
         for s in seeds:
@@ -274,20 +283,24 @@ class SaturationScanner:
         expanded: set[SeedPoint] = set()
 
         for caller_name, caller_file in _find_callers(graph, seed.function_name):
-            expanded.add(SeedPoint(
-                function_name=caller_name,
-                file_path=caller_file,
-                reason="caller_of_sink",
-                source_sink=seed.function_name,
-            ))
+            expanded.add(
+                SeedPoint(
+                    function_name=caller_name,
+                    file_path=caller_file,
+                    reason="caller_of_sink",
+                    source_sink=seed.function_name,
+                )
+            )
 
         for callee_name, callee_file in _find_callees(graph, seed.function_name):
-            expanded.add(SeedPoint(
-                function_name=callee_name,
-                file_path=callee_file,
-                reason="callee_of_sink",
-                source_sink=seed.function_name,
-            ))
+            expanded.add(
+                SeedPoint(
+                    function_name=callee_name,
+                    file_path=callee_file,
+                    reason="callee_of_sink",
+                    source_sink=seed.function_name,
+                )
+            )
 
         return expanded
 

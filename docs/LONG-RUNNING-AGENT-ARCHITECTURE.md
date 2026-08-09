@@ -96,10 +96,8 @@ LLM上下文窗口有限（200K tokens），不能一次性加载所有代码和
 prompt = [
     # Cache Point 1: 系统prompt + 漏洞分类 (稳定, 高重用)
     {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
-    
     # Cache Point 2: 长期记忆 / 结晶状态 (缓慢变化)
     {"type": "text", "text": long_term_memory_doc, "cache_control": {"type": "ephemeral"}},
-    
     # Not cached: 工作记忆 (每次轮次变化)
     {"type": "text", "text": recent_turns},
 ]

@@ -140,9 +140,7 @@ class TestCPGGraph:
 
     def test_graph_has_functions(self, graph_builder):
         funcs = graph_builder.nodes_by_type(NODE_FUNCTION)
-        func_names = {
-            graph_builder.graph.nodes[n].get("name") for n in funcs
-        }
+        func_names = {graph_builder.graph.nodes[n].get("name") for n in funcs}
         assert "hello" in func_names
         assert "search" in func_names
         assert "admin_ping" in func_names
@@ -155,14 +153,16 @@ class TestCPGGraph:
 
     def test_graph_has_dataflow_edges(self, graph_builder):
         df_edges = [
-            (u, v, d) for u, v, d in graph_builder.graph.edges(data=True)
+            (u, v, d)
+            for u, v, d in graph_builder.graph.edges(data=True)
             if d.get("edge_type") == "DATA_FLOW"
         ]
         assert len(df_edges) > 0
 
     def test_graph_has_calls_edges(self, graph_builder):
         call_edges = [
-            (u, v, d) for u, v, d in graph_builder.graph.edges(data=True)
+            (u, v, d)
+            for u, v, d in graph_builder.graph.edges(data=True)
             if d.get("edge_type") == "CALLS"
         ]
         assert len(call_edges) > 0
@@ -317,9 +317,7 @@ class TestTaintGraphIntegration:
         for _nid, data in taint_builder.graph.nodes(data=True):
             if data.get("taint_category"):
                 labeled += 1
-        assert labeled > 0, (
-            "Expected at least one taint-labeled node in the microblog fixture"
-        )
+        assert labeled > 0, "Expected at least one taint-labeled node in the microblog fixture"
 
     def test_find_sources_finds_labeled(self, taint_query):
         """find_sources() recognizes taint_category-labeled nodes."""
@@ -369,6 +367,7 @@ class TestTaintGraphIntegration:
 def _find_func_body(tree, provider, name: str):
     """Find the function_definition body node for *name*, unwrapping decorators."""
     from hyqagent.cpg.traversal import Traverser
+
     for node in Traverser(tree).traverse():
         if node.type == "function_definition":
             if provider.extract_function_name(node) == name:
@@ -376,7 +375,9 @@ def _find_func_body(tree, provider, name: str):
         elif node.type == "decorated_definition":
             # Unwrap: find the inner function_definition
             for child in node.children:
-                if (child.type == "function_definition"
-                        and provider.extract_function_name(child) == name):
+                if (
+                    child.type == "function_definition"
+                    and provider.extract_function_name(child) == name
+                ):
                     return child
     return None

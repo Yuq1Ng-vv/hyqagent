@@ -12,9 +12,12 @@ from hyqagent.observability.audit_trail import AuditEntry, AuditTrail
 class TestAuditEntry:
     def test_defaults(self) -> None:
         entry = AuditEntry(
-            sequence=1, timestamp="2026-01-01T00:00:00Z",
-            phase="test", event="hypothesis_confirmed",
-            hypothesis_id="h-1", actor="L1",
+            sequence=1,
+            timestamp="2026-01-01T00:00:00Z",
+            phase="test",
+            event="hypothesis_confirmed",
+            hypothesis_id="h-1",
+            actor="L1",
             decision="confirmed",
         )
         assert entry.evidence_hash == ""
@@ -111,7 +114,11 @@ class TestAuditTrail:
     def test_metadata_preserved(self) -> None:
         trail = AuditTrail(session_id="test")
         trail.record(
-            "e1", "p1", "h-1", "L1", "confirmed",
+            "e1",
+            "p1",
+            "h-1",
+            "L1",
+            "confirmed",
             metadata={"cost_usd": 0.005, "latency_ms": 300},
         )
         # Re-fetch to get canonical copy

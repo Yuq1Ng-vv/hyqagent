@@ -74,8 +74,9 @@ class TestValidationPrompt:
             evidence="{{ comment }}",
             reasoning="Template may not auto-escape",
         )
-        prompt = _build_validation_prompt(hyp, "def comment(): ...",
-                                          sanitizer_info="jinja2 autoescape=True")
+        prompt = _build_validation_prompt(
+            hyp, "def comment(): ...", sanitizer_info="jinja2 autoescape=True"
+        )
         assert "jinja2 autoescape=True" in prompt
 
 
@@ -137,8 +138,9 @@ class TestValidatorL1:
         defaults.update(kwargs)
         return Hypothesis(**defaults)  # type: ignore[arg-type]
 
-    def test_l1_all_match_confirms(self, validator: Validator,
-                                    mock_taint_loader: MagicMock) -> None:
+    def test_l1_all_match_confirms(
+        self, validator: Validator, mock_taint_loader: MagicMock
+    ) -> None:
         """When source and sink types match, L1 confirms."""
         mock_taint_loader.match_all_sources.return_value = ["sql_injection"]
         mock_taint_loader.match_sink.return_value = "sql_injection"
@@ -148,8 +150,9 @@ class TestValidatorL1:
         assert result.validation_type == "l1_deterministic"
         assert result.confidence >= 0.8
 
-    def test_l1_multiple_mismatches_reject(self, validator: Validator,
-                                            mock_taint_loader: MagicMock) -> None:
+    def test_l1_multiple_mismatches_reject(
+        self, validator: Validator, mock_taint_loader: MagicMock
+    ) -> None:
         """When both source and sink types mismatch, L1 rejects."""
         mock_taint_loader.match_all_sources.return_value = ["xss"]
         mock_taint_loader.match_sink.return_value = "command_injection"
@@ -158,8 +161,9 @@ class TestValidatorL1:
         assert result.verdict == "rejected"
         assert result.confidence < 0.5
 
-    def test_l1_single_mismatch_inconclusive(self, validator: Validator,
-                                              mock_taint_loader: MagicMock) -> None:
+    def test_l1_single_mismatch_inconclusive(
+        self, validator: Validator, mock_taint_loader: MagicMock
+    ) -> None:
         """Single mismatch → inconclusive (let L2 sort it out)."""
         mock_taint_loader.match_all_sources.return_value = ["xss"]
         mock_taint_loader.match_sink.return_value = "sql_injection"
@@ -167,8 +171,9 @@ class TestValidatorL1:
         result = validator.validate_l1(self._make_hypothesis())
         assert result.verdict == "inconclusive"
 
-    def test_l1_no_source_match_but_sink_matches(self, validator: Validator,
-                                                   mock_taint_loader: MagicMock) -> None:
+    def test_l1_no_source_match_but_sink_matches(
+        self, validator: Validator, mock_taint_loader: MagicMock
+    ) -> None:
         """Source type unknown but sink matches → inconclusive."""
         mock_taint_loader.match_all_sources.return_value = []
         mock_taint_loader.match_sink.return_value = "sql_injection"
@@ -176,15 +181,15 @@ class TestValidatorL1:
         result = validator.validate_l1(self._make_hypothesis())
         assert result.verdict == "confirmed"
 
-    def test_l1_no_evidence_no_mismatch_ok(self, validator: Validator,
-                                            mock_taint_loader: MagicMock) -> None:
+    def test_l1_no_evidence_no_mismatch_ok(
+        self, validator: Validator, mock_taint_loader: MagicMock
+    ) -> None:
         """L1 should handle hypotheses without evidence gracefully."""
         hyp = self._make_hypothesis(evidence="")
         result = validator.validate_l1(hyp)
         assert result.verdict in ("confirmed", "inconclusive")
 
-    def test_l1_evidence_tracking(self, validator: Validator,
-                                   mock_taint_loader: MagicMock) -> None:
+    def test_l1_evidence_tracking(self, validator: Validator, mock_taint_loader: MagicMock) -> None:
         """L1 should record evidence for each check."""
         mock_taint_loader.match_all_sources.return_value = ["sql_injection"]
         mock_taint_loader.match_sink.return_value = "sql_injection"

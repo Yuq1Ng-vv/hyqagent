@@ -6,11 +6,9 @@ import pytest
 
 from hyqagent.scanner.convergence import (
     ConvergenceMonitor,
-    ConvergenceReport,
     ConvergenceSnapshot,
     ConvergenceThresholds,
 )
-
 
 # ── ConvergenceSnapshot ────────────────────────────────────────────────────
 

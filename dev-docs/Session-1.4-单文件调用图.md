@@ -28,17 +28,19 @@
 ```python
 @dataclass
 class CallEdge:
-    caller: str           # 调用方函数名
-    callee: str           # 被调用方函数名（bare name: self.db.execute → execute）
-    call_line: int        # 调用发生行号（1-indexed）
+    caller: str  # 调用方函数名
+    callee: str  # 被调用方函数名（bare name: self.db.execute → execute）
+    call_line: int  # 调用发生行号（1-indexed）
     full_expression: str  # 完整调用表达式文本
-    is_resolved: bool     # True = callee 在本文件中有定义
+    is_resolved: bool  # True = callee 在本文件中有定义
     is_method_call: bool  # True = 对象方法调用（obj.method()）
-    file_path: str        # 源文件路径
+    file_path: str  # 源文件路径
 
-@dataclass 
+
+@dataclass
 class UnresolvedCall:
     """无法解析的调用 — Session 1.5 跨文件解析的候选"""
+
     callee, full_expression, call_line, caller, is_method_call, file_path
 ```
 
@@ -107,24 +109,25 @@ def outer(x):            ← outer is found for helper(x) call
 
 ```python
 cg = SingleFileCallGraph(parser)
-cg.build_from_file("app.py")           # 从文件构建
-cg.build_from_tree(tree, "python")      # 从已解析的tree构建
+cg.build_from_file("app.py")  # 从文件构建
+cg.build_from_tree(tree, "python")  # 从已解析的tree构建
 
 # 属性
-cg.edges           # list[CallEdge] — 全部调用边
+cg.edges  # list[CallEdge] — 全部调用边
 cg.resolved_edges  # list[CallEdge] — 已解析（callee在文件中有定义）
-cg.unresolved      # list[UnresolvedCall] — 未解析（外部/内置调用）
+cg.unresolved  # list[UnresolvedCall] — 未解析（外部/内置调用）
 cg.function_names  # set[str] — 文件中定义的所有函数名
 
 # 查询
-cg.get_callees("foo")    # foo 调用了哪些函数（含未解析）
-cg.get_callers("bar")    # 哪些函数调用了 bar（仅已解析）
-cg.has_edge("a", "b")    # 是否存在已解析边 a→b
+cg.get_callees("foo")  # foo 调用了哪些函数（含未解析）
+cg.get_callers("bar")  # 哪些函数调用了 bar（仅已解析）
+cg.has_edge("a", "b")  # 是否存在已解析边 a→b
 
 # 协议
-len(cg)                  # 边总数
-for edge in cg: ...      # 遍历所有边
-repr(cg)                 # "SingleFileCallGraph(functions=16, edges=23, resolved=12)"
+len(cg)  # 边总数
+for edge in cg:
+    ...  # 遍历所有边
+repr(cg)  # "SingleFileCallGraph(functions=16, edges=23, resolved=12)"
 ```
 
 ## 遇到的问题与修复

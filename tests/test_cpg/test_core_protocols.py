@@ -5,14 +5,7 @@ These tests verify the foundational data structures that all modules depend on.
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass
-from typing import Any
-
-import pytest
-
 from hyqagent.core.protocols import ToolResult
-
 
 # ── ToolResult ───────────────────────────────────────────────────────────────
 
@@ -50,7 +43,7 @@ class TestToolResult:
         assert result.error_code == "PARSE_ERROR"
 
     def test_fail_error_required(self):
-        """error should be a non-empty string for fail results."""
+        """Error should be a non-empty string for fail results."""
         result = ToolResult.fail("x", "something went wrong")
         assert result.error
         assert isinstance(result.error, str)
@@ -94,7 +87,7 @@ class TestToolResult:
         assert r1 != r3
 
     def test_various_result_types(self):
-        """result can be str, int, list, dict, None."""
+        """Result can be str, int, list, dict, None."""
         assert ToolResult.ok("a", "string").result == "string"
         assert ToolResult.ok("b", 42).result == 42
         assert ToolResult.ok("c", [1, 2]).result == [1, 2]

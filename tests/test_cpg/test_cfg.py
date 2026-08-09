@@ -151,8 +151,7 @@ class TestCFGBuilderPython:
     def test_straight_line(self, py_tree, parser, py_cfg_builder):  # parser=parser
         node = _func_node_from_tree(py_tree, parser, "straight_line")
         assert node is not None
-        blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         # Should have entry + at least one body block + exit
         assert any(b.block_type == "entry" for b in blocks)
@@ -163,8 +162,7 @@ class TestCFGBuilderPython:
 
     def test_if_else_blocks(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "if_else")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         # Must have branch_true + branch_false edges
         assert _edge_count(edges, "branch_true") >= 1
@@ -172,33 +170,29 @@ class TestCFGBuilderPython:
 
     def test_if_without_else(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "if_without_else")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert _edge_count(edges, "branch_true") >= 1
         assert _edge_count(edges, "branch_false") >= 1  # implicit else
 
     def test_while_loop(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "while_loop")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert _edge_count(edges, "branch_true") >= 1  # header → body
         assert _edge_count(edges, "branch_false") >= 1  # header → exit
-        assert _edge_count(edges, "loop_back") >= 1     # body → header
+        assert _edge_count(edges, "loop_back") >= 1  # body → header
 
     def test_for_loop(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "for_loop")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert _edge_count(edges, "branch_true") >= 1
         assert _edge_count(edges, "loop_back") >= 1
 
     def test_break_in_loop(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "break_in_loop")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         # Must have at least one loop_back edge
         # Must successfully build (break resolves correctly)
@@ -206,15 +200,13 @@ class TestCFGBuilderPython:
 
     def test_continue_in_loop(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "continue_in_loop")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert len(edges) > 0
 
     def test_nested_if(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "nested_if")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         # Multiple branch edges due to two levels of if
         assert _edge_count(edges, "branch_true") >= 2
@@ -222,22 +214,19 @@ class TestCFGBuilderPython:
 
     def test_multiple_returns(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "multiple_returns")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert _edge_count(edges, "return") >= 3  # -1, 0, 1
 
     def test_try_except_finally(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "try_except_finally")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert _edge_count(edges, "exception") >= 1
 
     def test_empty_function(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "empty_function")
-        blocks, _edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        blocks, _edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         # Must have at least entry + exit
         assert len(blocks) >= 2
@@ -246,15 +235,13 @@ class TestCFGBuilderPython:
 
     def test_early_return(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "early_return")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         assert _edge_count(edges, "return") >= 2
 
     def test_nested_loops(self, py_tree, parser, py_cfg_builder):
         node = _func_node_from_tree(py_tree, parser, "nested_loops")
-        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        _blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         # Two loops → two loop_back edges minimum
         assert _edge_count(edges, "loop_back") >= 2
@@ -264,8 +251,7 @@ class TestCFGBuilderPython:
         normal function — the entry IS the entry point, not a target).
         """
         node = _func_node_from_tree(py_tree, parser, "straight_line")
-        blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         entry = _block_by_type(blocks, "entry")
         assert entry is not None
@@ -278,8 +264,7 @@ class TestCFGBuilderPython:
     def test_exit_has_no_successors(self, py_tree, parser, py_cfg_builder):
         """Exit block should have no outgoing CTRL_FLOW edges."""
         node = _func_node_from_tree(py_tree, parser, "straight_line")
-        blocks, edges = py_cfg_builder.build_cfg(py_tree, node,
-                                                  str(FIXTURES / "cfg_samples.py"))
+        blocks, edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         exit_b = _block_by_type(blocks, "exit")
         assert exit_b is not None
@@ -291,8 +276,7 @@ class TestCFGBuilderPython:
     def test_all_blocks_have_unique_ids(self, py_tree, parser, py_cfg_builder):
         """No two blocks should share the same block_id."""
         node = _func_node_from_tree(py_tree, parser, "if_else")
-        blocks, _edges = py_cfg_builder.build_cfg(
-            py_tree, node, str(FIXTURES / "cfg_samples.py"))
+        blocks, _edges = py_cfg_builder.build_cfg(py_tree, node, str(FIXTURES / "cfg_samples.py"))
 
         ids = [b.block_id for b in blocks]
         assert len(ids) == len(set(ids))
@@ -319,8 +303,8 @@ class TestCFGBuilderJavaScript:
                 name = provider.extract_function_name(node)
                 if name:
                     blocks, _edges = builder.build_cfg(
-                        js_tree, node,
-                        str(FIXTURES / "callgraph.js"))
+                        js_tree, node, str(FIXTURES / "callgraph.js")
+                    )
                     assert len(blocks) >= 2  # entry + exit minimum
                     assert any(b.block_type == "entry" for b in blocks)
                     assert any(b.block_type == "exit" for b in blocks)
@@ -339,8 +323,8 @@ class TestCFGBuilderJavaScript:
                 source = node.text.decode("utf-8") if node.text else ""
                 if "if" in source and "else" in source:
                     blocks, _edges = builder.build_cfg(
-                        js_tree, node,
-                        str(FIXTURES / "callgraph.js"))
+                        js_tree, node, str(FIXTURES / "callgraph.js")
+                    )
                     # Should have entry + exit + branch blocks
                     assert len(blocks) >= 3
                     return  # One matching function is enough
@@ -368,8 +352,8 @@ class TestCFGBuilderJava:
                 name = provider.extract_function_name(node)
                 if name:
                     blocks, _edges = builder.build_cfg(
-                        java_tree, node,
-                        str(FIXTURES / "callgraph.java"))
+                        java_tree, node, str(FIXTURES / "callgraph.java")
+                    )
                     assert len(blocks) >= 2
                     assert any(b.block_type == "entry" for b in blocks)
                     assert any(b.block_type == "exit" for b in blocks)
@@ -388,8 +372,8 @@ class TestCFGBuilderJava:
                 source = node.text.decode("utf-8") if node.text else ""
                 if "for" in source or "while" in source:
                     blocks, edges = builder.build_cfg(
-                        java_tree, node,
-                        str(FIXTURES / "callgraph.java"))
+                        java_tree, node, str(FIXTURES / "callgraph.java")
+                    )
                     assert len(blocks) >= 3
                     assert _edge_count(edges, "loop_back") >= 1
                     return
@@ -411,15 +395,15 @@ class TestCFGGraphIntegration:
     def test_basic_block_nodes_in_graph(self, cpg_builder):
         graph = cpg_builder.graph
         bb_nodes = [
-            nid for nid, data in graph.nodes(data=True)
-            if data.get("node_type") == NODE_BASIC_BLOCK
+            nid for nid, data in graph.nodes(data=True) if data.get("node_type") == NODE_BASIC_BLOCK
         ]
         assert len(bb_nodes) > 0, "No NODE_BASIC_BLOCK nodes in graph"
 
     def test_ctrl_flow_edges_in_graph(self, cpg_builder):
         graph = cpg_builder.graph
         cf_edges = [
-            (u, v) for u, v, data in graph.edges(data=True)
+            (u, v)
+            for u, v, data in graph.edges(data=True)
             if data.get("edge_type") == EDGE_CTRL_FLOW
         ]
         assert len(cf_edges) > 0, "No EDGE_CTRL_FLOW edges in graph"
@@ -428,8 +412,7 @@ class TestCFGGraphIntegration:
         """Every function node should have a DATA_FLOW edge to its entry block."""
         graph = cpg_builder.graph
         func_nodes = [
-            nid for nid, data in graph.nodes(data=True)
-            if data.get("node_type") == "function"
+            nid for nid, data in graph.nodes(data=True) if data.get("node_type") == "function"
         ]
         for fid in func_nodes:
             # Find entry blocks reachable from this function
@@ -458,12 +441,14 @@ class TestCFGGraphIntegration:
         from hyqagent.cpg.graph import NODE_BASIC_BLOCK
 
         count_before = sum(
-            1 for _n, d in cpg_builder.graph.nodes(data=True)
+            1
+            for _n, d in cpg_builder.graph.nodes(data=True)
             if d.get("node_type") == NODE_BASIC_BLOCK
         )
         cpg_builder.add_file(str(FIXTURES / "cfg_samples.py"))
         count_after = sum(
-            1 for _n, d in cpg_builder.graph.nodes(data=True)
+            1
+            for _n, d in cpg_builder.graph.nodes(data=True)
             if d.get("node_type") == NODE_BASIC_BLOCK
         )
         assert count_after == count_before, (
@@ -492,16 +477,20 @@ class TestCFGGraphIntegration:
         _fp, graph2 = pickle.loads(data)
 
         # Count CFG nodes/edges
-        bb1 = sum(1 for _n, d in builder1.graph.nodes(data=True)
-                  if d.get("node_type") == NODE_BASIC_BLOCK)
-        bb2 = sum(1 for _n, d in graph2.nodes(data=True)
-                  if d.get("node_type") == NODE_BASIC_BLOCK)
+        bb1 = sum(
+            1 for _n, d in builder1.graph.nodes(data=True) if d.get("node_type") == NODE_BASIC_BLOCK
+        )
+        bb2 = sum(1 for _n, d in graph2.nodes(data=True) if d.get("node_type") == NODE_BASIC_BLOCK)
         assert bb1 == bb2, f"BB nodes: {bb1} → {bb2} after pickle"
 
-        cf1 = sum(1 for _u, _v, d in builder1.graph.edges(data=True)
-                  if d.get("edge_type") == EDGE_CTRL_FLOW)
-        cf2 = sum(1 for _u, _v, d in graph2.edges(data=True)
-                  if d.get("edge_type") == EDGE_CTRL_FLOW)
+        cf1 = sum(
+            1
+            for _u, _v, d in builder1.graph.edges(data=True)
+            if d.get("edge_type") == EDGE_CTRL_FLOW
+        )
+        cf2 = sum(
+            1 for _u, _v, d in graph2.edges(data=True) if d.get("edge_type") == EDGE_CTRL_FLOW
+        )
         assert cf1 == cf2, f"CTRL_FLOW edges: {cf1} → {cf2} after pickle"
 
 
@@ -549,8 +538,7 @@ class TestCFGQuery:
         assert entry is not None
         blocks = query.get_cfg_for_function("if_else")
         # At least one block should be reachable from entry
-        reachable = [b for b in blocks if b != entry and
-                     query.is_reachable(entry, b)]
+        reachable = [b for b in blocks if b != entry and query.is_reachable(entry, b)]
         assert len(reachable) >= 1
 
     def test_get_reachable_blocks(self, query):
@@ -566,9 +554,7 @@ class TestCFGQuery:
         blocks = query.get_cfg_for_function("straight_line")
         for bid in blocks:
             if bid != entry:
-                assert query.dominates(entry, bid, entry), (
-                    f"Entry {entry} should dominate {bid}"
-                )
+                assert query.dominates(entry, bid, entry), f"Entry {entry} should dominate {bid}"
 
     def test_dominates_branch_not_dominate_peer(self, query):
         """In if/else, each branch should NOT dominate its peer branch."""
@@ -630,7 +616,9 @@ class TestDominanceAnalyzer:
         from hyqagent.cpg.cfg import DominanceAnalyzer
 
         dom = DominanceAnalyzer.compute_dominators(
-            self.DIAMOND_IDS, self.DIAMOND_PREDS, "a",
+            self.DIAMOND_IDS,
+            self.DIAMOND_PREDS,
+            "a",
         )
         assert "a" in dom["b"], "entry should dominate b"
         assert "a" in dom["c"], "entry should dominate c"
@@ -640,7 +628,9 @@ class TestDominanceAnalyzer:
         from hyqagent.cpg.cfg import DominanceAnalyzer
 
         dom = DominanceAnalyzer.compute_dominators(
-            self.DIAMOND_IDS, self.DIAMOND_PREDS, "a",
+            self.DIAMOND_IDS,
+            self.DIAMOND_PREDS,
+            "a",
         )
         assert "b" not in dom["c"], "branch b should NOT dominate sibling c"
         assert "c" not in dom["b"], "branch c should NOT dominate sibling b"
@@ -649,7 +639,9 @@ class TestDominanceAnalyzer:
         from hyqagent.cpg.cfg import DominanceAnalyzer
 
         pd = DominanceAnalyzer.compute_post_dominators(
-            self.DIAMOND_IDS, self.DIAMOND_SUCCS, {"d"},
+            self.DIAMOND_IDS,
+            self.DIAMOND_SUCCS,
+            {"d"},
         )
         # d (exit) post-dominates everything
         for bid in self.DIAMOND_IDS:
@@ -659,7 +651,9 @@ class TestDominanceAnalyzer:
         from hyqagent.cpg.cfg import DominanceAnalyzer
 
         pd = DominanceAnalyzer.compute_post_dominators(
-            self.DIAMOND_IDS, self.DIAMOND_SUCCS, {"d"},
+            self.DIAMOND_IDS,
+            self.DIAMOND_SUCCS,
+            {"d"},
         )
         # a post-dominates itself and d (merge point), but not b or c
         assert "b" not in pd["a"], "a should NOT post-dominate b"
@@ -670,10 +664,14 @@ class TestDominanceAnalyzer:
         from hyqagent.cpg.cfg import DominanceAnalyzer
 
         pd = DominanceAnalyzer.compute_post_dominators(
-            self.DIAMOND_IDS, self.DIAMOND_SUCCS, {"d"},
+            self.DIAMOND_IDS,
+            self.DIAMOND_SUCCS,
+            {"d"},
         )
         cd = DominanceAnalyzer.compute_control_dependence(
-            self.DIAMOND_IDS, self.DIAMOND_SUCCS, pd,
+            self.DIAMOND_IDS,
+            self.DIAMOND_SUCCS,
+            pd,
         )
         # b and c are control-dependent on a (the branch)
         assert "a" in cd.get("b", set()), "b should be CD on a"
@@ -691,10 +689,14 @@ class TestDominanceAnalyzer:
         from hyqagent.cpg.cfg import DominanceAnalyzer
 
         pd = DominanceAnalyzer.compute_post_dominators(
-            self.LINEAR_IDS, self.LINEAR_SUCCS, {"z"},
+            self.LINEAR_IDS,
+            self.LINEAR_SUCCS,
+            {"z"},
         )
         cd = DominanceAnalyzer.compute_control_dependence(
-            self.LINEAR_IDS, self.LINEAR_SUCCS, pd,
+            self.LINEAR_IDS,
+            self.LINEAR_SUCCS,
+            pd,
         )
         # No branch → no control dependence
         for ctrls in cd.values():
@@ -726,8 +728,7 @@ class TestCDGQuery:
         """In if_else, the exit block should post-dominate all blocks."""
         blocks = query.get_cfg_for_function("if_else")
         exit_blocks = [
-            b for b in blocks
-            if query._graph.nodes.get(b, {}).get("block_type") == "exit"
+            b for b in blocks if query._graph.nodes.get(b, {}).get("block_type") == "exit"
         ]
         if not exit_blocks:
             pytest.skip("No exit block found")
@@ -745,7 +746,8 @@ class TestCDGQuery:
 
     def test_get_control_dependents_if_else(self, query):
         """In if_else, the then/else bodies should be CD on the condition
-        block."""
+        block.
+        """
         blocks = query.get_cfg_for_function("if_else")
         graph = query._graph
 
@@ -762,9 +764,7 @@ class TestCDGQuery:
             pytest.skip("No condition block found")
 
         cd_blocks = query.get_control_dependents(cond_block, "if_else")
-        assert len(cd_blocks) >= 1, (
-            f"Expected blocks CD on condition, got {cd_blocks}"
-        )
+        assert len(cd_blocks) >= 1, f"Expected blocks CD on condition, got {cd_blocks}"
 
     def test_get_control_dependents_straight_line(self, query):
         """Straight-line code has no control dependences (no branches)."""
@@ -777,7 +777,8 @@ class TestCDGQuery:
 
     def test_is_control_dependent_on(self, query):
         """is_control_dependent_on should be consistent with
-        get_control_dependents."""
+        get_control_dependents.
+        """
         blocks = query.get_cfg_for_function("if_else")
         if len(blocks) < 3:
             pytest.skip("Not enough blocks")
@@ -797,7 +798,9 @@ class TestCDGQuery:
         cd_blocks = query.get_control_dependents(cond_block, "if_else")
         if cd_blocks:
             assert query.is_control_dependent_on(
-                cd_blocks[0], cond_block, "if_else",
+                cd_blocks[0],
+                cond_block,
+                "if_else",
             )
 
     def test_missing_function_control_dependents(self, query):
@@ -825,6 +828,7 @@ class TestCFGEdgeCases:
         builder = CFGBuilder(provider)
 
         from hyqagent.cpg.traversal import Traverser
+
         for node in Traverser(tree).traverse():
             if node.type == "function_definition":
                 blocks, _edges = builder.build_cfg(tree, node, "inline.py")

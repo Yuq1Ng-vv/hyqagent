@@ -90,11 +90,12 @@ cursor.execute(query)                   # sink
 # 五种图，存储在同一个 NetworkX MultiDiGraph 中
 # 每种关系用不同的边类型标记
 
+
 class CPGEdge:
-    AST_EDGE = "ast"           # 语法父子关系
-    CALLS = "calls"            # 函数A调用了函数B
-    DATA_FLOW = "data_flow"    # 数据从表达式A流向表达式B  
-    CONTROL_FLOW = "ctrl_flow" # 控制流（if/then/else, loop）
+    AST_EDGE = "ast"  # 语法父子关系
+    CALLS = "calls"  # 函数A调用了函数B
+    DATA_FLOW = "data_flow"  # 数据从表达式A流向表达式B
+    CONTROL_FLOW = "ctrl_flow"  # 控制流（if/then/else, loop）
     HTTP_ROUTE = "http_route"  # HTTP路由信息
 ```
 
@@ -138,51 +139,74 @@ public User getUser(@PathVariable Long id) { ... }
 # 从配置文件读取，可扩展
 TAINT_SOURCES = {
     "python": [
-        "request.args.get", "request.form.get", "request.json",
-        "request.headers.get", "request.cookies.get",
-        "request.get_json()", "request.data",
-        "flask.request.*", "fastapi.Request.*"
+        "request.args.get",
+        "request.form.get",
+        "request.json",
+        "request.headers.get",
+        "request.cookies.get",
+        "request.get_json()",
+        "request.data",
+        "flask.request.*",
+        "fastapi.Request.*",
     ],
     "javascript": [
-        "req.body.*", "req.query.*", "req.params.*",
-        "req.headers[*]", "req.cookies.*",
-        "req.url", "req.path"
+        "req.body.*",
+        "req.query.*",
+        "req.params.*",
+        "req.headers[*]",
+        "req.cookies.*",
+        "req.url",
+        "req.path",
     ],
     "java": [
-        "@RequestParam", "@PathVariable", "@RequestBody",
+        "@RequestParam",
+        "@PathVariable",
+        "@RequestBody",
         "HttpServletRequest.getParameter",
-        "HttpServletRequest.getHeader"
-    ]
+        "HttpServletRequest.getHeader",
+    ],
 }
 
 TAINT_SINKS = {
     "sql_injection": [
-        "cursor.execute", "session.execute", "connection.execute",
-        "cursor.executemany", "Session.query",
+        "cursor.execute",
+        "session.execute",
+        "connection.execute",
+        "cursor.executemany",
+        "Session.query",
         # JS: "pool.query", "db.query", "knex.raw"
         # Java: "jdbcTemplate.query", "entityManager.createQuery"
     ],
     "xss": [
-        "render_template", "Response(..., mimetype='text/html')",
+        "render_template",
+        "Response(..., mimetype='text/html')",
         # JS: "res.send", "res.render", "innerHTML"
     ],
     "ssrf": [
-        "requests.get", "urllib.request.urlopen", "httpx.get",
+        "requests.get",
+        "urllib.request.urlopen",
+        "httpx.get",
         # JS: "axios.get", "fetch", "http.get"
     ],
     "command_injection": [
-        "os.system", "subprocess.call", "subprocess.Popen",
+        "os.system",
+        "subprocess.call",
+        "subprocess.Popen",
         # JS: "child_process.exec", "child_process.spawn"
     ],
     "path_traversal": [
-        "open(", "Path(", "os.path.join",
+        "open(",
+        "Path(",
+        "os.path.join",
         # JS: "fs.readFile", "fs.createReadStream"
     ],
     "deserialization": [
-        "pickle.load", "yaml.load", "marshal.load",
+        "pickle.load",
+        "yaml.load",
+        "marshal.load",
         # JS: "eval(", "new Function("
         # Java: "ObjectInputStream.readObject"
-    ]
+    ],
 }
 ```
 
@@ -227,7 +251,7 @@ Phase 5: Report Assembly           ← 0 LLM tokens, 纯组装
 **具体规则**：
 ```python
 # 规则1: 硬编码密钥/密码
-# 正则: password\s*=\s*['"][^'"]+['"] 
+# 正则: password\s*=\s*['"][^'"]+['"]
 # 正则: api_key\s*=\s*['"][^'"]+['"]
 
 # 规则2: 明确的危险调用
@@ -329,22 +353,19 @@ def generate_hypothesis_prompt(endpoint, cpg):
 ```python
 def deterministic_validate(hypothesis, cpg):
     # 1. 验证数据流路径真实存在
-    actual_path = cpg.find_path(
-        hypothesis.source_location, 
-        hypothesis.sink_location
-    )
+    actual_path = cpg.find_path(hypothesis.source_location, hypothesis.sink_location)
     if not actual_path:
         return ValidationResult.REJECTED, "数据流路径不存在"
-    
+
     # 2. 验证source/sink类型匹配
     if not cpg.is_sink_type(hypothesis.sink, hypothesis.vuln_type):
         return ValidationResult.REJECTED, "Sink类型与漏洞类型不匹配"
-    
+
     # 3. 验证行号/代码片段与假设中的一致
     actual_code = cpg.get_code(hypothesis.source_location)
     if not code_matches(hypothesis.source_snippet, actual_code):
         return ValidationResult.REJECTED, "代码片段不匹配（文件已变更？）"
-    
+
     return ValidationResult.PASSED_DETERMINISTIC
 ```
 
@@ -357,9 +378,9 @@ def llm_validate(hypothesis, cpg):
         hypothesis.sink,
         include_sanitizers=True,
         include_related_tests=True,  # 相关单元测试可以提供额外证据
-        context_window=8000,         # 更多上下文给强模型
+        context_window=8000,  # 更多上下文给强模型
     )
-    
+
     prompt = f"""
     作为安全审计专家，请严格验证以下漏洞假设。
 
@@ -374,7 +395,7 @@ def llm_validate(hypothesis, cpg):
     3. 是否存在有效的消毒/验证措施？它们是否充分？
     4. 是否存在框架级保护？（如ORM自动参数化、模板引擎自动转义）
     5. 综合考虑以上因素，此漏洞是否真实可用？
-    
+
     ## 输出格式
     {{
       "verdict": "CONFIRMED" | "REJECTED" | "INCONCLUSIVE",
@@ -540,32 +561,32 @@ class BeliefSystem:
     管理漏洞假设的生命周期。
     不是简单的 boolean，而是一个状态机 + 贝叶斯置信度更新。
     """
-    
+
     STATUS_TRANSITIONS = {
-        'proposed': ['investigating', 'rejected'],
-        'investigating': ['l1_validated', 'rejected'],
-        'l1_validated': ['l2_validated', 'rejected'],
-        'l2_validated': ['confirmed', 'rejected', 'inconclusive'],
-        'confirmed': ['reported'],
-        'reported': [],  # 终态
-        'rejected': [],  # 终态
-        'inconclusive': ['investigating'],  # 可以重新调查
+        "proposed": ["investigating", "rejected"],
+        "investigating": ["l1_validated", "rejected"],
+        "l1_validated": ["l2_validated", "rejected"],
+        "l2_validated": ["confirmed", "rejected", "inconclusive"],
+        "confirmed": ["reported"],
+        "reported": [],  # 终态
+        "rejected": [],  # 终态
+        "inconclusive": ["investigating"],  # 可以重新调查
     }
-    
+
     def update_confidence(self, hypothesis, evidence, evidence_strength):
         """
         贝叶斯更新：
         P(vuln|evidence) = P(evidence|vuln) * P(vuln) / P(evidence)
-        
+
         简化实现：
         - confirming evidence: confidence *= (1 + strength * (1 - confidence))
         - refuting evidence:   confidence *= (1 - strength * confidence)
         """
-        if evidence.verdict == 'supporting':
+        if evidence.verdict == "supporting":
             hypothesis.confidence += evidence_strength * (1 - hypothesis.confidence)
         else:
-            hypothesis.confidence *= (1 - evidence_strength * hypothesis.confidence)
-        
+            hypothesis.confidence *= 1 - evidence_strength * hypothesis.confidence
+
         # 确保在 [0, 1] 范围内
         hypothesis.confidence = max(0.0, min(1.0, hypothesis.confidence))
 ```
@@ -580,23 +601,23 @@ class BeliefSystem:
 class ModelRouter:
     """
     按任务类型和复杂度路由到不同模型。
-    
+
     模型分三档：
     - CHEAP: Kimi K2 Instruct ($0.50/1M in+out) 或 GLM-5.1 ($1.06/PR)
     - MID: Claude Sonnet 4.6 ($3/$15 per 1M in/out)
     - STRONG: Claude Opus 4.6 ($15/$75 per 1M in/out)
-    
+
     成本比: cheap:mid:strong = 1:30:150
     """
-    
+
     CHEAP_MODELS = ["kimi-k2-instruct", "glm-5.1"]
     MID_MODELS = ["claude-sonnet-4-6"]
     STRONG_MODELS = ["claude-opus-4-6", "gpt-5.2"]
-    
+
     def route(self, task: Task) -> ModelSpec:
         """
         路由决策矩阵：
-        
+
         Task Type            → Model Tier   Reasoning
         ─────────────────────────────────────────────
         代码分类/摘要        → CHEAP        结构化输出，不需要深度推理
@@ -608,10 +629,10 @@ class ModelRouter:
         LLM验证(L2，中置信)  → MID          假设置信度40-70%
         LLM验证(L2，高价值)  → STRONG       假设置信度>70%且severity≥HIGH
         """
-        
+
         if task.type == TaskType.CLASSIFICATION:
             return self._pick_cheapest_available()
-        
+
         if task.type == TaskType.HYPOTHESIS:
             complexity = self._assess_complexity(task)
             if complexity < 3:
@@ -620,14 +641,14 @@ class ModelRouter:
                 return self._pick_available(self.MID_MODELS)
             else:
                 return self._pick_available(self.STRONG_MODELS)
-        
+
         if task.type == TaskType.VALIDATION:
-            hypothesis = task.context['hypothesis']
-            if hypothesis.confidence > 0.7 and hypothesis.severity in ['CRITICAL', 'HIGH']:
+            hypothesis = task.context["hypothesis"]
+            if hypothesis.confidence > 0.7 and hypothesis.severity in ["CRITICAL", "HIGH"]:
                 return self._pick_available(self.STRONG_MODELS)
             else:
                 return self._pick_available(self.MID_MODELS)
-    
+
     def _assess_complexity(self, task) -> int:
         """
         复杂度评分 1-10：
@@ -639,17 +660,17 @@ class ModelRouter:
         - 路径上有循环: +1
         """
         score = 0
-        path = task.context.get('data_flow_path', [])
+        path = task.context.get("data_flow_path", [])
         score += min(len(path), 5)  # 最多+5
-        
+
         files = set(step.file for step in path)
         score += min(len(files) - 1, 2) * 2  # 跨文件最多+4
-        
-        if task.context.get('has_async'):
+
+        if task.context.get("has_async"):
             score += 1
-        if task.context.get('has_reflection'):
+        if task.context.get("has_reflection"):
             score += 2
-        
+
         return min(score, 10)
 ```
 
@@ -660,39 +681,39 @@ class BudgetManager:
     """
     成本控制三层机制：
     1. 总预算上限 (--max-cost $X)
-    2. 每阶段预算比例  
+    2. 每阶段预算比例
     3. 自动降级 (超出预算时从STRONG降级到MID)
     """
-    
+
     DEFAULT_BUDGET = 5.0  # 默认每个项目$5
     DEFAULT_ALLOCATION = {
-        'phase2_mapping': 0.05,    # 攻击面映射: 5%，几乎免费
-        'phase3_hypothesis': 0.30,  # 假设生成: 30%
-        'phase4_l2_validation': 0.60, # LLM验证: 60%（大头）
-        'misc': 0.05,               # 其他: 5%
+        "phase2_mapping": 0.05,  # 攻击面映射: 5%，几乎免费
+        "phase3_hypothesis": 0.30,  # 假设生成: 30%
+        "phase4_l2_validation": 0.60,  # LLM验证: 60%（大头）
+        "misc": 0.05,  # 其他: 5%
     }
-    
+
     def check_and_route(self, task, remaining_budget):
         """在预算不足时自动降级模型选择"""
         proposed_model = self.router.route(task)
         estimated_cost = self.estimate_cost(task, proposed_model)
-        
+
         if estimated_cost <= remaining_budget:
             return proposed_model
-        
+
         # 降级策略
-        if proposed_model.tier == 'STRONG':
+        if proposed_model.tier == "STRONG":
             fallback = self.router.MID_MODELS[0]
             if self.estimate_cost(task, fallback) <= remaining_budget:
                 logger.warning(f"Budget constraint: downgrading {task.type} from STRONG to MID")
                 return fallback
-        
-        if proposed_model.tier in ('STRONG', 'MID'):
+
+        if proposed_model.tier in ("STRONG", "MID"):
             fallback = self.router.CHEAP_MODELS[0]
             if self.estimate_cost(task, fallback) <= remaining_budget:
                 logger.warning(f"Budget constraint: downgrading {task.type} to CHEAP")
                 return fallback
-        
+
         # 仍然超出预算，跳过此任务
         logger.warning(f"Skipping {task.type} due to budget exhaustion")
         return None

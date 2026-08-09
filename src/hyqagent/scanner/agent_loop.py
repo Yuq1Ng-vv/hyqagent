@@ -163,9 +163,7 @@ class AgentLoop:
 
                 # ── Audit tool → execute and feed back ───────────────
                 result = await self._tool_registry.execute(tool_name, **tool_input)
-                result_msg = self._tool_registry.to_tool_result_message(
-                    tool_use_id, result
-                )
+                result_msg = self._tool_registry.to_tool_result_message(tool_use_id, result)
 
                 # Track budget
                 result_chars = len(result_msg.get("content", ""))
@@ -187,13 +185,15 @@ class AgentLoop:
                 messages.append({"role": "assistant", "content": [assistant_block]})
                 messages.append({"role": "user", "content": [result_msg]})
 
-                tool_calls.append({
-                    "turn": turn,
-                    "tool": tool_name,
-                    "input": tool_input,
-                    "success": result.success,
-                    "chars": result_chars,
-                })
+                tool_calls.append(
+                    {
+                        "turn": turn,
+                        "tool": tool_name,
+                        "input": tool_input,
+                        "success": result.success,
+                        "chars": result_chars,
+                    }
+                )
                 continue
 
             # ── Case 2: Text-only response ───────────────────────────

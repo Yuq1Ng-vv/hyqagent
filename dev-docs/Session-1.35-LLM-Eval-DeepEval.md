@@ -32,8 +32,9 @@ class FakeProvider:
         self._queue = list(responses) if responses else []
         self._calls = []  # 记录每次调用供断言
 
-    async def generate_structured(self, messages, model="", output_schema=None,
-                                   system="", max_tokens=4096, temperature=0.1):
+    async def generate_structured(
+        self, messages, model="", output_schema=None, system="", max_tokens=4096, temperature=0.1
+    ):
         self._calls.append({...})
         if not self._queue:
             raise AssertionError("FakeProvider: queue exhausted")
@@ -89,6 +90,7 @@ TestDeepEvalMetrics (10 standalone tests):
 ```python
 async def _generate_one(self, annotated, label_str):
     from hyqagent.models.router import Task, TaskType
+
     ...
 ```
 

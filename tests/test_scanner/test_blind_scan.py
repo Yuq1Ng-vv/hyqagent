@@ -175,47 +175,90 @@ class TestBlindScanSystemPrompt:
 
 class TestBuildBlindScanPrompt:
     def test_includes_endpoint_count(self) -> None:
-        endpoints = [{"route": "/api/x", "handler_func": "x_handler",
-                       "methods": ["GET"], "file_path": "a.py", "line": 1,
-                       "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/api/x",
+                "handler_func": "x_handler",
+                "methods": ["GET"],
+                "file_path": "a.py",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         prompt = _build_blind_scan_prompt(endpoints)
         assert "1 total" in prompt
 
     def test_includes_route_and_handler(self) -> None:
-        endpoints = [{"route": "/api/login", "handler_func": "do_login",
-                       "methods": ["POST"], "file_path": "auth.py", "line": 10,
-                       "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/api/login",
+                "handler_func": "do_login",
+                "methods": ["POST"],
+                "file_path": "auth.py",
+                "line": 10,
+                "auth_required": False,
+            }
+        ]
         prompt = _build_blind_scan_prompt(endpoints)
         assert "/api/login" in prompt
         assert "do_login" in prompt
 
     def test_includes_methods(self) -> None:
-        endpoints = [{"route": "/api/x", "handler_func": "x",
-                       "methods": ["GET", "POST"], "file_path": "a.py",
-                       "line": 1, "auth_required": True}]
+        endpoints = [
+            {
+                "route": "/api/x",
+                "handler_func": "x",
+                "methods": ["GET", "POST"],
+                "file_path": "a.py",
+                "line": 1,
+                "auth_required": True,
+            }
+        ]
         prompt = _build_blind_scan_prompt(endpoints)
         assert "GET, POST" in prompt
         assert "**Auth required**: True" in prompt
 
     def test_includes_framework(self) -> None:
-        endpoints = [{"route": "/api/x", "handler_func": "x",
-                       "methods": ["GET"], "file_path": "a.py",
-                       "line": 1, "auth_required": False, "framework": "flask"}]
+        endpoints = [
+            {
+                "route": "/api/x",
+                "handler_func": "x",
+                "methods": ["GET"],
+                "file_path": "a.py",
+                "line": 1,
+                "auth_required": False,
+                "framework": "flask",
+            }
+        ]
         prompt = _build_blind_scan_prompt(endpoints)
         assert "**Framework**: flask" in prompt
 
     def test_includes_code_context(self) -> None:
-        endpoints = [{"route": "/api/x", "handler_func": "do_x",
-                       "methods": ["GET"], "file_path": "a.py",
-                       "line": 1, "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/api/x",
+                "handler_func": "do_x",
+                "methods": ["GET"],
+                "file_path": "a.py",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         contexts = {"do_x": "def do_x():\n    user = request.args['id']\n    return user"}
         prompt = _build_blind_scan_prompt(endpoints, code_contexts=contexts)
         assert "request.args" in prompt
 
     def test_missing_code_context_graceful(self) -> None:
-        endpoints = [{"route": "/api/x", "handler_func": "no_code",
-                       "methods": ["GET"], "file_path": "a.py",
-                       "line": 1, "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/api/x",
+                "handler_func": "no_code",
+                "methods": ["GET"],
+                "file_path": "a.py",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         prompt = _build_blind_scan_prompt(endpoints, code_contexts={})
         assert "no_code" in prompt  # still includes handler info
 
@@ -226,12 +269,22 @@ class TestBuildBlindScanPrompt:
 
     def test_multiple_endpoints(self) -> None:
         endpoints = [
-            {"route": "/a", "handler_func": "fa",
-             "methods": ["GET"], "file_path": "a.py", "line": 1,
-             "auth_required": False},
-            {"route": "/b", "handler_func": "fb",
-             "methods": ["POST"], "file_path": "b.py", "line": 5,
-             "auth_required": True},
+            {
+                "route": "/a",
+                "handler_func": "fa",
+                "methods": ["GET"],
+                "file_path": "a.py",
+                "line": 1,
+                "auth_required": False,
+            },
+            {
+                "route": "/b",
+                "handler_func": "fb",
+                "methods": ["POST"],
+                "file_path": "b.py",
+                "line": 5,
+                "auth_required": True,
+            },
         ]
         prompt = _build_blind_scan_prompt(endpoints)
         assert "2 total" in prompt
@@ -364,25 +417,32 @@ class TestBlindScanReviewerReview:
         assert "No endpoints" in result.reasoning
 
     async def test_review_with_mock_llm(self) -> None:
-        provider = _mock_provider({
-            "endpoints_reviewed": 2,
-            "findings": [
-                {
-                    "endpoint": "/api/users/:id",
-                    "issue_type": "idor",
-                    "severity": "high",
-                    "confidence": 0.85,
-                    "title": "IDOR in user endpoint",
-                    "description": "No authorisation check on user ID access.",
-                    "reasoning": "Pattern scanners don't understand resource ownership.",
-                }
-            ],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 2,
+                "findings": [
+                    {
+                        "endpoint": "/api/users/:id",
+                        "issue_type": "idor",
+                        "severity": "high",
+                        "confidence": 0.85,
+                        "title": "IDOR in user endpoint",
+                        "description": "No authorisation check on user ID access.",
+                        "reasoning": "Pattern scanners don't understand resource ownership.",
+                    }
+                ],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
         endpoints = [
-            {"route": "/api/users/:id", "handler_func": "get_user",
-             "methods": ["GET"], "file_path": "app.py", "line": 42,
-             "auth_required": False},
+            {
+                "route": "/api/users/:id",
+                "handler_func": "get_user",
+                "methods": ["GET"],
+                "file_path": "app.py",
+                "line": 42,
+                "auth_required": False,
+            },
         ]
         result = await r.review(endpoints)
 
@@ -395,31 +455,53 @@ class TestBlindScanReviewerReview:
         assert f.confidence == 0.85
 
     async def test_multiple_findings(self) -> None:
-        provider = _mock_provider({
-            "endpoints_reviewed": 3,
-            "findings": [
-                {"endpoint": "/a", "issue_type": "idor",
-                 "severity": "high", "description": "IDOR."},
-                {"endpoint": "/b", "issue_type": "missing_auth",
-                 "severity": "critical", "description": "No auth."},
-            ],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 3,
+                "findings": [
+                    {
+                        "endpoint": "/a",
+                        "issue_type": "idor",
+                        "severity": "high",
+                        "description": "IDOR.",
+                    },
+                    {
+                        "endpoint": "/b",
+                        "issue_type": "missing_auth",
+                        "severity": "critical",
+                        "description": "No auth.",
+                    },
+                ],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
-        endpoints = [{"route": "/a", "handler_func": "fa",
-                       "methods": ["GET"], "file_path": "x.py",
-                       "line": 1, "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/a",
+                "handler_func": "fa",
+                "methods": ["GET"],
+                "file_path": "x.py",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         result = await r.review(endpoints)
         assert len(result.findings) == 2
 
     async def test_llm_failure_returns_graceful(self) -> None:
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(
-            side_effect=RuntimeError("API error")
-        )
+        provider.generate_structured = AsyncMock(side_effect=RuntimeError("API error"))
         r = BlindScanReviewer(provider=provider, model="test-model")
-        endpoints = [{"route": "/x", "handler_func": "fx",
-                       "methods": ["GET"], "file_path": "x.py",
-                       "line": 1, "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/x",
+                "handler_func": "fx",
+                "methods": ["GET"],
+                "file_path": "x.py",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         result = await r.review(endpoints)
 
         assert result.endpoints_reviewed == 1
@@ -427,27 +509,42 @@ class TestBlindScanReviewerReview:
         assert "failed" in result.reasoning
 
     async def test_diverse_issue_types(self) -> None:
-        provider = _mock_provider({
-            "endpoints_reviewed": 1,
-            "findings": [
-                {"endpoint": "/e", "issue_type": "race_condition",
-                 "severity": "medium", "description": "TOCTOU.",
-                 "confidence": 0.6},
-            ],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 1,
+                "findings": [
+                    {
+                        "endpoint": "/e",
+                        "issue_type": "race_condition",
+                        "severity": "medium",
+                        "description": "TOCTOU.",
+                        "confidence": 0.6,
+                    },
+                ],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
-        endpoints = [{"route": "/e", "handler_func": "fe",
-                       "methods": ["POST"], "file_path": "e.py",
-                       "line": 1, "auth_required": True}]
+        endpoints = [
+            {
+                "route": "/e",
+                "handler_func": "fe",
+                "methods": ["POST"],
+                "file_path": "e.py",
+                "line": 1,
+                "auth_required": True,
+            }
+        ]
         result = await r.review(endpoints)
         assert result.findings[0].issue_type == "race_condition"
 
     async def test_endpoint_objects_normalized(self) -> None:
         """BlindScanReviewer.review() should accept HttpEndpoint objects."""
-        provider = _mock_provider({
-            "endpoints_reviewed": 1,
-            "findings": [],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 1,
+                "findings": [],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
         ep = _mock_endpoint()
         result = await r.review([ep])
@@ -455,18 +552,31 @@ class TestBlindScanReviewerReview:
 
     async def test_missing_fields_default(self) -> None:
         """LLM response missing optional fields → defaults applied."""
-        provider = _mock_provider({
-            "endpoints_reviewed": 1,
-            "findings": [
-                {"endpoint": "/e", "issue_type": "idor",
-                 "severity": "high", "description": "test"},
-                # missing: confidence, title, reasoning
-            ],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 1,
+                "findings": [
+                    {
+                        "endpoint": "/e",
+                        "issue_type": "idor",
+                        "severity": "high",
+                        "description": "test",
+                    },
+                    # missing: confidence, title, reasoning
+                ],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
-        endpoints = [{"route": "/e", "handler_func": "fe",
-                       "methods": ["GET"], "file_path": "e.py",
-                       "line": 1, "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/e",
+                "handler_func": "fe",
+                "methods": ["GET"],
+                "file_path": "e.py",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         result = await r.review(endpoints)
         f = result.findings[0]
         assert f.confidence == 0.5  # default
@@ -475,17 +585,30 @@ class TestBlindScanReviewerReview:
 
     async def test_code_contexts_propagated(self) -> None:
         """code_contexts dict is passed through to prompt builder."""
-        provider = _mock_provider({
-            "endpoints_reviewed": 1,
-            "findings": [
-                {"endpoint": "/api/data", "issue_type": "business_logic",
-                 "severity": "medium", "description": "logic flaw."}
-            ],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 1,
+                "findings": [
+                    {
+                        "endpoint": "/api/data",
+                        "issue_type": "business_logic",
+                        "severity": "medium",
+                        "description": "logic flaw.",
+                    }
+                ],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
-        endpoints = [{"route": "/api/data", "handler_func": "get_data",
-                       "methods": ["GET"], "file_path": "data.py",
-                       "line": 20, "auth_required": True}]
+        endpoints = [
+            {
+                "route": "/api/data",
+                "handler_func": "get_data",
+                "methods": ["GET"],
+                "file_path": "data.py",
+                "line": 20,
+                "auth_required": True,
+            }
+        ]
         contexts = {"get_data": "def get_data():\n    return db.fetch_all()"}
         result = await r.review(endpoints, code_contexts=contexts)
         assert result.endpoints_reviewed == 1
@@ -493,14 +616,23 @@ class TestBlindScanReviewerReview:
 
     async def test_language_affects_prompt(self) -> None:
         """Language parameter is passed to prompt builder."""
-        provider = _mock_provider({
-            "endpoints_reviewed": 1,
-            "findings": [],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 1,
+                "findings": [],
+            }
+        )
         r = BlindScanReviewer(provider=provider, model="test-model")
-        endpoints = [{"route": "/x", "handler_func": "fx",
-                       "methods": ["GET"], "file_path": "x.java",
-                       "line": 1, "auth_required": False}]
+        endpoints = [
+            {
+                "route": "/x",
+                "handler_func": "fx",
+                "methods": ["GET"],
+                "file_path": "x.java",
+                "line": 1,
+                "auth_required": False,
+            }
+        ]
         result = await r.review(endpoints, language="java")
         assert result.endpoints_reviewed == 1
 
@@ -557,13 +689,19 @@ class TestPhaseBlindScan:
     async def test_stores_result_and_updates_count(self) -> None:
         from hyqagent.scanner.orchestrator import Orchestrator, PhaseName, PipelineState
 
-        provider = _mock_provider({
-            "endpoints_reviewed": 2,
-            "findings": [
-                {"endpoint": "/api/users/:id", "issue_type": "idor",
-                 "severity": "high", "description": "IDOR found."},
-            ],
-        })
+        provider = _mock_provider(
+            {
+                "endpoints_reviewed": 2,
+                "findings": [
+                    {
+                        "endpoint": "/api/users/:id",
+                        "issue_type": "idor",
+                        "severity": "high",
+                        "description": "IDOR found.",
+                    },
+                ],
+            }
+        )
         reviewer = BlindScanReviewer(provider=provider, model="test")
         orch = Orchestrator(blind_scan_reviewer=reviewer)
 
@@ -595,9 +733,7 @@ class TestPhaseBlindScan:
         from hyqagent.scanner.orchestrator import Orchestrator, PhaseName, PipelineState
 
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(
-            side_effect=RuntimeError("API down")
-        )
+        provider.generate_structured = AsyncMock(side_effect=RuntimeError("API down"))
         reviewer = BlindScanReviewer(provider=provider, model="test")
         orch = Orchestrator(blind_scan_reviewer=reviewer)
 

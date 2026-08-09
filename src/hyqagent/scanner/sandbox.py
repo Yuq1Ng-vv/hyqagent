@@ -232,31 +232,33 @@ def _build_interpretation_prompt(
     vuln_type: str,
 ) -> str:
     """Build the user prompt for PoC result interpretation."""
-    return "\n".join([
-        "## PoC Code Executed",
-        f"```\n{poc_code[:1500]}\n```",
-        "",
-        "## Expected Behavior (if vulnerable)",
-        expected_behavior,
-        "",
-        "## Execution Result",
-        f"**Exit Code**: {result.exit_code}",
-        f"**Timed Out**: {result.timed_out}",
-        f"**Execution Time**: {result.execution_time_ms:.0f}ms",
-        "",
-        "## stdout",
-        "```",
-        result.stdout[:2000] or "(empty)",
-        "```",
-        "",
-        "## stderr",
-        "```",
-        result.stderr[:1000] or "(empty)",
-        "```",
-        "",
-        f"Interpret these results for the {vuln_type} finding. "
-        "Use the report_interpretation tool for your output.",
-    ])
+    return "\n".join(
+        [
+            "## PoC Code Executed",
+            f"```\n{poc_code[:1500]}\n```",
+            "",
+            "## Expected Behavior (if vulnerable)",
+            expected_behavior,
+            "",
+            "## Execution Result",
+            f"**Exit Code**: {result.exit_code}",
+            f"**Timed Out**: {result.timed_out}",
+            f"**Execution Time**: {result.execution_time_ms:.0f}ms",
+            "",
+            "## stdout",
+            "```",
+            result.stdout[:2000] or "(empty)",
+            "```",
+            "",
+            "## stderr",
+            "```",
+            result.stderr[:1000] or "(empty)",
+            "```",
+            "",
+            f"Interpret these results for the {vuln_type} finding. "
+            "Use the report_interpretation tool for your output.",
+        ]
+    )
 
 
 # ── SandboxExecutor ────────────────────────────────────────────────────────────
@@ -311,8 +313,9 @@ class SandboxExecutor:
         env: dict[str, str] | None,
     ) -> SandboxResult:
         """Execute PoC code in a Docker container synchronously (runs in thread pool)."""
-        import docker
         from docker.errors import DockerException, ImageNotFound
+
+        import docker
 
         start = time.monotonic()
 
@@ -337,7 +340,7 @@ class SandboxExecutor:
                 finding_id="",
                 success=False,
                 error=f"Sandbox image not found: {self._image}. Build it with: "
-                      f"docker build -t {self._image} docker/sandbox/",
+                f"docker build -t {self._image} docker/sandbox/",
             )
 
         # Write PoC to temp file
@@ -492,7 +495,10 @@ class PocGenerator:
         Returns a dict with keys: verdict, updated_confidence, reasoning.
         """
         prompt = _build_interpretation_prompt(
-            poc_code, result, expected_behavior, vuln_type,
+            poc_code,
+            result,
+            expected_behavior,
+            vuln_type,
         )
 
         try:
@@ -555,7 +561,10 @@ async def verify_finding(
 
     # Step 3: Interpret
     interpretation = await generator.interpret(
-        poc.code, result, poc.expected_behavior, vuln_type,
+        poc.code,
+        result,
+        poc.expected_behavior,
+        vuln_type,
     )
 
     return DynamicVerificationResult(
@@ -590,7 +599,9 @@ async def verify_findings(
         async with sem:
             fid = finding.get("id", "unknown")
             return await verify_finding(
-                finding, executor, generator,
+                finding,
+                executor,
+                generator,
                 language=language,
                 code_context=ctx.get(fid, ""),
             )

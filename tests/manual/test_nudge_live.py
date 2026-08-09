@@ -7,7 +7,6 @@ Token budget: ~3K input, ~500 output per call, max ~6K total.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from hyqagent.api.config import HyqAgentConfig
 from hyqagent.models.providers.anthropic_provider import AnthropicProvider, ProviderConfig
@@ -84,9 +83,9 @@ async def test_with_nudge(code: str, label: str) -> NudgeResult:
 
 def print_result(label: str, result: NudgeResult) -> None:
     """Pretty-print a nudge result."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {label}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Success: {result.success}")
     print(f"  Turns: {result.turns}")
     print(f"  Reason: {result.termination_reason}")
@@ -96,8 +95,10 @@ def print_result(label: str, result: NudgeResult) -> None:
     hyps = result.data.get("hypotheses", [])
     print(f"  Hypotheses found: {len(hyps)}")
     for h in hyps[:3]:
-        print(f"    - [{h.get('severity','?')}] {h.get('vuln_type','?')} "
-              f"(confidence: {h.get('confidence','?')})")
+        print(
+            f"    - [{h.get('severity', '?')}] {h.get('vuln_type', '?')} "
+            f"(confidence: {h.get('confidence', '?')})"
+        )
 
 
 async def main() -> None:
@@ -142,10 +143,10 @@ def get_user(user_id):
     # ── Summary ────────────────────────────────────────────────────
     total_turns = result1.turns + result2.turns
     total_nudges = len(result1.nudges) + len(result2.nudges)
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Summary: {total_turns} total turns, {total_nudges} nudges issued")
     print(f"  Token estimate: ~{total_turns * 3}K input + ~{total_turns * 500} output")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

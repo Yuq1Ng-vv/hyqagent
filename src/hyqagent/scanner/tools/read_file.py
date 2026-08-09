@@ -93,10 +93,7 @@ class ReadFileTool(BaseTool):
             sliced = sliced[:_MAX_LINES]
             sliced.append(f"  ... [truncated: {len(lines) - _MAX_LINES} more lines]")
 
-        numbered = "\n".join(
-            f"{i + start_idx + 1:4d} │ {ln}"
-            for i, ln in enumerate(sliced)
-        )
+        numbered = "\n".join(f"{i + start_idx + 1:4d} │ {ln}" for i, ln in enumerate(sliced))
         result = numbered
 
         if len(result) > _MAX_CHARS:

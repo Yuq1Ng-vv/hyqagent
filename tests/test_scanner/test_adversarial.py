@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-
 from hyqagent.scanner.adversarial import (
     ADVERSARIAL_SCHEMA,
     ADVERSARIAL_SYSTEM,
-    AdversarialReviewResult,
     AdversarialReviewer,
+    AdversarialReviewResult,
     _build_adversarial_prompt,
     _safe_id,
 )
-
 
 # ── Test data helpers ────────────────────────────────────────────────────────
 
@@ -239,9 +237,7 @@ class TestAdversarialReviewerConstruction:
     def test_constructor_with_nudge(self) -> None:
         provider = MagicMock()
         nudge = MagicMock()
-        reviewer = AdversarialReviewer(
-            provider=provider, model="claude-sonnet-5", nudge_loop=nudge
-        )
+        reviewer = AdversarialReviewer(provider=provider, model="claude-sonnet-5", nudge_loop=nudge)
         assert reviewer._nudge_loop is nudge
 
 
@@ -261,13 +257,15 @@ class TestAdversarialReviewerMockLLM:
         assert results == []
 
     async def test_review_upholds_rejection(self) -> None:
-        provider = self._mock_provider_with_response({
-            "verdict": "upheld",
-            "confidence": 0.88,
-            "bypass_found": False,
-            "attack_vector": "",
-            "reasoning": "Sanitizer correctly escapes all special characters.",
-        })
+        provider = self._mock_provider_with_response(
+            {
+                "verdict": "upheld",
+                "confidence": 0.88,
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Sanitizer correctly escapes all special characters.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis(id="hyp-001")
         v = _mock_validation(hypothesis_id="hyp-001")
@@ -284,17 +282,19 @@ class TestAdversarialReviewerMockLLM:
         assert r.model == "claude-opus-5"
 
     async def test_review_overturns_rejection(self) -> None:
-        provider = self._mock_provider_with_response({
-            "verdict": "overturned",
-            "confidence": 0.93,
-            "bypass_found": True,
-            "attack_vector": "Null byte injection: admin%00.txt bypasses .txt check",
-            "reasoning": (
-                "Step 1: The extension check uses str.endswith('.txt'). "
-                "Step 2: Null byte %00 causes C-level string truncation. "
-                "Step 3: File is saved as admin.php while check sees .txt."
-            ),
-        })
+        provider = self._mock_provider_with_response(
+            {
+                "verdict": "overturned",
+                "confidence": 0.93,
+                "bypass_found": True,
+                "attack_vector": "Null byte injection: admin%00.txt bypasses .txt check",
+                "reasoning": (
+                    "Step 1: The extension check uses str.endswith('.txt'). "
+                    "Step 2: Null byte %00 causes C-level string truncation. "
+                    "Step 3: File is saved as admin.php while check sees .txt."
+                ),
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis(id="hyp-042")
         v = _mock_validation(hypothesis_id="hyp-042")
@@ -313,10 +313,20 @@ class TestAdversarialReviewerMockLLM:
     async def test_review_multiple_rejected(self) -> None:
         call_count = 0
         responses = [
-            {"verdict": "upheld", "confidence": 0.90, "bypass_found": False,
-             "attack_vector": "", "reasoning": "Safe."},
-            {"verdict": "overturned", "confidence": 0.85, "bypass_found": True,
-             "attack_vector": "Unicode normalization bypass", "reasoning": "NFD normalization."},
+            {
+                "verdict": "upheld",
+                "confidence": 0.90,
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Safe.",
+            },
+            {
+                "verdict": "overturned",
+                "confidence": 0.85,
+                "bypass_found": True,
+                "attack_vector": "Unicode normalization bypass",
+                "reasoning": "NFD normalization.",
+            },
         ]
 
         async def side_effect(**kwargs: object) -> dict[str, object]:
@@ -343,9 +353,7 @@ class TestAdversarialReviewerMockLLM:
 
     async def test_review_llm_failure_defaults_to_upheld(self) -> None:
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(
-            side_effect=RuntimeError("API error")
-        )
+        provider.generate_structured = AsyncMock(side_effect=RuntimeError("API error"))
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis(id="hyp-err")
         v = _mock_validation(hypothesis_id="hyp-err")
@@ -361,13 +369,15 @@ class TestAdversarialReviewerMockLLM:
 
     async def test_review_with_code_contexts(self) -> None:
         """Code contexts dict maps hypothesis_id → snippet."""
-        provider = self._mock_provider_with_response({
-            "verdict": "upheld",
-            "confidence": 0.80,
-            "bypass_found": False,
-            "attack_vector": "",
-            "reasoning": "Reviewed with context.",
-        })
+        provider = self._mock_provider_with_response(
+            {
+                "verdict": "upheld",
+                "confidence": 0.80,
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Reviewed with context.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis(id="hyp-ctx")
         v = _mock_validation(hypothesis_id="hyp-ctx")
@@ -386,17 +396,19 @@ class TestAdversarialReviewerMockLLM:
     async def test_review_with_nudge_loop(self) -> None:
         """When nudge_loop is provided, use _call_with_nudge instead of direct call."""
         nudge = MagicMock()
-        nudge.run = AsyncMock(return_value=MagicMock(data={
-            "verdict": "overturned",
-            "confidence": 0.91,
-            "bypass_found": True,
-            "attack_vector": "Header injection via X-Forwarded-For",
-            "reasoning": "The auditor only checked query params, not HTTP headers.",
-        }))
-        provider = MagicMock()
-        reviewer = AdversarialReviewer(
-            provider=provider, model="claude-opus-5", nudge_loop=nudge
+        nudge.run = AsyncMock(
+            return_value=MagicMock(
+                data={
+                    "verdict": "overturned",
+                    "confidence": 0.91,
+                    "bypass_found": True,
+                    "attack_vector": "Header injection via X-Forwarded-For",
+                    "reasoning": "The auditor only checked query params, not HTTP headers.",
+                }
+            )
         )
+        provider = MagicMock()
+        reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5", nudge_loop=nudge)
         h = _mock_hypothesis(id="hyp-nudge")
         v = _mock_validation(hypothesis_id="hyp-nudge")
 
@@ -411,13 +423,15 @@ class TestAdversarialReviewerMockLLM:
 
     async def test_confidence_clamped_to_range(self) -> None:
         """Confidence values outside [0,1] should be clamped."""
-        provider = self._mock_provider_with_response({
-            "verdict": "upheld",
-            "confidence": 1.5,  # > 1.0 → clamp to 1.0
-            "bypass_found": False,
-            "attack_vector": "",
-            "reasoning": "Test clamping.",
-        })
+        provider = self._mock_provider_with_response(
+            {
+                "verdict": "upheld",
+                "confidence": 1.5,  # > 1.0 → clamp to 1.0
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Test clamping.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis(id="hyp-clamp")
         v = _mock_validation(hypothesis_id="hyp-clamp")
@@ -426,26 +440,30 @@ class TestAdversarialReviewerMockLLM:
         assert results[0].confidence == 1.0
 
         # Negative confidence
-        provider2 = self._mock_provider_with_response({
-            "verdict": "upheld",
-            "confidence": -0.3,  # < 0.0 → clamp to 0.0
-            "bypass_found": False,
-            "attack_vector": "",
-            "reasoning": "Test clamping negative.",
-        })
+        provider2 = self._mock_provider_with_response(
+            {
+                "verdict": "upheld",
+                "confidence": -0.3,  # < 0.0 → clamp to 0.0
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Test clamping negative.",
+            }
+        )
         reviewer2 = AdversarialReviewer(provider=provider2, model="claude-opus-5")
         results2 = await reviewer2.review([(h, v)])
         assert results2[0].confidence == 0.0
 
     async def test_attack_vector_cleared_when_no_bypass(self) -> None:
         """If bypass_found=False, attack_vector should be emptied regardless of input."""
-        provider = self._mock_provider_with_response({
-            "verdict": "upheld",
-            "confidence": 0.75,
-            "bypass_found": False,
-            "attack_vector": "LLM hallucinated a vector but no bypass",
-            "reasoning": "No viable bypass found.",
-        })
+        provider = self._mock_provider_with_response(
+            {
+                "verdict": "upheld",
+                "confidence": 0.75,
+                "bypass_found": False,
+                "attack_vector": "LLM hallucinated a vector but no bypass",
+                "reasoning": "No viable bypass found.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis(id="hyp-clear")
         v = _mock_validation(hypothesis_id="hyp-clear")
@@ -534,13 +552,15 @@ class TestPhaseAdversarialReview:
         from hyqagent.scanner.orchestrator import Orchestrator, PhaseName, PipelineState
 
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(return_value={
-            "verdict": "overturned",
-            "confidence": 0.92,
-            "bypass_found": True,
-            "attack_vector": "Prototype pollution via __proto__",
-            "reasoning": "The auditor missed that Object.assign is vulnerable.",
-        })
+        provider.generate_structured = AsyncMock(
+            return_value={
+                "verdict": "overturned",
+                "confidence": 0.92,
+                "bypass_found": True,
+                "attack_vector": "Prototype pollution via __proto__",
+                "reasoning": "The auditor missed that Object.assign is vulnerable.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         orch = Orchestrator(adversarial_reviewer=reviewer)
 
@@ -568,13 +588,15 @@ class TestPhaseAdversarialReview:
         from hyqagent.scanner.orchestrator import Orchestrator, PhaseName, PipelineState
 
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(return_value={
-            "verdict": "overturned",
-            "confidence": 0.88,
-            "bypass_found": True,
-            "attack_vector": "CRLF injection in redirect header",
-            "reasoning": "The auditor missed that Location header is not sanitized.",
-        })
+        provider.generate_structured = AsyncMock(
+            return_value={
+                "verdict": "overturned",
+                "confidence": 0.88,
+                "bypass_found": True,
+                "attack_vector": "CRLF injection in redirect header",
+                "reasoning": "The auditor missed that Location header is not sanitized.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         orch = Orchestrator(adversarial_reviewer=reviewer)
 
@@ -606,13 +628,15 @@ class TestPhaseAdversarialReview:
         from hyqagent.scanner.orchestrator import Orchestrator, PhaseName, PipelineState
 
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(return_value={
-            "verdict": "upheld",
-            "confidence": 0.80,
-            "bypass_found": False,
-            "attack_vector": "",
-            "reasoning": "Safe.",
-        })
+        provider.generate_structured = AsyncMock(
+            return_value={
+                "verdict": "upheld",
+                "confidence": 0.80,
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Safe.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-sonnet-5")
         orch = Orchestrator(adversarial_reviewer=reviewer)
 
@@ -649,13 +673,15 @@ class TestPhaseAdversarialReview:
         from hyqagent.scanner.adversarial import AdversarialReviewer
 
         provider = MagicMock()
-        provider.generate_structured = AsyncMock(return_value={
-            "verdict": "upheld",
-            "confidence": 0.85,
-            "bypass_found": False,
-            "attack_vector": "",
-            "reasoning": "Safe.",
-        })
+        provider.generate_structured = AsyncMock(
+            return_value={
+                "verdict": "upheld",
+                "confidence": 0.85,
+                "bypass_found": False,
+                "attack_vector": "",
+                "reasoning": "Safe.",
+            }
+        )
         reviewer = AdversarialReviewer(provider=provider, model="claude-opus-5")
         h = _mock_hypothesis()
         v = _mock_validation()

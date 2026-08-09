@@ -205,9 +205,7 @@ class AnthropicProvider:
             max_tokens=max_tokens,
             temperature=temperature,
             tools=tools,
-            tool_choice=(
-                {"type": "auto"} if _is_deepseek else {"type": "tool", "name": tool_name}
-            ),
+            tool_choice=({"type": "auto"} if _is_deepseek else {"type": "tool", "name": tool_name}),
             **_extra_kwargs,
         )
 
@@ -290,9 +288,7 @@ class AnthropicProvider:
         system_prompt += (
             "You have access to code-exploration tools. Use them to gather "
             "information before making your final assessment. When you are "
-            "ready to report your findings, call the `"
-            + output_tool_name
-            + "` tool."
+            "ready to report your findings, call the `" + output_tool_name + "` tool."
         )
 
         return await self.generate(

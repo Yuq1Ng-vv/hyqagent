@@ -53,9 +53,7 @@ class SpanEvent:
             "span_id": self.span_id,
             "name": self.name,
             "start_time_unix_nano": int(self.start_time * 1e9),
-            "end_time_unix_nano": int(self.end_time * 1e9)
-            if self.end_time
-            else 0,
+            "end_time_unix_nano": int(self.end_time * 1e9) if self.end_time else 0,
             "duration_ms": round(self.duration_ms, 3),
         }
         if self.parent_span_id:
@@ -218,9 +216,7 @@ class ObservabilityManager:
             except Exception:
                 logger.exception("metrics_record_finding_failed")
 
-    def record_tool_call(
-        self, tool_name: str, success: bool, latency_seconds: float
-    ) -> None:
+    def record_tool_call(self, tool_name: str, success: bool, latency_seconds: float) -> None:
         """Record a non-LLM tool invocation (CPG query, file read, …)."""
         if self._metrics is not None:
             try:
@@ -232,9 +228,7 @@ class ObservabilityManager:
             except Exception:
                 logger.exception("metrics_record_tool_call_failed")
 
-    def set_coverage(
-        self, session_id: str, endpoint: float, risk_weighted: float
-    ) -> None:
+    def set_coverage(self, session_id: str, endpoint: float, risk_weighted: float) -> None:
         """Update the Prometheus coverage gauge."""
         if self._metrics is not None:
             try:

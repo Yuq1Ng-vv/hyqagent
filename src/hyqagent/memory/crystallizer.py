@@ -261,12 +261,14 @@ class ContextCrystallizer:
                 conf_match = confidence_re.search(text)
                 vuln_match = vuln_type_re.search(text)
 
-                findings.append({
-                    "id": hyp_id,
-                    "type": vuln_match.group(1) if vuln_match else "unknown",
-                    "verdict": verdict_match.group(1) if verdict_match else "pending",
-                    "confidence": float(conf_match.group(1)) if conf_match else 0.0,
-                })
+                findings.append(
+                    {
+                        "id": hyp_id,
+                        "type": vuln_match.group(1) if vuln_match else "unknown",
+                        "verdict": verdict_match.group(1) if verdict_match else "pending",
+                        "confidence": float(conf_match.group(1)) if conf_match else 0.0,
+                    }
+                )
 
         return findings
 

@@ -86,9 +86,11 @@ NudgeLoop.run()
 ```python
 if self._nudge_loop is not None:
     nudge_result = await self._nudge_loop.run(
-        provider=provider, model=model_id,
+        provider=provider,
+        model=model_id,
         messages=[{"role": "user", "content": user_prompt}],
-        output_schema=HYPOTHESIS_SCHEMA, system=SYSTEM_PROMPT,
+        output_schema=HYPOTHESIS_SCHEMA,
+        system=SYSTEM_PROMPT,
         stop_hooks=[stop_on_empty("hypotheses"), stop_on_low_confidence(0.3)],
     )
 ```
@@ -96,9 +98,7 @@ if self._nudge_loop is not None:
 **validator.py 集成**：
 ```python
 if self._nudge_loop is not None:
-    nudge_result = await self._nudge_loop.run(
-        ..., stop_hooks=[stop_on_missing_verdict]
-    )
+    nudge_result = await self._nudge_loop.run(..., stop_hooks=[stop_on_missing_verdict])
 ```
 
 ### 4. API Key 配置

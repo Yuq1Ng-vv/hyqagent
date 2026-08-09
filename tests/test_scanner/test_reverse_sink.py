@@ -29,31 +29,53 @@ def _build_simple_graph() -> nx.MultiDiGraph:
     g = nx.MultiDiGraph()
 
     # Node 1: source node (request.args) — NO taint_category (unrecognised)
-    g.add_node("n1", node_type="source", name="request.args",
-               file_path="app.py", taint_category="")
+    g.add_node("n1", node_type="source", name="request.args", file_path="app.py", taint_category="")
     # Node 2: assignment tainted
-    g.add_node("n2", node_type="assignment", name="x",
-               source="x = request.args.get('id')",
-               file_path="app.py", start_line=10, taint_category="user_input")
+    g.add_node(
+        "n2",
+        node_type="assignment",
+        name="x",
+        source="x = request.args.get('id')",
+        file_path="app.py",
+        start_line=10,
+        taint_category="user_input",
+    )
     # Node 3: sink node (labelled)
-    g.add_node("n3", node_type="assignment", name="result",
-               source="result = mysql_query(x)",
-               file_path="app.py", start_line=12, taint_category="sql_injection",
-               enclosing_function="handle_request")
+    g.add_node(
+        "n3",
+        node_type="assignment",
+        name="result",
+        source="result = mysql_query(x)",
+        file_path="app.py",
+        start_line=12,
+        taint_category="sql_injection",
+        enclosing_function="handle_request",
+    )
     # Node 4: parameter (untainted source-like)
-    g.add_node("n4", node_type="parameter", name="user_input",
-               file_path="app.py", start_line=20)
+    g.add_node("n4", node_type="parameter", name="user_input", file_path="app.py", start_line=20)
     # Node 5: assignment (untainted but dangerous — source text
     # deliberately avoids matching _SOURCE_HEURISTICS so BFS reaches n4)
-    g.add_node("n5", node_type="assignment", name="cmd",
-               source="cmd = helper_call()",
-               file_path="app.py", start_line=21, taint_category="",
-               enclosing_function="process")
+    g.add_node(
+        "n5",
+        node_type="assignment",
+        name="cmd",
+        source="cmd = helper_call()",
+        file_path="app.py",
+        start_line=21,
+        taint_category="",
+        enclosing_function="process",
+    )
     # Node 6: sink node (unlabelled, dangerous)
-    g.add_node("n6", node_type="assignment", name="exec_result",
-               source="exec(cmd)",
-               file_path="app.py", start_line=22, taint_category="",
-               enclosing_function="process")
+    g.add_node(
+        "n6",
+        node_type="assignment",
+        name="exec_result",
+        source="exec(cmd)",
+        file_path="app.py",
+        start_line=22,
+        taint_category="",
+        enclosing_function="process",
+    )
 
     # Edges: n1 -> n2 -> n3  (DATA_FLOW)
     g.add_edge("n1", "n2", edge_type="DATA_FLOW")
@@ -138,9 +160,7 @@ class TestReverseSinkResult:
         assert r.reasoning == ""
 
     def test_with_discoveries(self) -> None:
-        disc = ReverseSinkDiscovery(
-            sink_name="f", sink_file="a.py", sink_line=1, sink_source="x"
-        )
+        disc = ReverseSinkDiscovery(sink_name="f", sink_file="a.py", sink_line=1, sink_source="x")
         r = ReverseSinkResult(
             total_sinks_checked=10,
             total_labeled=3,
@@ -159,67 +179,93 @@ class TestReverseSinkResult:
 
 class TestLooksLikeSource:
     def test_tagged_source_node(self) -> None:
-        assert _looks_like_source({"node_type": "source",
-                                    "name": "", "taint_category": ""})
+        assert _looks_like_source({"node_type": "source", "name": "", "taint_category": ""})
 
     def test_tagged_source_skipped_if_tainted(self) -> None:
         """A source node that already has a taint_category is 'known' — skip."""
-        assert not _looks_like_source({
-            "node_type": "source", "name": "", "taint_category": "user_input",
-        })
+        assert not _looks_like_source(
+            {
+                "node_type": "source",
+                "name": "",
+                "taint_category": "user_input",
+            }
+        )
 
     def test_parameter_node_is_source_like(self) -> None:
-        assert _looks_like_source({"node_type": "parameter",
-                                    "name": "user_id", "taint_category": ""})
+        assert _looks_like_source(
+            {"node_type": "parameter", "name": "user_id", "taint_category": ""}
+        )
 
     def test_source_like_name(self) -> None:
-        assert _looks_like_source({
-            "node_type": "assignment", "name": "request_args",
-            "source": "", "taint_category": "",
-        })
+        assert _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "request_args",
+                "source": "",
+                "taint_category": "",
+            }
+        )
 
     def test_source_like_in_source_text(self) -> None:
-        assert _looks_like_source({
-            "node_type": "assignment", "name": "x",
-            "source": "x = request.form.get('name')",
-            "taint_category": "",
-        })
+        assert _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "x",
+                "source": "x = request.form.get('name')",
+                "taint_category": "",
+            }
+        )
 
     def test_tainted_node_not_source_like(self) -> None:
         """A node with taint_category is already known — not a new source."""
-        assert not _looks_like_source({
-            "node_type": "assignment", "name": "x",
-            "source": "x = request.args.get('id')",
-            "taint_category": "user_input",
-        })
+        assert not _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "x",
+                "source": "x = request.args.get('id')",
+                "taint_category": "user_input",
+            }
+        )
 
     def test_ordinary_assignment_not_source(self) -> None:
-        assert not _looks_like_source({
-            "node_type": "assignment", "name": "y",
-            "source": "y = 42",
-            "taint_category": "",
-        })
+        assert not _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "y",
+                "source": "y = 42",
+                "taint_category": "",
+            }
+        )
 
     def test_cookie_heuristic(self) -> None:
-        assert _looks_like_source({
-            "node_type": "assignment", "name": "ck",
-            "source": "ck = request.cookies.get('s')",
-            "taint_category": "",
-        })
+        assert _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "ck",
+                "source": "ck = request.cookies.get('s')",
+                "taint_category": "",
+            }
+        )
 
     def test_get_json_heuristic(self) -> None:
-        assert _looks_like_source({
-            "node_type": "assignment", "name": "data",
-            "source": "data = request.get_json()",
-            "taint_category": "",
-        })
+        assert _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "data",
+                "source": "data = request.get_json()",
+                "taint_category": "",
+            }
+        )
 
     def test_stdin_heuristic(self) -> None:
-        assert _looks_like_source({
-            "node_type": "assignment", "name": "line",
-            "source": "line = sys.stdin.readline()",
-            "taint_category": "",
-        })
+        assert _looks_like_source(
+            {
+                "node_type": "assignment",
+                "name": "line",
+                "source": "line = sys.stdin.readline()",
+                "taint_category": "",
+            }
+        )
 
 
 # ── Reverse BFS ───────────────────────────────────────────────────────────────
@@ -264,10 +310,8 @@ class TestReverseBFS:
     def test_only_follows_dataflow_calls_edges(self) -> None:
         """Ensure BFS only traverses DATA_FLOW and CALLS, not CTRL_FLOW."""
         g = nx.MultiDiGraph()
-        g.add_node("a", node_type="assignment", name="a", source="a = input()",
-                    taint_category="")
-        g.add_node("b", node_type="assignment", name="b", source="b = a",
-                    taint_category="")
+        g.add_node("a", node_type="assignment", name="a", source="a = input()", taint_category="")
+        g.add_node("b", node_type="assignment", name="b", source="b = a", taint_category="")
         g.add_edge("a", "b", edge_type="CTRL_FLOW")  # shouldn't be followed
 
         sources = _reverse_bfs_from_node(g, "b", max_depth=5)
@@ -277,8 +321,9 @@ class TestReverseBFS:
     def test_follows_calls_edges(self) -> None:
         g = nx.MultiDiGraph()
         g.add_node("caller", node_type="parameter", name="x", taint_category="")
-        g.add_node("callee", node_type="assignment", name="y",
-                    source="y = process(x)", taint_category="")
+        g.add_node(
+            "callee", node_type="assignment", name="y", source="y = process(x)", taint_category=""
+        )
         g.add_edge("caller", "callee", edge_type="CALLS")
 
         sources = _reverse_bfs_from_node(g, "callee", max_depth=5)

@@ -22,8 +22,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from hyqagent.cpg.query import CPGQuery, GraphPath
     from hyqagent.cpg.discovery import SinkDiscoverer, SourceCompletenessChecker
+    from hyqagent.cpg.query import CPGQuery, GraphPath
     from hyqagent.cpg.taint_loader import TaintRuleLoader
 
 
@@ -148,21 +148,25 @@ class PathAnnotator:
         # 1. Confirmed-taint paths for every known category
         categories = self._get_known_categories(language)
         for cat in categories:
-            paths = self._query.find_path(cat, cat, max_depth=20,
-                                          taint_loader=self._taint_loader,
-                                          language=language)
+            paths = self._query.find_path(
+                cat, cat, max_depth=20, taint_loader=self._taint_loader, language=language
+            )
             for path in paths:
                 label = self._label_path(path, language)
-                annotated.append(AnnotatedPath(
-                    path=path, label=label,
-                    sanitizer_status=self._verify_sanitizer_dominance(path, language),
-                ))
+                annotated.append(
+                    AnnotatedPath(
+                        path=path,
+                        label=label,
+                        sanitizer_status=self._verify_sanitizer_dominance(path, language),
+                    )
+                )
 
         # 2. Heuristic sinks
         heuristic = self._sink_discoverer.discover_heuristic_sinks(language)
         for hs in heuristic:
             # Create a minimal single-node "path" for annotation
             from hyqagent.cpg.query import GraphNode, GraphPath
+
             node = GraphNode(
                 node_id=hs.node_id,
                 node_type="assignment",
@@ -170,18 +174,23 @@ class PathAnnotator:
                 source=hs.expression,
             )
             path = GraphPath(nodes=[node], edges=[])
-            annotated.append(AnnotatedPath(
-                path=path,
-                label=PathLabel.HEURISTIC_SINK,
-                metadata={"score": hs.score,
-                          "keywords": hs.matched_keywords,
-                          "reachable": hs.reachable_from_source},
-            ))
+            annotated.append(
+                AnnotatedPath(
+                    path=path,
+                    label=PathLabel.HEURISTIC_SINK,
+                    metadata={
+                        "score": hs.score,
+                        "keywords": hs.matched_keywords,
+                        "reachable": hs.reachable_from_source,
+                    },
+                )
+            )
 
         # 3. Exposed endpoints (no source)
         exposed = self._source_checker.find_exposed_no_source()
         for ep in exposed:
             from hyqagent.cpg.query import GraphNode, GraphPath
+
             node = GraphNode(
                 node_id=f"ep:{ep.handler_func}",
                 node_type="function",
@@ -189,11 +198,13 @@ class PathAnnotator:
                 name=ep.handler_func,
             )
             path = GraphPath(nodes=[node], edges=[])
-            annotated.append(AnnotatedPath(
-                path=path,
-                label=PathLabel.EXPOSED_NO_SOURCE,
-                metadata={"endpoint": ep.endpoint},
-            ))
+            annotated.append(
+                AnnotatedPath(
+                    path=path,
+                    label=PathLabel.EXPOSED_NO_SOURCE,
+                    metadata={"endpoint": ep.endpoint},
+                )
+            )
 
         return annotated
 
@@ -229,9 +240,7 @@ class PathAnnotator:
 
     # ── CDG sanitizer verification ──────────────────────────────────────
 
-    def _verify_sanitizer_dominance(
-        self, path: GraphPath, language: str = ""
-    ) -> SanitizerStatus:
+    def _verify_sanitizer_dominance(self, path: GraphPath, language: str = "") -> SanitizerStatus:
         """Check whether sanitizers on *path* are guaranteed to execute.
 
         Algorithm:
@@ -245,9 +254,7 @@ class PathAnnotator:
            If no CFG data → UNKNOWN.
         """
         # 1. Find sanitizer patterns
-        sanitizer_patterns = self._query.get_sanitizers(
-            path, taint_loader=self._taint_loader
-        )
+        sanitizer_patterns = self._query.get_sanitizers(path, taint_loader=self._taint_loader)
         if not sanitizer_patterns:
             # No sanitizer at all — caller should have checked this
             return SanitizerStatus.UNKNOWN
@@ -286,9 +293,7 @@ class PathAnnotator:
         # No control dependence found for any sanitizer
         return SanitizerStatus.MUST_EXECUTE
 
-    def _is_conditional_on_any_branch(
-        self, block_id: str, func_name: str
-    ) -> bool:
+    def _is_conditional_on_any_branch(self, block_id: str, func_name: str) -> bool:
         """Return ``True`` if *block_id* is control-dependent on any branch
         block in *func_name*.
 
@@ -309,12 +314,13 @@ class PathAnnotator:
 
     def _get_branch_blocks(self, func_name: str) -> list[str]:
         """Return all basic blocks in *func_name* that have ≥2 outgoing
-        CTRL_FLOW edges (i.e. decision points)."""
+        CTRL_FLOW edges (i.e. decision points).
+        """
         graph = getattr(self._query, "_graph", None)
         if graph is None:
             return []
 
-        from hyqagent.cpg.graph import NODE_BASIC_BLOCK, EDGE_CTRL_FLOW
+        from hyqagent.cpg.graph import EDGE_CTRL_FLOW, NODE_BASIC_BLOCK
 
         branch_blocks: list[str] = []
         for nid, data in graph.nodes(data=True):
@@ -347,9 +353,7 @@ class PathAnnotator:
             pass
         return []
 
-    def _find_sanitizer_nodes(
-        self, path: GraphPath, patterns: list[str]
-    ) -> list[tuple[str, str]]:
+    def _find_sanitizer_nodes(self, path: GraphPath, patterns: list[str]) -> list[tuple[str, str]]:
         """Return ``(node_id, location_str)`` for path nodes containing sanitizers."""
         result: list[tuple[str, str]] = []
         for node in path.nodes:
@@ -360,9 +364,7 @@ class PathAnnotator:
                     break
         return result
 
-    def _find_block_for_node(
-        self, node_id: str, location_str: str
-    ) -> str | None:
+    def _find_block_for_node(self, node_id: str, location_str: str) -> str | None:
         """Find the basic block containing *node_id* or location.
 
         Uses two strategies:

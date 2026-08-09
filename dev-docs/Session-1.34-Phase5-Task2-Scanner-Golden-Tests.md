@@ -26,9 +26,9 @@
 ```python
 class TestGoldenScannerIntegration:
     test_scanner_constructs_and_runs  # 28 用例：构造 + scan_all() 无异常
-    test_scanner_taint_labels_exist   # 25 用例：CPG 节点有污点标记
-    test_config_scanner_finds_issue   # case-026：CSRF 配置检测端到端
-    test_missing_auth_scanner         # case-027：缺失认证扫描器
+    test_scanner_taint_labels_exist  # 25 用例：CPG 节点有污点标记
+    test_config_scanner_finds_issue  # case-026：CSRF 配置检测端到端
+    test_missing_auth_scanner  # case-027：缺失认证扫描器
     test_safe_code_produces_no_findings  # case-028：安全代码零 FP
 ```
 

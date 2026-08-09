@@ -172,10 +172,7 @@ def _build_adversarial_prompt(
     # ── Auditor's rejection reasoning ───────────────────────────────
     rejection_reason = _get(validation, "reasoning", "No reasoning provided.")
     parts.append("## Auditor's Rejection Reasoning")
-    msg = (
-        f"The auditor rejected this as NOT exploitable because:\n"
-        f"{rejection_reason[:1200]}\n"
-    )
+    msg = f"The auditor rejected this as NOT exploitable because:\n{rejection_reason[:1200]}\n"
     parts.append(msg)
 
     # ── Sanitizer information ───────────────────────────────────────
@@ -231,6 +228,7 @@ class AdversarialReviewer:
             provider: AnthropicProvider (typically strong_provider for deep mode).
             model: Model ID string.
             nudge_loop: Optional NudgeLoop to prevent premature LLM termination.
+
         """
         self._provider = provider
         self._model = model
@@ -252,6 +250,7 @@ class AdversarialReviewer:
 
         Returns:
             One AdversarialReviewResult per rejected hypothesis.
+
         """
         if not rejected:
             return []
@@ -336,7 +335,9 @@ class AdversarialReviewer:
         return cast(dict[str, Any], result.data)
 
     def _parse_response(
-        self, hypothesis_id: str, raw: dict[str, Any],
+        self,
+        hypothesis_id: str,
+        raw: dict[str, Any],
     ) -> AdversarialReviewResult:
         """Parse LLM structured output into AdversarialReviewResult."""
         verdict = str(raw.get("verdict", "upheld"))

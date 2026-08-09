@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
 import networkx as nx
 
+from hyqagent.cpg.coverage import _STRUCTURAL_BLIND_SPOTS, CoverageTracker
+from hyqagent.cpg.discovery import (
+    SinkDiscoverer,
+    SourceCompletenessChecker,
+)
 from hyqagent.cpg.graph import EDGE_DATA_FLOW, NODE_ASSIGNMENT
 from hyqagent.cpg.types import (
     BlindSpot,
@@ -13,14 +17,6 @@ from hyqagent.cpg.types import (
     HeuristicSink,
     UncoveredSink,
 )
-from hyqagent.cpg.discovery import (
-    SinkDiscoverer,
-    SourceCompletenessChecker,
-    _DANGEROUS_KEYWORDS,
-    _DANGEROUS_MODULES,
-)
-from hyqagent.cpg.coverage import CoverageTracker, _STRUCTURAL_BLIND_SPOTS
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -56,8 +52,7 @@ class _FakeTaintLoader:
 class _FakeEndpoint:
     """Minimal HttpEndpoint stub."""
 
-    def __init__(self, route, handler_func, file_path, line,
-                 methods=None, auth_required=None):
+    def __init__(self, route, handler_func, file_path, line, methods=None, auth_required=None):
         self.route = route
         self.handler_func = handler_func
         self.file_path = file_path
@@ -71,32 +66,59 @@ def _make_mini_graph() -> nx.MultiDiGraph:
     g = nx.MultiDiGraph()
 
     # A source-labelled node (simulates request.args.get("id"))
-    g.add_node("src1", node_type=NODE_ASSIGNMENT, file_path="app.py",
-               enclosing_function="handler1", start_line=10,
-               source="request.args.get('id')", taint_category="sql_injection")
+    g.add_node(
+        "src1",
+        node_type=NODE_ASSIGNMENT,
+        file_path="app.py",
+        enclosing_function="handler1",
+        start_line=10,
+        source="request.args.get('id')",
+        taint_category="sql_injection",
+    )
 
     # A sink labelled node (simulates cursor.execute(...))
-    g.add_node("sink1", node_type=NODE_ASSIGNMENT, file_path="app.py",
-               enclosing_function="handler1", start_line=12,
-               source="cursor.execute(query)", taint_category="sql_injection")
+    g.add_node(
+        "sink1",
+        node_type=NODE_ASSIGNMENT,
+        file_path="app.py",
+        enclosing_function="handler1",
+        start_line=12,
+        source="cursor.execute(query)",
+        taint_category="sql_injection",
+    )
 
     # A DATA_FLOW edge from source to sink
     g.add_edge("src1", "sink1", edge_type=EDGE_DATA_FLOW)
 
     # An un-labelled but dangerous-looking node
-    g.add_node("unsafe1", node_type=NODE_ASSIGNMENT, file_path="app.py",
-               enclosing_function="handler1", start_line=15,
-               source="os.system(user_cmd)")
+    g.add_node(
+        "unsafe1",
+        node_type=NODE_ASSIGNMENT,
+        file_path="app.py",
+        enclosing_function="handler1",
+        start_line=15,
+        source="os.system(user_cmd)",
+    )
 
     # An un-labelled harmless node
-    g.add_node("safe1", node_type=NODE_ASSIGNMENT, file_path="app.py",
-               enclosing_function="handler1", start_line=18,
-               source="logger.info('done')")
+    g.add_node(
+        "safe1",
+        node_type=NODE_ASSIGNMENT,
+        file_path="app.py",
+        enclosing_function="handler1",
+        start_line=18,
+        source="logger.info('done')",
+    )
 
     # A handler function node
-    g.add_node("fn1", node_type="function", file_path="app.py",
-               name="handler1", start_line=8,
-               source="@app.route('/users')\ndef handler1():")
+    g.add_node(
+        "fn1",
+        node_type="function",
+        file_path="app.py",
+        name="handler1",
+        start_line=8,
+        source="@app.route('/users')\ndef handler1():",
+    )
 
     return g
 
@@ -228,8 +250,7 @@ class TestCoverageTracker:
         tracker = CoverageTracker(g)
 
         ep1 = _FakeEndpoint("/users", "handler1", "app.py", 8)
-        ep2 = _FakeEndpoint("/admin", "handler2", "app.py", 30,
-                            auth_required=False)
+        ep2 = _FakeEndpoint("/admin", "handler2", "app.py", 30, auth_required=False)
         tracker.set_endpoints([ep1, ep2])
 
         report = tracker.compute_coverage()
@@ -260,8 +281,7 @@ class TestCoverageTracker:
     def test_blind_spot_manifest_flags_missing_auth(self):
         g = _make_mini_graph()
         tracker = CoverageTracker(g)
-        ep = _FakeEndpoint("/admin", "handler2", "app.py", 30,
-                           auth_required=False)
+        ep = _FakeEndpoint("/admin", "handler2", "app.py", 30, auth_required=False)
         tracker.set_endpoints([ep])
         manifest = tracker.generate_blind_spot_manifest()
 
@@ -295,9 +315,7 @@ class TestCoverageTracker:
 
 class TestDiscoveryDataclasses:
     def test_heuristic_sink_defaults(self):
-        hs = HeuristicSink(
-            node_id="n1", file_path="a.py", line=42, expression="eval(x)"
-        )
+        hs = HeuristicSink(node_id="n1", file_path="a.py", line=42, expression="eval(x)")
         assert hs.score == 0
         assert hs.matched_keywords == []
         assert hs.reachable_from_source is False
@@ -314,8 +332,11 @@ class TestDiscoveryDataclasses:
 
     def test_uncovered_sink_fields(self):
         us = UncoveredSink(
-            node_id="n3", file_path="a.py", line=100,
-            expression="db.execute(sql)", reason="no_known_rule",
+            node_id="n3",
+            file_path="a.py",
+            line=100,
+            expression="db.execute(sql)",
+            reason="no_known_rule",
         )
         assert us.reason == "no_known_rule"
 

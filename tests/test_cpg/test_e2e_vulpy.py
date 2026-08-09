@@ -87,10 +87,19 @@ class TestParseAllFiles:
     @pytest.mark.parametrize(
         "filename",
         [
-            "libposts.py", "libmfa.py", "libapi.py",
-            "mod_posts.py", "mod_user.py", "mod_api.py",
-            "mod_mfa.py", "mod_hello.py", "mod_csp.py",
-            "db.py", "db_init.py", "api_list.py", "api_post.py",
+            "libposts.py",
+            "libmfa.py",
+            "libapi.py",
+            "mod_posts.py",
+            "mod_user.py",
+            "mod_api.py",
+            "mod_mfa.py",
+            "mod_hello.py",
+            "mod_csp.py",
+            "db.py",
+            "db_init.py",
+            "api_list.py",
+            "api_post.py",
         ],
     )
     def test_all_files_parse(self, parser, vulpy_files, filename):
@@ -101,9 +110,7 @@ class TestParseAllFiles:
         funcs = parser.extract_functions(tree, "python")
         imports = parser.extract_imports(tree, "python")
         # Every file should have at least imports or functions
-        assert len(funcs) > 0 or len(imports) > 0, (
-            f"{filename}: expected functions or imports"
-        )
+        assert len(funcs) > 0 or len(imports) > 0, f"{filename}: expected functions or imports"
 
 
 # ── Level 2: Known vulnerability function verification ─────────────────────────
@@ -195,9 +202,7 @@ class TestTaintPatternMatching:
     def test_execute_on_sql_is_sqli_sink(self, loader):
         """.execute() with SQL string should match sql_injection sink."""
         cat = loader.match_sink("python", "c.execute('SELECT * FROM users WHERE id=' + uid)")
-        assert cat == "sql_injection", (
-            f".execute() should match sql_injection, got {cat}"
-        )
+        assert cat == "sql_injection", f".execute() should match sql_injection, got {cat}"
 
     def test_raw_on_sql_is_sqli_sink(self, loader):
         """.raw() with SQL string should match sql_injection sink."""
@@ -207,9 +212,7 @@ class TestTaintPatternMatching:
     def test_pickle_loads_is_deserialization_sink(self, loader):
         """pickle.loads() should match deserialization sink."""
         cat = loader.match_sink("python", "pickle.loads(data)")
-        assert cat == "deserialization", (
-            f"pickle.loads should match deserialization, got {cat}"
-        )
+        assert cat == "deserialization", f"pickle.loads should match deserialization, got {cat}"
 
     def test_cookie_source_matches(self, loader):
         """request.cookies.get() should match a taint source."""
@@ -245,18 +248,15 @@ class TestCPGGraphConstruction:
         assert len(cross) > 0
         # There should be at least one resolved cross-file call
         resolved = [e for e in cross if e.is_resolved]
-        assert len(resolved) > 0, (
-            "Expected resolved cross-file calls (e.g., mod_user → libuser)"
-        )
+        assert len(resolved) > 0, "Expected resolved cross-file calls (e.g., mod_user → libuser)"
 
     def test_call_graph_single_file(self, parser, vulpy_files):
         """SingleFileCallGraph on libuser.py should show internal calls."""
         cg = SingleFileCallGraph(parser)
         # Write to temp file since build_from_file requires filesystem path
         import tempfile
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as tf:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tf:
             tf.write(vulpy_files["libuser.py"])
             tmp_path = tf.name
         try:
@@ -264,6 +264,7 @@ class TestCPGGraphConstruction:
             assert len(cg.edges) > 0
         finally:
             import os
+
             os.unlink(tmp_path)
 
 

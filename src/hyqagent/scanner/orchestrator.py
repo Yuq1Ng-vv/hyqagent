@@ -237,7 +237,7 @@ class Orchestrator:
         reverse_sink_analyzer: Any = None,
         blind_scan_reviewer: Any = None,
         sandbox_executor: Any = None,  # SandboxExecutor (dynamic PoC verification)
-        poc_generator: Any = None,    # PocGenerator (LLM PoC code generation)
+        poc_generator: Any = None,  # PocGenerator (LLM PoC code generation)
         # ── Observability (injected) ──
         observability: Any = None,  # ObservabilityManager
         # ── LLM layer (injected) ──
@@ -383,9 +383,7 @@ class Orchestrator:
         # Update Prometheus budget gauge
         if self._obs_manager and self._obs_manager._metrics is not None:
             try:
-                self._obs_manager._metrics.set_budget_spent(
-                    self._cost_tracker.total_cost()
-                )
+                self._obs_manager._metrics.set_budget_spent(self._cost_tracker.total_cost())
             except Exception:
                 pass
 
@@ -469,9 +467,7 @@ class Orchestrator:
 
         if self._obs_manager and self._obs_manager._metrics is not None:
             try:
-                self._obs_manager._metrics.set_budget_spent(
-                    self._cost_tracker.total_cost()
-                )
+                self._obs_manager._metrics.set_budget_spent(self._cost_tracker.total_cost())
             except Exception:
                 pass
 
@@ -662,14 +658,16 @@ class Orchestrator:
         discoveries: list[dict[str, Any]] = []
         if reverse_result is not None:
             for d in getattr(reverse_result, "discoveries", []) or []:
-                discoveries.append({
-                    "sink_name": getattr(d, "sink_name", ""),
-                    "sink_file": getattr(d, "sink_file", ""),
-                    "sink_line": getattr(d, "sink_line", 0),
-                    "source_names": getattr(d, "source_names", []) or [],
-                    "taint_category": getattr(d, "taint_category", ""),
-                    "confidence": getattr(d, "confidence", "medium"),
-                })
+                discoveries.append(
+                    {
+                        "sink_name": getattr(d, "sink_name", ""),
+                        "sink_file": getattr(d, "sink_file", ""),
+                        "sink_line": getattr(d, "sink_line", 0),
+                        "source_names": getattr(d, "source_names", []) or [],
+                        "taint_category": getattr(d, "taint_category", ""),
+                        "confidence": getattr(d, "confidence", "medium"),
+                    }
+                )
 
         if seeds or discoveries:
             self._log(
@@ -1024,9 +1022,7 @@ class Orchestrator:
         if self._code_retriever is not None:
             total_functions = self._code_retriever.chunk_count
             files = set()
-            for fp in getattr(
-                self._code_retriever, "_file_paths", []
-            ):
+            for fp in getattr(self._code_retriever, "_file_paths", []):
                 files.add(fp)
             _proj_summary = (
                 f"Project has {len(files)} file(s) across "
@@ -1093,15 +1089,17 @@ class Orchestrator:
             if fid in val_map:
                 verdict, conf = val_map[fid]
                 if verdict == "confirmed" and conf >= 0.7:
-                    eligible.append({
-                        "id": fid,
-                        "vuln_type": getattr(f, "vuln_type", "unknown"),
-                        "severity": sev,
-                        "source_location": getattr(f, "source_location", ""),
-                        "sink_location": getattr(f, "sink_location", ""),
-                        "description": getattr(f, "description", ""),
-                        "language": getattr(f, "language", "python"),
-                    })
+                    eligible.append(
+                        {
+                            "id": fid,
+                            "vuln_type": getattr(f, "vuln_type", "unknown"),
+                            "severity": sev,
+                            "source_location": getattr(f, "source_location", ""),
+                            "sink_location": getattr(f, "sink_location", ""),
+                            "description": getattr(f, "description", ""),
+                            "language": getattr(f, "language", "python"),
+                        }
+                    )
 
         if not eligible:
             self._log("info", "Dynamic verification: no eligible findings to verify.")
@@ -1189,7 +1187,9 @@ class Orchestrator:
                         "exit_code": r.execution.exit_code if r.execution else -1,
                         "timed_out": r.execution.timed_out if r.execution else False,
                         "stdout": (r.execution.stdout[:200] if r.execution else ""),
-                    } if r.execution else None,
+                    }
+                    if r.execution
+                    else None,
                 }
                 for r in results
             ]
@@ -1238,9 +1238,7 @@ class Orchestrator:
 
         # ── Dual-perspective findings for Chao2 estimator ────────
         # Perspective A: hypothesis IDs from the generator (validator-confirmed)
-        perspective_a: set[str] = {
-            getattr(h, "id", "") for h in hypotheses if getattr(h, "id", "")
-        }
+        perspective_a: set[str] = {getattr(h, "id", "") for h in hypotheses if getattr(h, "id", "")}
         # Perspective B: hypothesis IDs overturned by adversarial review
         adversarial_results = state.phase_states.get("adversarial_reviews", [])
         perspective_b: set[str] = {

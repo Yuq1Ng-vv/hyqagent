@@ -78,17 +78,21 @@ hyqagent/
 ```python
 # core/protocols.py — 最重要的文件
 
+
 @dataclass
 class ToolResult:
     """统一返回值 — 每个工具都返回这个结构"""
+
     success: bool
     tool_name: str
     result: Any = None
     error: str | None = None
     metadata: dict = field(default_factory=dict)
 
+
 class BaseTool(ABC):
     """工具接口 — ISP原则"""
+
     @property
     def name(self) -> str: ...
     @property
@@ -97,14 +101,18 @@ class BaseTool(ABC):
     def parameters(self) -> dict: ...  # JSON Schema
     async def execute(self, **kwargs) -> ToolResult: ...
 
+
 class CpgAnalyzer(Protocol):
     """CPG分析器协议 — 任何后端都满足这个契约"""
+
     async def extract_cpg(self, code, file_path) -> ToolResult: ...
     async def query_cpg(self, query) -> ToolResult: ...
     async def get_data_flows(self, variable, file_path) -> ToolResult: ...
 
+
 class AuditRepository(ABC):
     """存储协议 — SQLite/PostgreSQL透明切换"""
+
     async def save_finding(self, run_id, finding) -> str: ...
     async def get_findings(self, run_id, severity=None) -> list[dict]: ...
 ```
@@ -162,11 +170,11 @@ HyqAgent Runtime
 
 ```python
 # 日志级别使用规范
-DEBUG    # CPG构建细节、原始LLM prompt。生产环境禁用
-INFO     # 业务事件：阶段转换、假设状态变更、LLM调用摘要、工具结果、检查点保存
+DEBUG  # CPG构建细节、原始LLM prompt。生产环境禁用
+INFO  # 业务事件：阶段转换、假设状态变更、LLM调用摘要、工具结果、检查点保存
 WARNING  # 已处理的边缘情况：速率限制接近、模型降级、磁盘>70%、缓存未命中
-ERROR    # 需关注的故障：LLM调用重试耗尽、CPG崩溃、检查点损坏
-CRITICAL # 系统级故障：数据库不可达、所有模型宕机、磁盘满
+ERROR  # 需关注的故障：LLM调用重试耗尽、CPG崩溃、检查点损坏
+CRITICAL  # 系统级故障：数据库不可达、所有模型宕机、磁盘满
 
 # 命名规范：用 snake_case 事件名，不用自由文本
 logger.info("hypothesis_confirmed", session_id="...", hypothesis_id="...", confidence=0.92)
@@ -179,7 +187,8 @@ logger.info("hypothesis_confirmed", session_id="...", hypothesis_id="...", confi
 # 每条LLM调用自动归因成本
 tracker.record_call(
     model="claude-sonnet-4-6",
-    input_tokens=3500, output_tokens=500,
+    input_tokens=3500,
+    output_tokens=500,
     phase="phase3_hypothesis",
     hypothesis_id="hyp_a1b2",  # ← 归因到具体发现
 )
@@ -413,16 +422,20 @@ Layer 5: 输出验证 → 交叉检查LLM输出与CPG静态分析结果
 TRANSIENT = (ConnectionError, TimeoutError, HTTPStatusError)
 RETRY_STATUS = {429, 500, 502, 503, 504}
 
+
 @retry(
-    retry=retry_if_exception_type(TRANSIENT) | retry_if_result(lambda r: r.status_code in RETRY_STATUS),
+    retry=retry_if_exception_type(TRANSIENT)
+    | retry_if_result(lambda r: r.status_code in RETRY_STATUS),
     stop=stop_after_attempt(5) | stop_after_delay(60),
     wait=wait_exponential_jitter(initial=1, max=30),
 )
 async def robust_request(url: str) -> Response: ...
 
+
 # Circuit Breaker — 防止级联故障
 @circuit(failure_threshold=5, recovery_timeout=60, expected_exception=ConnectionError)
 def query_external_service(query: str) -> dict: ...
+
 
 # Dead Letter Queue — 失败任务不静默丢失
 class DeadLetterQueue:

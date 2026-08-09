@@ -269,9 +269,7 @@ class TestJaxRsExtractor:
         parser = Parser(languages=["java"])
         ext = JaxRsExtractor(parser)
         routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
-        path_params = [
-            p for r in routes for p in r.params if p.source == "path"
-        ]
+        path_params = [p for r in routes for p in r.params if p.source == "path"]
         assert len(path_params) >= 1
         assert any(p.name == "id" for p in path_params)
 
@@ -279,9 +277,7 @@ class TestJaxRsExtractor:
         parser = Parser(languages=["java"])
         ext = JaxRsExtractor(parser)
         routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
-        query_params = [
-            p for r in routes for p in r.params if p.source == "query"
-        ]
+        query_params = [p for r in routes for p in r.params if p.source == "query"]
         assert len(query_params) >= 1
         assert any(p.name == "page" for p in query_params)
 
@@ -289,9 +285,7 @@ class TestJaxRsExtractor:
         parser = Parser(languages=["java"])
         ext = JaxRsExtractor(parser)
         routes = ext.extract_routes(str(FIXTURES / "jaxrs_sample.java"))
-        form_params = [
-            p for r in routes for p in r.params if p.source == "form"
-        ]
+        form_params = [p for r in routes for p in r.params if p.source == "form"]
         assert len(form_params) >= 1
         assert any(p.name == "name" for p in form_params)
 
@@ -329,9 +323,7 @@ class TestSpringControllerValidation:
             public String getData() { return "data"; }
         }
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".java", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as tmp:
             tmp.write(code)
         try:
             parser = Parser(languages=["java"])
@@ -355,9 +347,7 @@ class TestSpringControllerValidation:
             public String home() { return "home"; }
         }
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".java", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as tmp:
             tmp.write(code)
         try:
             parser = Parser(languages=["java"])
@@ -386,9 +376,7 @@ class TestSpringCloudFeignClient:
         }
         class UserDTO { String name; }
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".java", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as tmp:
             tmp.write(code)
         try:
             parser = Parser(languages=["java"])
@@ -417,9 +405,7 @@ class TestSpringActuator:
             public String status() { return "OK"; }
         }
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".java", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as tmp:
             tmp.write(code)
         try:
             parser = Parser(languages=["java"])
@@ -446,9 +432,7 @@ class TestSpringActuator:
             public String write() { return "w"; }
         }
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".java", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as tmp:
             tmp.write(code)
         try:
             parser = Parser(languages=["java"])

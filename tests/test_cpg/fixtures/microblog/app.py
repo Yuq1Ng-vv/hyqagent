@@ -56,10 +56,9 @@ def user_profile(user_id):
 def view_post(post_id):
     """Authenticated endpoint — DB call still tainted despite @login_required."""
     import sqlite3
+
     try:
-        post = db.cursor.execute(
-            f"SELECT * FROM posts WHERE id = {post_id}"
-        ).fetchone()
+        post = db.cursor.execute(f"SELECT * FROM posts WHERE id = {post_id}").fetchone()
     except sqlite3.Error:
         return "Error", 500
     if post is None:

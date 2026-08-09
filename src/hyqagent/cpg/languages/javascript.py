@@ -411,21 +411,16 @@ class JavaScriptAdapter(LanguageProvider):
 
     @property
     def statement_types(self) -> set[str]:
-        return (
-            self.control_flow_node_types
-            | {
-                "expression_statement",
-                "variable_declaration",
-                "lexical_declaration",
-                "function_declaration",
-                "class_declaration",
-                "labeled_statement",
-            }
-        )
+        return self.control_flow_node_types | {
+            "expression_statement",
+            "variable_declaration",
+            "lexical_declaration",
+            "function_declaration",
+            "class_declaration",
+            "labeled_statement",
+        }
 
-    def get_branch_targets(
-        self, node: Node
-    ) -> dict[str, Node | list[Node] | None]:
+    def get_branch_targets(self, node: Node) -> dict[str, Node | list[Node] | None]:
         ntype = node.type
         result: dict[str, Node | list[Node] | None] = {
             "consequence": None,
@@ -448,14 +443,15 @@ class JavaScriptAdapter(LanguageProvider):
                 handlers.append(handler)
             result["handlers"] = handlers
             result["finalizer"] = node.child_by_field_name("finalizer")
-        elif ntype in ("for_statement", "for_in_statement",
-                       "while_statement", "do_statement"):
+        elif ntype in ("for_statement", "for_in_statement", "while_statement", "do_statement"):
             result["body"] = node.child_by_field_name("body")
-            result["alternative"] = node.child_by_field_name(
-                "alternative"
-            )
-        elif ntype in ("return_statement", "break_statement",
-                       "continue_statement", "throw_statement"):
+            result["alternative"] = node.child_by_field_name("alternative")
+        elif ntype in (
+            "return_statement",
+            "break_statement",
+            "continue_statement",
+            "throw_statement",
+        ):
             pass  # Unconditional jumps
 
         return result

@@ -65,12 +65,34 @@ class ReverseSinkResult:
 
 # Patterns that suggest a node is a user-input source, even if not tagged.
 _SOURCE_HEURISTICS: list[str] = [
-    "request", "params", "query", "body", "input", "get_arg",
-    "get_param", "form", "cookie", "header", "session",
-    "argv", "stdin", "environ", "post", "get", "files",
-    "readline", "get_json", "get_data", "get_query",
-    "InputStream", "Reader", "readUTF",
-    "args", "kwargs", "payload", "upload",
+    "request",
+    "params",
+    "query",
+    "body",
+    "input",
+    "get_arg",
+    "get_param",
+    "form",
+    "cookie",
+    "header",
+    "session",
+    "argv",
+    "stdin",
+    "environ",
+    "post",
+    "get",
+    "files",
+    "readline",
+    "get_json",
+    "get_data",
+    "get_query",
+    "InputStream",
+    "Reader",
+    "readUTF",
+    "args",
+    "kwargs",
+    "payload",
+    "upload",
 ]
 
 
@@ -227,14 +249,8 @@ class ReverseSinkAnalyzer:
             if not sources:
                 continue
 
-            source_names = [
-                s.get("name") or s.get("node_id", "?")
-                for s in sources
-            ]
-            source_files = [
-                s.get("file_path", "")
-                for s in sources
-            ]
+            source_names = [s.get("name") or s.get("node_id", "?") for s in sources]
+            source_files = [s.get("file_path", "") for s in sources]
 
             # Confidence: closer sources → higher confidence
             depths = [s.get("_depth", self._max_depth) for s in sources]
@@ -246,16 +262,18 @@ class ReverseSinkAnalyzer:
             else:
                 confidence = "low"
 
-            discoveries.append(ReverseSinkDiscovery(
-                sink_name=sink.get("enclosing_function", "") or sink.get("source", "?")[:60],
-                sink_file=sink["file_path"],
-                sink_line=sink["start_line"],
-                sink_source=sink["source"],
-                source_names=source_names,
-                source_files=source_files,
-                taint_category=tainted,
-                confidence=confidence,
-            ))
+            discoveries.append(
+                ReverseSinkDiscovery(
+                    sink_name=sink.get("enclosing_function", "") or sink.get("source", "?")[:60],
+                    sink_file=sink["file_path"],
+                    sink_line=sink["start_line"],
+                    sink_source=sink["source"],
+                    source_names=source_names,
+                    source_files=source_files,
+                    taint_category=tainted,
+                    confidence=confidence,
+                )
+            )
 
         # Sort: unlabelled sinks are more interesting (new discoveries)
         discoveries.sort(key=lambda d: (1 if d.taint_category else 0, d.sink_file, d.sink_line))

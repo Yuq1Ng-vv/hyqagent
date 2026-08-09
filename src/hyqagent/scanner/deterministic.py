@@ -133,11 +133,18 @@ class DeterministicScanner:
                 if not cat:
                     continue
                 # Skip PathLabel values and non-vuln scanner categories
-                if cat in ("confirmed_taint", "conditional_sanitized",
-                           "sanitized_taint", "heuristic_sink",
-                           "exposed_no_source", "unreachable_sink",
-                           "dangerous_call", "secret", "config_issue",
-                           "missing_auth"):
+                if cat in (
+                    "confirmed_taint",
+                    "conditional_sanitized",
+                    "sanitized_taint",
+                    "heuristic_sink",
+                    "exposed_no_source",
+                    "unreachable_sink",
+                    "dangerous_call",
+                    "secret",
+                    "config_issue",
+                    "missing_auth",
+                ):
                     continue
                 # Multi-category finding (e.g. "sql_injection,xxe")
                 for single_cat in cat.split(","):
@@ -370,13 +377,9 @@ class DeterministicScanner:
             # ── Resolve actual vulnerability category from path nodes ──
             # Collect taint_category from all nodes on the path; prefer the
             # intersection of source and sink categories (most specific).
-            src_cats = (
-                set(src_node.taint_category.split(","))
-                if src_node.taint_category else set()
-            )
+            src_cats = set(src_node.taint_category.split(",")) if src_node.taint_category else set()
             sink_cats = (
-                set(sink_node.taint_category.split(","))
-                if sink_node.taint_category else set()
+                set(sink_node.taint_category.split(",")) if sink_node.taint_category else set()
             )
             vuln_cats = src_cats & sink_cats
             if not vuln_cats:

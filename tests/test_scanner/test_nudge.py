@@ -110,10 +110,13 @@ class TestLastTextFromMessages:
 
     def test_block_content(self) -> None:
         msgs = [
-            {"role": "assistant", "content": [
-                {"type": "text", "text": "First paragraph."},
-                {"type": "text", "text": "Second paragraph."},
-            ]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "First paragraph."},
+                    {"type": "text", "text": "Second paragraph."},
+                ],
+            },
         ]
         result = _last_text_from_messages(msgs)
         assert "First paragraph." in result
@@ -162,23 +165,27 @@ class TestStopOnEmpty:
 class TestStopOnLowConfidence:
     def test_blocks_when_all_below_threshold(self) -> None:
         hook = stop_on_low_confidence(0.3)
-        reason = hook({
-            "hypotheses": [
-                {"confidence": 0.1},
-                {"confidence": 0.2},
-            ]
-        })
+        reason = hook(
+            {
+                "hypotheses": [
+                    {"confidence": 0.1},
+                    {"confidence": 0.2},
+                ]
+            }
+        )
         assert reason is not None
         assert "confidence < 30%" in reason
 
     def test_allows_when_any_above_threshold(self) -> None:
         hook = stop_on_low_confidence(0.3)
-        reason = hook({
-            "hypotheses": [
-                {"confidence": 0.1},
-                {"confidence": 0.5},
-            ]
-        })
+        reason = hook(
+            {
+                "hypotheses": [
+                    {"confidence": 0.1},
+                    {"confidence": 0.5},
+                ]
+            }
+        )
         assert reason is None
 
     def test_ignores_empty_list(self) -> None:
@@ -194,18 +201,22 @@ class TestStopOnMissingVerdict:
         assert "inconclusive" in reason
 
     def test_allows_inconclusive_with_reasoning(self) -> None:
-        reason = stop_on_missing_verdict({
-            "verdict": "inconclusive",
-            "q1_reachability": "Source can reach sink.",
-            "q5_judgment": "Needs more investigation.",
-        })
+        reason = stop_on_missing_verdict(
+            {
+                "verdict": "inconclusive",
+                "q1_reachability": "Source can reach sink.",
+                "q5_judgment": "Needs more investigation.",
+            }
+        )
         assert reason is None
 
     def test_allows_confirmed(self) -> None:
-        reason = stop_on_missing_verdict({
-            "verdict": "confirmed",
-            "confidence": 0.9,
-        })
+        reason = stop_on_missing_verdict(
+            {
+                "verdict": "confirmed",
+                "confidence": 0.9,
+            }
+        )
         assert reason is None
 
     def test_allows_rejected(self) -> None:

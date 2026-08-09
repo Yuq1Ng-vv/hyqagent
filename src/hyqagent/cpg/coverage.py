@@ -62,177 +62,175 @@ _STRUCTURAL_BLIND_SPOTS: list[dict[str, str]] = [
     {
         "reason": "idor_no_structural_signature",
         "recommendation": "IDOR (CWE-639) 无结构性签名——需人工审查所有权检查逻辑。"
-                          "后续 Phase 3 LLM 通道将自动审查此类端点。",
+        "后续 Phase 3 LLM 通道将自动审查此类端点。",
         "severity": "high",
         "matrix_ids": "AUTHZ-004",
     },
     {
         "reason": "business_logic_no_sink",
         "recommendation": "业务逻辑缺陷 (CWE-841) 无代码级 sink——需人工审查支付/优惠券/"
-                          "工作流状态机逻辑。后续 Phase 3 将支持行为契约验证。",
+        "工作流状态机逻辑。后续 Phase 3 将支持行为契约验证。",
         "severity": "medium",
         "matrix_ids": "BUS-001,BUS-002,BUS-003,BUS-005,BUS-006,BUS-009,BUS-011,BUS-012",
     },
     {
         "reason": "race_condition_not_modeled",
         "recommendation": "竞态条件/TOCTOU (CWE-367/362) — CPG 无线程交错模型，无法检测。"
-                          "建议人工审查共享状态访问。",
+        "建议人工审查共享状态访问。",
         "severity": "medium",
         "matrix_ids": "BUS-005,FILE-010,MISC-008",
     },
     {
         "reason": "second_order_not_modeled",
         "recommendation": "二阶注入 — 污染跨越持久化边界（写请求 → 数据库 → 读请求），"
-                          "当前单请求 CPG 模型无法追踪。",
+        "当前单请求 CPG 模型无法追踪。",
         "severity": "medium",
         "matrix_ids": "SQL-010",
     },
     {
         "reason": "prototype_pollution_not_modeled",
         "recommendation": "JS Prototype Pollution (CWE-1321) — 需要原型链感知分析，"
-                          "当前未实现。建议对 JS 项目使用 npm audit 补充。",
+        "当前未实现。建议对 JS 项目使用 npm audit 补充。",
         "severity": "low",
         "matrix_ids": "MISC-JS-PROTO-POLLUTION",
     },
     # ── Phase 3 LLM 必备检测维度（Phase 1+2 无法覆盖）─────────────────
     {
         "reason": "negative_space_validation",
-        "recommendation": "输入验证缺失（CWE-20 系列）—\"应该有验证但没写\"的负空间问题。"
-                          "Phase 3 LLM 需要审查每个端点参数的验证逻辑。",
+        "recommendation": '输入验证缺失（CWE-20 系列）—"应该有验证但没写"的负空间问题。'
+        "Phase 3 LLM 需要审查每个端点参数的验证逻辑。",
         "severity": "high",
         "matrix_ids": "INPUT-001,INPUT-002,INPUT-003,INPUT-022,BUS-004",
     },
     {
         "reason": "auth_implementation_quality",
         "recommendation": "认证实现质量——密码策略/多因素/暴力保护/JWT 安全/SAML/"
-
-                          "OAuth/OIDC。Phase 2 仅检测认证注解缺失，不评估实现质量。",
+        "OAuth/OIDC。Phase 2 仅检测认证注解缺失，不评估实现质量。",
         "severity": "high",
         "matrix_ids": "AUTH-001,AUTH-002,AUTH-003,AUTH-004,AUTH-005,AUTH-006,"
-                      "AUTH-007,AUTH-008,AUTH-009,AUTH-010,AUTH-011,AUTH-012,"
-                      "AUTH-013,AUTH-014,AUTH-015,AUTH-016,AUTH-017,AUTH-018,"
-                      "AUTH-019,AUTH-020,SESSION-001,SESSION-002,SESSION-003,"
-                      "SESSION-004,SESSION-005,SESSION-006,SESSION-007,SESSION-011",
+        "AUTH-007,AUTH-008,AUTH-009,AUTH-010,AUTH-011,AUTH-012,"
+        "AUTH-013,AUTH-014,AUTH-015,AUTH-016,AUTH-017,AUTH-018,"
+        "AUTH-019,AUTH-020,SESSION-001,SESSION-002,SESSION-003,"
+        "SESSION-004,SESSION-005,SESSION-006,SESSION-007,SESSION-011",
     },
     {
         "reason": "authorization_granularity",
         "recommendation": "授权粒度/对象级访问控制——IDOR/横向越权/纵向越权/功能级访问控制/"
-                          "CORS 源验证/JWT claim 验证/GraphQL 字段授权。"
-                          "Phase 2 仅检测全通配配置 + 缺失认证注解。",
+        "CORS 源验证/JWT claim 验证/GraphQL 字段授权。"
+        "Phase 2 仅检测全通配配置 + 缺失认证注解。",
         "severity": "high",
         "matrix_ids": "AUTHZ-001,AUTHZ-002,AUTHZ-003,AUTHZ-004,AUTHZ-005,"
-                      "AUTHZ-006,AUTHZ-007,AUTHZ-008,AUTHZ-009,AUTHZ-010,"
-                      "AUTHZ-011,AUTHZ-012",
+        "AUTHZ-006,AUTHZ-007,AUTHZ-008,AUTHZ-009,AUTHZ-010,"
+        "AUTHZ-011,AUTHZ-012",
     },
     {
         "reason": "data_protection_lifecycle",
         "recommendation": "数据保护全生命周期——传输加密/脱敏/存储加密/内存清理/安全删除/"
-                          "合规(GDPR)。Phase 2 仅检测硬编码密钥 + 弱加密算法。",
+        "合规(GDPR)。Phase 2 仅检测硬编码密钥 + 弱加密算法。",
         "severity": "medium",
         "matrix_ids": "DATAPRO-001,DATAPRO-003,DATAPRO-004,DATAPRO-005,"
-                      "DATAPRO-006,DATAPRO-007,DATAPRO-008,DATAPRO-009,"
-                      "DATAPRO-010,DATAPRO-011",
+        "DATAPRO-006,DATAPRO-007,DATAPRO-008,DATAPRO-009,"
+        "DATAPRO-010,DATAPRO-011",
     },
     {
         "reason": "crypto_implementation_correctness",
         "recommendation": "密码学实现正确性——库选择/KMS 集成/签名验证/证书固定/HMAC 参数/"
-                          "RSA 密钥长度。Phase 2 crypto_weakness 仅检测已知弱算法。",
+        "RSA 密钥长度。Phase 2 crypto_weakness 仅检测已知弱算法。",
         "severity": "medium",
         "matrix_ids": "CRYPTO-001,CRYPTO-004,CRYPTO-005,CRYPTO-007,"
-                      "CRYPTO-008,CRYPTO-009,CRYPTO-010,CRYPTO-013",
+        "CRYPTO-008,CRYPTO-009,CRYPTO-010,CRYPTO-013",
     },
     {
         "reason": "http_security_headers",
         "recommendation": "HTTP 安全头配置——CSP/CORS/X-Frame-Options/X-Content-Type-Options/"
-                          "Referrer-Policy/Permissions-Policy/COOP/COEP/CORP/Cache-Control/"
-                          "Clear-Site-Data/charset。Phase 2 仅覆盖 Spring Security Java 配置。",
+        "Referrer-Policy/Permissions-Policy/COOP/COEP/CORP/Cache-Control/"
+        "Clear-Site-Data/charset。Phase 2 仅覆盖 Spring Security Java 配置。",
         "severity": "medium",
         "matrix_ids": "OUTPUT-007,OUTPUT-008,OUTPUT-009,OUTPUT-011,OUTPUT-012,"
-                      "CONFIG-002,CONFIG-003,CONFIG-004,CONFIG-005,CONFIG-006,"
-                      "CONFIG-012,CONFIG-013",
+        "CONFIG-002,CONFIG-003,CONFIG-004,CONFIG-005,CONFIG-006,"
+        "CONFIG-012,CONFIG-013",
     },
     {
         "reason": "network_defense_config",
         "recommendation": "网络层防御配置——DNS Rebinding/超时设置/重定向控制/Host 头验证/"
-                          "代理头处理/HTTP 走私/WebSocket Origin/请求大小/连接池限制。"
-                          "Phase 2 仅检测 SSRF taint + Open Redirect taint。",
+        "代理头处理/HTTP 走私/WebSocket Origin/请求大小/连接池限制。"
+        "Phase 2 仅检测 SSRF taint + Open Redirect taint。",
         "severity": "medium",
-        "matrix_ids": "NET-002,NET-003,NET-004,NET-006,NET-007,NET-008,"
-                      "NET-009,NET-010,NET-011",
+        "matrix_ids": "NET-002,NET-003,NET-004,NET-006,NET-007,NET-008,NET-009,NET-010,NET-011",
     },
     {
         "reason": "deploy_config_gaps",
         "recommendation": "部署/配置层面缺口——默认凭据/HTTP 方法禁用/管理接口访问控制/"
-                          "HTTPS 强制(非Java)/DEBUG 模式(非Java)。"
-                          "Phase 2 config_issues 仅覆盖 Java Spring 生态。",
+        "HTTPS 强制(非Java)/DEBUG 模式(非Java)。"
+        "Phase 2 config_issues 仅覆盖 Java Spring 生态。",
         "severity": "high",
         "matrix_ids": "CONFIG-001,CONFIG-008,CONFIG-010,CONFIG-011",
     },
     {
         "reason": "logging_security",
         "recommendation": "日志安全——安全事件记录/日志注入/敏感信息泄漏/审计追踪。"
-                          "Phase 2 无日志注入 taint 类别。",
+        "Phase 2 无日志注入 taint 类别。",
         "severity": "medium",
         "matrix_ids": "LOG-001,LOG-002,LOG-003,LOG-005",
     },
     {
         "reason": "client_side_js_security",
         "recommendation": "客户端 JS 安全——DOM XSS/postMessage/客户端重定向/存储安全/"
-                          "CSP SPA/第三方脚本/Web Worker/Service Worker。"
-                          "当前 CPG 不支持前端 JS AST 分析。",
+        "CSP SPA/第三方脚本/Web Worker/Service Worker。"
+        "当前 CPG 不支持前端 JS AST 分析。",
         "severity": "medium",
         "matrix_ids": "CLIENT-001,CLIENT-002,CLIENT-003,CLIENT-004,"
-                      "CLIENT-005,CLIENT-006,CLIENT-007,CLIENT-008,CLIENT-009",
+        "CLIENT-005,CLIENT-006,CLIENT-007,CLIENT-008,CLIENT-009",
     },
     {
         "reason": "injection_edge_cases",
         "recommendation": "注入边缘场景——ReDoS/JSON 注入/CSV 注入/GraphQL 注入/"
-                          "HTTP Verb Tampering/HPP/Mass Assignment。"
-                          "Phase 2 无专门规则。",
+        "HTTP Verb Tampering/HPP/Mass Assignment。"
+        "Phase 2 无专门规则。",
         "severity": "medium",
         "matrix_ids": "INPUT-009,INPUT-010,INPUT-012,INPUT-013,"
-                      "INPUT-014,INPUT-015,INPUT-016,INPUT-023,INPUT-027",
+        "INPUT-014,INPUT-015,INPUT-016,INPUT-023,INPUT-027",
     },
     {
         "reason": "sql_advanced",
         "recommendation": "SQL 高级场景——存储过程动态 SQL/Second-Order SQLi/"
-                          "SQL 日志泄漏/NoSQL 注入(非Java)。"
-                          "Phase 2 taint 追踪覆盖基础 SQLi，但高级场景需要 LLM。",
+        "SQL 日志泄漏/NoSQL 注入(非Java)。"
+        "Phase 2 taint 追踪覆盖基础 SQLi，但高级场景需要 LLM。",
         "severity": "medium",
         "matrix_ids": "SQL-002,SQL-005,SQL-006,SQL-007,SQL-008,SQL-010",
     },
     {
         "reason": "file_security_gaps",
         "recommendation": "文件安全缺口——符号链接检测/临时文件安全/文件权限/上传目录执行权限/"
-                          "文件名安全处理/TOCTOU。Phase 2 path_traversal 覆盖路径穿越和 ZIP Slip。",
+        "文件名安全处理/TOCTOU。Phase 2 path_traversal 覆盖路径穿越和 ZIP Slip。",
         "severity": "medium",
         "matrix_ids": "FILE-002,FILE-003,FILE-004,FILE-005,FILE-006,FILE-007,FILE-010",
     },
     {
         "reason": "ssrf_defense_depth",
         "recommendation": "SSRF 防御纵深——内网 IP 过滤/协议白名单/域名白名单/DNS Rebinding/"
-                          "间接 URL 构造。Phase 2 仅检测 SSRF sink 的存在。",
+        "间接 URL 构造。Phase 2 仅检测 SSRF sink 的存在。",
         "severity": "high",
         "matrix_ids": "INPUT-005,INPUT-027,NET-001,NET-002",
     },
     {
         "reason": "ssti_xss_defense_depth",
         "recommendation": "SSTI/XSS 防御纵深——sanitizer 质量/输出上下文适配/编码函数选择/"
-                          "CSS 注入/前端双重验证。Phase 2 检测 sink 和 sanitizer 存在性。",
+        "CSS 注入/前端双重验证。Phase 2 检测 sink 和 sanitizer 存在性。",
         "severity": "medium",
         "matrix_ids": "INPUT-003,INPUT-025,OUTPUT-001,OUTPUT-002,OUTPUT-003,OUTPUT-006",
     },
     {
         "reason": "misc_security_gaps",
         "recommendation": "其他安全缺口——常时比较/错误处理信息泄漏/整数溢出。"
-                          "Phase 2 部分覆盖但不够深入。",
+        "Phase 2 部分覆盖但不够深入。",
         "severity": "low",
         "matrix_ids": "MISC-002,MISC-003,MISC-008,MISC-010",
     },
     {
         "reason": "supply_chain_gaps",
         "recommendation": "供应链安全——依赖混淆/SRI 完整性/锁文件管理。"
-                          "Phase 2 无此能力，需结合外部工具 (pip-audit/npm audit/Trivy)。",
+        "Phase 2 无此能力，需结合外部工具 (pip-audit/npm audit/Trivy)。",
         "severity": "low",
         "matrix_ids": "SUPPLY-001,SUPPLY-002,SUPPLY-003,SUPPLY-004,SUPPLY-005,SUPPLY-006",
     },
@@ -304,13 +302,12 @@ class CoverageTracker:
 
         Returns:
             List of BlindSpot entries, one per LLM-requiring detection item.
+
         """
         if manifest_path is None:
             # Resolve default path relative to the project root
             repo_root = Path(__file__).resolve().parent.parent.parent.parent
-            manifest_path = str(
-                repo_root / "docs" / "phase12_coverage_tracking.json"
-            )
+            manifest_path = str(repo_root / "docs" / "phase12_coverage_tracking.json")
 
         try:
             with open(manifest_path, encoding="utf-8") as f:
@@ -333,9 +330,9 @@ class CoverageTracker:
                             location=f"matrix:{item_id}",
                             reason=f"phase3_required:{item_id}",
                             recommendation=(
-                                f"[{item['severity']}] {item['name']} ({item.get('cwe','')}) "
-                                f"— {needs.get('reason','Phase 2 无法完整覆盖')}。"
-                                f" LLM 方法: {needs.get('llm_approach','语义审查')}"
+                                f"[{item['severity']}] {item['name']} ({item.get('cwe', '')}) "
+                                f"— {needs.get('reason', 'Phase 2 无法完整覆盖')}。"
+                                f" LLM 方法: {needs.get('llm_approach', '语义审查')}"
                             ),
                             severity=item.get("severity", "medium").lower(),
                         )
@@ -393,6 +390,7 @@ class CoverageTracker:
             include_phase3: If True (default), includes Phase 3 LLM-requiring
                             items from the coverage tracking JSON. Set False
                             for pure Phase 1+2 blind spots only.
+
         """
         manifest: list[BlindSpot] = []
 
@@ -431,7 +429,7 @@ class CoverageTracker:
                         location=location,
                         reason="missing_auth_annotation",
                         recommendation=f"端点 {route or handler} 缺少认证装饰器/注解，"
-                                        f"建议人工审查访问控制。",
+                        f"建议人工审查访问控制。",
                         severity="high",
                     )
                 )
@@ -458,7 +456,7 @@ class CoverageTracker:
                     location="(rule_gap)",
                     reason=f"category_not_triggered:{cat}",
                     recommendation=f"未触发 {cat} ({cwe}) 规则——该项目可能不存在此类漏洞，"
-                                    f"或 YAML 规则需要扩展。",
+                    f"或 YAML 规则需要扩展。",
                     severity="low",
                 )
             )
@@ -482,9 +480,7 @@ class CoverageTracker:
                 count += 1
         return count
 
-    def _endpoint_has_labeled_source(
-        self, handler_func: str, file_path: str
-    ) -> bool:
+    def _endpoint_has_labeled_source(self, handler_func: str, file_path: str) -> bool:
         """Check whether *handler_func* contains any ``taint_category``-labelled node."""
         for _nid, data in self._graph.nodes(data=True):
             if data.get("node_type") != NODE_ASSIGNMENT:

@@ -12,10 +12,7 @@ Covers ``CPGGraphBuilder.add_directory()`` cache behaviour and the
 
 from __future__ import annotations
 
-import hashlib
-import os
 import pickle
-import tempfile
 from pathlib import Path
 
 import pytest

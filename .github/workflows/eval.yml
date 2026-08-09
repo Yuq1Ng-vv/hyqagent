@@ -1,0 +1,61 @@
+name: Eval
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/hyqagent/scanner/**"
+      - "src/hyqagent/cpg/**"
+      - "tests/eval/**"
+      - "evals/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/hyqagent/scanner/**"
+      - "src/hyqagent/cpg/**"
+      - "tests/eval/**"
+      - "evals/**"
+  schedule:
+    - cron: "7 6 * * 1" # Weekly on Monday 06:07 UTC
+  workflow_dispatch: # Manual trigger
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden-tests:
+    name: Golden Dataset Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --dev --group eval
+
+      - name: Run golden eval tests (deterministic)
+        run: uv run pytest tests/eval/ -m "not real_llm" -x --tb=short
+
+  full-tests:
+    name: Full Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --dev --group eval
+
+      - name: Run full test suite
+        run: uv run pytest -x --tb=short --timeout=300

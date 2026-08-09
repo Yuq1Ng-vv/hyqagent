@@ -77,13 +77,15 @@ class ListFunctionsTool(BaseTool):
         results: list[dict[str, Any]] = []
         for c in chunks:
             sig_line = c.code.split("\n")[0].strip()[:120] if c.code else ""
-            results.append({
-                "name": c.function_name or "<module>",
-                "start_line": c.start_line,
-                "end_line": c.end_line,
-                "signature": sig_line,
-                "language": c.language,
-            })
+            results.append(
+                {
+                    "name": c.function_name or "<module>",
+                    "start_line": c.start_line,
+                    "end_line": c.end_line,
+                    "signature": sig_line,
+                    "language": c.language,
+                }
+            )
 
         return ToolResult.ok(
             self.name,

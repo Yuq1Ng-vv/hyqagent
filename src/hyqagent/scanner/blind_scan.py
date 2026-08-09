@@ -279,7 +279,9 @@ class BlindScanReviewer:
         return cast(dict[str, Any], result)
 
     def _parse_response(
-        self, endpoints_reviewed: int, raw: dict[str, Any],
+        self,
+        endpoints_reviewed: int,
+        raw: dict[str, Any],
     ) -> BlindScanResult:
         """Parse LLM structured output into BlindScanResult."""
         findings: list[BlindScanFinding] = []
@@ -288,15 +290,17 @@ class BlindScanReviewer:
             raw_findings = []
 
         for f in raw_findings:
-            findings.append(BlindScanFinding(
-                endpoint=str(f.get("endpoint", "")),
-                issue_type=str(f.get("issue_type", "unknown")),
-                severity=str(f.get("severity", "medium")),
-                confidence=float(f.get("confidence", 0.5)),
-                title=str(f.get("title", "")),
-                description=str(f.get("description", "")),
-                reasoning=str(f.get("reasoning", "")),
-            ))
+            findings.append(
+                BlindScanFinding(
+                    endpoint=str(f.get("endpoint", "")),
+                    issue_type=str(f.get("issue_type", "unknown")),
+                    severity=str(f.get("severity", "medium")),
+                    confidence=float(f.get("confidence", 0.5)),
+                    title=str(f.get("title", "")),
+                    description=str(f.get("description", "")),
+                    reasoning=str(f.get("reasoning", "")),
+                )
+            )
 
         return BlindScanResult(
             endpoints_reviewed=endpoints_reviewed,
@@ -337,9 +341,7 @@ def exposed_endpoints_from_state(
     """
     annotated = state.phase_states.get("annotated_paths", []) or []
     endpoints_data = (
-        state.phase_states.get("attack_surface")
-        or state.phase_states.get("endpoints")
-        or []
+        state.phase_states.get("attack_surface") or state.phase_states.get("endpoints") or []
     )
 
     # Collect covered handler functions from annotated paths

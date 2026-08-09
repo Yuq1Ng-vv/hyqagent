@@ -275,9 +275,7 @@ def scan(
             "coverage_audit": deep_data.get("coverage_audit"),
             "phases_completed": deep_data.get("phases_completed", []),
             "validations": deep_data.get("validations", []),
-            "dynamic_verification_results": deep_data.get(
-                "dynamic_verification_results"
-            ),
+            "dynamic_verification_results": deep_data.get("dynamic_verification_results"),
         }
 
     report_text = generator.generate(

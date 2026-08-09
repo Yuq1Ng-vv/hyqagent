@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from hyqagent.cpg.graph import CPGGraphBuilder, NODE_FUNCTION, NODE_CALL_SITE, NODE_ASSIGNMENT
+from hyqagent.cpg.graph import NODE_ASSIGNMENT, NODE_CALL_SITE, NODE_FUNCTION, CPGGraphBuilder
 from hyqagent.cpg.parser import Parser
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -31,10 +31,7 @@ class TestGraphBuilding:
 
     def test_functions_indexed(self, builder):
         funcs = builder.nodes_by_type(NODE_FUNCTION)
-        func_names = {
-            builder.graph.nodes[n].get("name")
-            for n in funcs
-        }
+        func_names = {builder.graph.nodes[n].get("name") for n in funcs}
         assert "process_request" in func_names
         assert "lookup" in func_names
         assert "db_execute" in func_names
@@ -46,10 +43,7 @@ class TestGraphBuilding:
 
     def test_assignments_indexed(self, builder):
         assigns = builder.nodes_by_type(NODE_ASSIGNMENT)
-        var_names = {
-            builder.graph.nodes[n].get("var_name")
-            for n in assigns
-        }
+        var_names = {builder.graph.nodes[n].get("var_name") for n in assigns}
         assert "user_input" in var_names
         assert "sanitized" in var_names
         assert "result" in var_names
@@ -57,9 +51,7 @@ class TestGraphBuilding:
     def test_calls_edges_exist(self, builder):
         """Call edges connect functions through call-site nodes."""
         call_edges = [
-            (u, v, d)
-            for u, v, d in builder.graph.edges(data=True)
-            if d.get("edge_type") == "CALLS"
+            (u, v, d) for u, v, d in builder.graph.edges(data=True) if d.get("edge_type") == "CALLS"
         ]
         assert len(call_edges) > 0
 
@@ -89,9 +81,7 @@ class TestGraphBuilding:
         assert b.node_count > 0
         # Should have indexed dataflow.py and callgraph fixtures
         funcs = b.nodes_by_type(NODE_FUNCTION)
-        func_names = {
-            b.graph.nodes[n].get("name") for n in funcs
-        }
+        func_names = {b.graph.nodes[n].get("name") for n in funcs}
         # At minimum the dataflow.py functions
         assert "process_request" in func_names
 
@@ -107,15 +97,15 @@ class TestGraphBuilding:
         b = CPGGraphBuilder(parser)
         b.add_file(str(FIXTURES / "dataflow.js"))
         funcs = b.nodes_by_type(NODE_FUNCTION)
-        func_names = {
-            b.graph.nodes[n].get("name") for n in funcs
-        }
+        func_names = {b.graph.nodes[n].get("name") for n in funcs}
         assert "processRequest" in func_names
 
 
 class TestMixedLanguageDirectory:
     def test_mixed_lang_indexing(self, parser):
-        import tempfile, os
+        import os
+        import tempfile
+
         d = tempfile.mkdtemp()
         try:
             with open(os.path.join(d, "app.py"), "w") as f:
@@ -130,5 +120,5 @@ class TestMixedLanguageDirectory:
             assert "bar" in func_names
         finally:
             import shutil
-            shutil.rmtree(d, ignore_errors=True)
 
+            shutil.rmtree(d, ignore_errors=True)

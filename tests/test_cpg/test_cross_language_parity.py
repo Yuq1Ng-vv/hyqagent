@@ -280,9 +280,7 @@ class TestDataFlowEdgePresence:
             for u, v, d in builder.graph.edges(data=True)
             if d.get("edge_type") == "DATA_FLOW"
         ]
-        assert len(data_flow_edges) > 0, (
-            f"{filename}: expected DATA_FLOW edges, found 0"
-        )
+        assert len(data_flow_edges) > 0, f"{filename}: expected DATA_FLOW edges, found 0"
 
 
 # ── Match source / sink category ─────────────────────────────────────────────

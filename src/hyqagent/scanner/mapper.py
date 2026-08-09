@@ -22,13 +22,13 @@ from hyqagent.cpg.frameworks.base import HttpEndpoint
 class EndpointCategory(StrEnum):
     """High-level risk category assigned to an endpoint."""
 
-    AUTH_BYPASS = "auth_bypass"          # No auth — potential IDOR / privilege escalation
-    DATA_MUTATION = "data_mutation"      # POST/PUT/PATCH/DELETE — state-changing
-    FILE_UPLOAD = "file_upload"          # Multipart / file handling — RCE / traversal risk
-    ADMIN_EXPOSED = "admin_exposed"      # Admin / management endpoints
-    SENSITIVE_READ = "sensitive_read"    # GET that returns PII / tokens / secrets
-    PUBLIC_READ = "public_read"          # GET with no auth, low sensitivity
-    CONFIG_LEAK = "config_leak"          # Debug / actuator / info endpoints
+    AUTH_BYPASS = "auth_bypass"  # No auth — potential IDOR / privilege escalation
+    DATA_MUTATION = "data_mutation"  # POST/PUT/PATCH/DELETE — state-changing
+    FILE_UPLOAD = "file_upload"  # Multipart / file handling — RCE / traversal risk
+    ADMIN_EXPOSED = "admin_exposed"  # Admin / management endpoints
+    SENSITIVE_READ = "sensitive_read"  # GET that returns PII / tokens / secrets
+    PUBLIC_READ = "public_read"  # GET with no auth, low sensitivity
+    CONFIG_LEAK = "config_leak"  # Debug / actuator / info endpoints
     UNKNOWN = "unknown"
 
 
@@ -109,7 +109,7 @@ class AttackSurfaceMapper:
     # Param source → risk contribution
     _PARAM_SOURCE_WEIGHTS: ClassVar[dict[str, int]] = {
         "body": 2,
-        "file": 4,   # file upload → high risk
+        "file": 4,  # file upload → high risk
         "form": 1,
         "query": 1,
         "path": 0,
@@ -119,21 +119,62 @@ class AttackSurfaceMapper:
 
     # Route patterns that suggest admin/management endpoints
     _ADMIN_PATTERNS: tuple[str, ...] = (
-        "admin", "manage", "dashboard", "config", "setting",
-        "actuator", "jmx", "console", "swagger", "api-doc",
-        "graphql", "graphiql", "debug", "trace", "profile",
-        "health", "info", "metrics", "env", "log",
-        "backup", "restore", "import", "export",
-        "register", "signup", "login", "signin", "auth",
-        "oauth", "token", "reset", "password", "verify",
-        "user", "account", "profile", "role", "permission",
+        "admin",
+        "manage",
+        "dashboard",
+        "config",
+        "setting",
+        "actuator",
+        "jmx",
+        "console",
+        "swagger",
+        "api-doc",
+        "graphql",
+        "graphiql",
+        "debug",
+        "trace",
+        "profile",
+        "health",
+        "info",
+        "metrics",
+        "env",
+        "log",
+        "backup",
+        "restore",
+        "import",
+        "export",
+        "register",
+        "signup",
+        "login",
+        "signin",
+        "auth",
+        "oauth",
+        "token",
+        "reset",
+        "password",
+        "verify",
+        "user",
+        "account",
+        "profile",
+        "role",
+        "permission",
     )
 
     # Route patterns suggesting file operations
     _FILE_PATTERNS: tuple[str, ...] = (
-        "upload", "download", "file", "image", "photo",
-        "avatar", "attachment", "media", "static", "backup",
-        "export", "import", "report",
+        "upload",
+        "download",
+        "file",
+        "image",
+        "photo",
+        "avatar",
+        "attachment",
+        "media",
+        "static",
+        "backup",
+        "export",
+        "import",
+        "report",
     )
 
     # ── Public API ───────────────────────────────────────────────────────
@@ -285,8 +326,18 @@ class AttackSurfaceMapper:
         # Admin / config
         if any(
             pat in route_lower
-            for pat in ("admin", "manage", "dashboard", "config", "setting",
-                        "actuator", "jmx", "console", "swagger", "api-doc")
+            for pat in (
+                "admin",
+                "manage",
+                "dashboard",
+                "config",
+                "setting",
+                "actuator",
+                "jmx",
+                "console",
+                "swagger",
+                "api-doc",
+            )
         ):
             reasons.append("admin or management endpoint")
             return EndpointCategory.ADMIN_EXPOSED
@@ -300,11 +351,23 @@ class AttackSurfaceMapper:
             return EndpointCategory.CONFIG_LEAK
 
         # Auth-related but no auth guard
-        if any(
-            pat in route_lower
-            for pat in ("login", "signin", "register", "signup", "token",
-                        "reset", "password", "oauth", "verify")
-        ) and not ep.auth_required:
+        if (
+            any(
+                pat in route_lower
+                for pat in (
+                    "login",
+                    "signin",
+                    "register",
+                    "signup",
+                    "token",
+                    "reset",
+                    "password",
+                    "oauth",
+                    "verify",
+                )
+            )
+            and not ep.auth_required
+        ):
             reasons.append("auth endpoint without detected auth guard")
             return EndpointCategory.AUTH_BYPASS
 

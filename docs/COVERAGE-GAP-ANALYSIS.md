@@ -213,8 +213,8 @@ Oracle 专利（US 11586740）描述：检测二阶数据流需要匹配**全局
 
 以下代码在 CPG 分析中完全正常：
 ```python
-if os.path.exists(path):     # 检查
-    with open(path, 'w') as f:  # 使用 — TOCTOU窗口
+if os.path.exists(path):  # 检查
+    with open(path, "w") as f:  # 使用 — TOCTOU窗口
         f.write(data)
 ```
 
@@ -264,7 +264,7 @@ SSRFinder 研究：在 21 个真实应用中发现了 5 个被 4 个 SOTA 静态
 
 ```python
 # Phase 1 看不到问题（没有硬编码密钥，代码正常运行）
-key = os.environ.get('ENCRYPTION_KEY')
+key = os.environ.get("ENCRYPTION_KEY")
 cipher = AES.new(key, AES.MODE_ECB)  # ECB模式不安全
 
 # Phase 1 也看不到（需要语义理解）
@@ -385,15 +385,36 @@ def is_potentially_dangerous_sink(call_node, cpg):
         score += 30
 
     # 函数名包含危险术语: +20
-    dangerous_terms = ['query', 'execute', 'exec', 'sql', 'command',
-                       'open', 'read', 'write', 'send', 'fetch',
-                       'render', 'eval', 'load', 'deserialize']
+    dangerous_terms = [
+        "query",
+        "execute",
+        "exec",
+        "sql",
+        "command",
+        "open",
+        "read",
+        "write",
+        "send",
+        "fetch",
+        "render",
+        "eval",
+        "load",
+        "deserialize",
+    ]
     if any(term in name for term in dangerous_terms):
         score += 20
 
     # 调用来自已知危险库: +40
-    if call_node.module in ['sqlalchemy', 'pymongo', 'redis', 'psycopg2',
-                             'axios', 'httpx', 'requests', 'subprocess']:
+    if call_node.module in [
+        "sqlalchemy",
+        "pymongo",
+        "redis",
+        "psycopg2",
+        "axios",
+        "httpx",
+        "requests",
+        "subprocess",
+    ]:
         score += 40
 
     # 有用户输入可达: +50
@@ -482,7 +503,7 @@ def saturation_scan(repo, max_rounds=3):
 
         new_seeds = set()
         for f in findings:
-            if f.status == 'confirmed':
+            if f.status == "confirmed":
                 new_seeds.update(cpg.get_callees(f.sink_function))
                 new_seeds.update(cpg.get_callers(f.source_function))
                 new_seeds.update(get_sibling_endpoints(f.source_function))
@@ -512,11 +533,13 @@ def differential_coverage_scan(cpg):
 
     for db_call in cpg.get_all_database_calls():
         if not cpg.has_path_from_any_source(db_call):
-            blind_spots.append({
-                "location": db_call,
-                "reason": "数据库调用未检测到用户输入路径——"
-                          "要么安全（内部查询），要么source列表不完整"
-            })
+            blind_spots.append(
+                {
+                    "location": db_call,
+                    "reason": "数据库调用未检测到用户输入路径——"
+                    "要么安全（内部查询），要么source列表不完整",
+                }
+            )
 
     return blind_spots
 ```

@@ -24,9 +24,9 @@ from dataclasses import dataclass, field
 class BeliefUpdate:
     """One step in the evidence-accumulation chain."""
 
-    prior: float          # P(H) before this observation
-    likelihood: float     # P(E|H) — how expected is this evidence if H is true?
-    posterior: float      # P(H|E) after update
+    prior: float  # P(H) before this observation
+    likelihood: float  # P(E|H) — how expected is this evidence if H is true?
+    posterior: float  # P(H|E) after update
     evidence_summary: str  # human-readable description of E
 
 
@@ -35,8 +35,8 @@ class BeliefState:
     """Current belief about a single hypothesis."""
 
     hypothesis_id: str
-    current_confidence: float   # P(H | all evidence so far)
-    prior: float                # original P(H) from LLM
+    current_confidence: float  # P(H | all evidence so far)
+    prior: float  # original P(H) from LLM
     history: list[BeliefUpdate] = field(default_factory=list)
 
     @property
@@ -73,8 +73,7 @@ class EvidenceStrength:
 # ── Core update logic ────────────────────────────────────────────────────────
 
 
-def bayes_update(prior: float, likelihood_given_h: float,
-                 likelihood_given_not_h: float) -> float:
+def bayes_update(prior: float, likelihood_given_h: float, likelihood_given_not_h: float) -> float:
     """Compute P(H|E) = P(E|H)xP(H) / [P(E|H)xP(H) + P(E|¬H)x(1-P(H))].
 
     Returns a float clamped to [0.0, 1.0].

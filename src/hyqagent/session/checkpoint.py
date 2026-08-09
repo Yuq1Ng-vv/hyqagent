@@ -83,16 +83,19 @@ class CheckpointManager:
     async def save(self, checkpoint: Checkpoint) -> str:
         """Persist a checkpoint. Returns its ID."""
         import asyncio
+
         return await asyncio.to_thread(self._save_sync, checkpoint)
 
     async def load_latest(self, session_id: str) -> Checkpoint | None:
         """Load the most recent checkpoint for *session_id*."""
         import asyncio
+
         return await asyncio.to_thread(self._load_latest_sync, session_id)
 
     async def list_all(self, session_id: str) -> list[Checkpoint]:
         """Return all checkpoints for *session_id*, oldest first."""
         import asyncio
+
         return await asyncio.to_thread(self._list_all_sync, session_id)
 
     async def delete_old(self, session_id: str, keep_latest: int = 5) -> int:
@@ -101,6 +104,7 @@ class CheckpointManager:
         Returns the number of deleted checkpoints.
         """
         import asyncio
+
         return await asyncio.to_thread(self._delete_old_sync, session_id, keep_latest)
 
     # ── Sync internals ──────────────────────────────────────────────────

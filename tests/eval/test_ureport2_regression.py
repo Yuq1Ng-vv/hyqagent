@@ -220,7 +220,7 @@ class TestXXEPath:
         assert len(sinks) > 0, "No SAXReader nodes found in graph"
 
     def test_designer_to_report_parser_call_chain(self, query):
-        """savePreviewData → parse call chain should exist (cross-file)."""
+        """SavePreviewData → parse call chain should exist (cross-file)."""
         chain = query.get_call_chain("savePreviewData", "parse")
         if chain is not None:
             assert len(chain.nodes) >= 2
@@ -286,8 +286,8 @@ class TestTaintLabelingOnUreport2:
         Re-uses the cached graph and relabels it with the taint loader
         to avoid an ~800 s full rebuild.
         """
-        from hyqagent.cpg.taint_loader import TaintRuleLoader
         from hyqagent.cpg.languages import detect_by_extension
+        from hyqagent.cpg.taint_loader import TaintRuleLoader
 
         loader = TaintRuleLoader()
         builder = _load_ureport2_graph(parser)
@@ -301,7 +301,8 @@ class TestTaintLabelingOnUreport2:
 
     def test_taint_labeling_on_ureport2(self, taint_graph):
         """Taint labeling should find at least some labeled nodes in a
-        large Java project (best-effort, may vary with rules coverage)."""
+        large Java project (best-effort, may vary with rules coverage).
+        """
         labeled_count = sum(
             1 for _n, d in taint_graph.graph.nodes(data=True) if d.get("taint_category")
         )

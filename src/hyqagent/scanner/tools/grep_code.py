@@ -84,15 +84,17 @@ class GrepCodeTool(BaseTool):
 
         results: list[dict[str, Any]] = []
         for h in hits:
-            results.append({
-                "file": h.chunk.file_path,
-                "function": h.chunk.function_name or "<module>",
-                "start_line": h.chunk.start_line,
-                "end_line": h.chunk.end_line,
-                "code": h.chunk.code[:_MAX_CHARS],
-                "score": round(h.score, 3),
-                "match_type": h.match_type,
-            })
+            results.append(
+                {
+                    "file": h.chunk.file_path,
+                    "function": h.chunk.function_name or "<module>",
+                    "start_line": h.chunk.start_line,
+                    "end_line": h.chunk.end_line,
+                    "code": h.chunk.code[:_MAX_CHARS],
+                    "score": round(h.score, 3),
+                    "match_type": h.match_type,
+                }
+            )
 
         # Truncate aggregated result if too large
         summary = f"Found {total} hits (showing top {len(results)})"

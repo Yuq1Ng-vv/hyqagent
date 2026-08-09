@@ -75,12 +75,12 @@ class TestContextCrystallizer:
             ),
             TurnRecord(
                 role="assistant",
-                content="Found hyp_def456: XSS in search.py. "
-                "verdict: rejected, conf: 0.15",
+                content="Found hyp_def456: XSS in search.py. verdict: rejected, conf: 0.15",
             ),
         ]
         summary = c.crystallize(
-            turns, phase="hypothesis_gen",
+            turns,
+            phase="hypothesis_gen",
             files_analyzed=["login.py", "search.py"],
             decisions=["Skipped utils.py"],
             open_questions=["Check ORM safety"],

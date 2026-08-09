@@ -70,7 +70,9 @@ if self._adversarial_reviewer is None and self._strong is not None:
     cfg = HyqAgentConfig()
     nudge = NudgeLoop(NudgeConfig(max_turns=3))
     self._adversarial_reviewer = AdversarialReviewer(
-        provider=self._strong, model=cfg.strong_model, nudge_loop=nudge,
+        provider=self._strong,
+        model=cfg.strong_model,
+        nudge_loop=nudge,
     )
 ```
 

@@ -35,11 +35,12 @@ class ReverseSinkDiscovery:
     sink_name: str
     sink_file: str
     sink_line: int
-    sink_source: str            # 实际调用表达式
-    source_names: list[str]     # 上游 source 函数名
+    sink_source: str  # 实际调用表达式
+    source_names: list[str]  # 上游 source 函数名
     source_files: list[str]
-    taint_category: str         # 空 = 新发现
-    confidence: str             # high/medium/low 按 BFS 深度
+    taint_category: str  # 空 = 新发现
+    confidence: str  # high/medium/low 按 BFS 深度
+
 
 @dataclass
 class ReverseSinkResult:
@@ -47,7 +48,7 @@ class ReverseSinkResult:
     total_labeled: int
     total_unlabeled: int
     discoveries: list[ReverseSinkDiscovery]
-    previously_covered: int     # 前向分析已覆盖
+    previously_covered: int  # 前向分析已覆盖
 ```
 
 **源启发式检测** (`_looks_like_source`)：
@@ -89,13 +90,14 @@ min_depth > 8  → low
 ```python
 @dataclass
 class BlindScanFinding:
-    endpoint: str         # route 或 handler_func
-    issue_type: str       # idor/missing_auth/business_logic/...
-    severity: str         # critical/high/medium/low
-    confidence: float     # 0.0-1.0
+    endpoint: str  # route 或 handler_func
+    issue_type: str  # idor/missing_auth/business_logic/...
+    severity: str  # critical/high/medium/low
+    confidence: float  # 0.0-1.0
     title: str
     description: str
-    reasoning: str        # 为什么模式扫描器会漏掉
+    reasoning: str  # 为什么模式扫描器会漏掉
+
 
 @dataclass
 class BlindScanResult:
@@ -146,12 +148,10 @@ class BlindScanResult:
 **DI 自动构建**（`_ensure_scanner_modules()`）：
 ```python
 # Reverse sink (zero-LLM, needs CPGQuery only)
-self._reverse_sink_analyzer = ReverseSinkAnalyzer(
-    cpg_query=self._query, max_depth=15)
+self._reverse_sink_analyzer = ReverseSinkAnalyzer(cpg_query=self._query, max_depth=15)
 
 # Blind scan (LLM-based, needs mid provider)
-self._blind_scan_reviewer = BlindScanReviewer(
-    provider=self._mid, model=cfg.mid_model)
+self._blind_scan_reviewer = BlindScanReviewer(provider=self._mid, model=cfg.mid_model)
 ```
 
 ### 4. 测试 — 83 tests total

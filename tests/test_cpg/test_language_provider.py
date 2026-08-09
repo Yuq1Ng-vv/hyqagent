@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 
 from hyqagent.cpg.languages.base import LanguageProvider
-from hyqagent.cpg.languages.python import PythonAdapter
-from hyqagent.cpg.languages.javascript import JavaScriptAdapter
 from hyqagent.cpg.languages.java import JavaAdapter
+from hyqagent.cpg.languages.javascript import JavaScriptAdapter
+from hyqagent.cpg.languages.python import PythonAdapter
 from hyqagent.cpg.parser import Parser
 
 # Sample code snippets for each language
@@ -168,11 +168,7 @@ class TestDecoratorExtraction:
     """Python decorators must be extracted correctly."""
 
     def test_python_decorators(self, parser):
-        code = (
-            "@app.route('/')\n"
-            "@login_required\n"
-            "def index():\n    pass\n"
-        )
+        code = "@app.route('/')\n@login_required\ndef index():\n    pass\n"
         tree = parser.parse_code(code, "python")
         funcs = parser.extract_functions(tree, "python")
         assert len(funcs) >= 1
@@ -242,6 +238,7 @@ class TestCalleeInfo:
         tree = parser.parse_code(code, "python")
         # Build call graph to exercise callee extraction
         from hyqagent.cpg.callgraph import SingleFileCallGraph
+
         cg = SingleFileCallGraph(parser)
         cg.build_from_tree(tree, "python", "<test>")
         # Should find a call edge
@@ -251,6 +248,7 @@ class TestCalleeInfo:
         code = "function f() { hello(); }"
         tree = parser.parse_code(code, "javascript")
         from hyqagent.cpg.callgraph import SingleFileCallGraph
+
         cg = SingleFileCallGraph(parser)
         cg.build_from_tree(tree, "javascript", "<test>")
         assert any(e.callee == "hello" for e in cg.edges)
@@ -259,6 +257,7 @@ class TestCalleeInfo:
         code = "class X { void f() { hello(); } }"
         tree = parser.parse_code(code, "java")
         from hyqagent.cpg.callgraph import SingleFileCallGraph
+
         cg = SingleFileCallGraph(parser)
         cg.build_from_tree(tree, "java", "<test>")
         # Java calls are resolved differently
@@ -311,6 +310,7 @@ class TestLanguageProviderEdgeCases:
         prov = PythonAdapter()
         tree = parser.parse_code("x = 1\n", "python")
         from hyqagent.cpg.traversal import Traverser
+
         # Find an expression_statement node (not a function)
         for node in Traverser(tree).traverse():
             if node.type == "expression_statement":

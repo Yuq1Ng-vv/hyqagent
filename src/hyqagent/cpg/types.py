@@ -174,9 +174,7 @@ class BasicBlock:
         if not self.block_id:
             raise ValueError("BasicBlock.block_id must be non-empty")
         if self.start_line < 0:
-            raise ValueError(
-                f"BasicBlock.start_line must be >= 0, got {self.start_line}"
-            )
+            raise ValueError(f"BasicBlock.start_line must be >= 0, got {self.start_line}")
 
 
 # ── Discovery / coverage types (used by cpg/discovery.py, cpg/coverage.py) ──
@@ -195,6 +193,7 @@ class HeuristicSink:
         matched_keywords: Which dangerous keywords were detected.
         reachable_from_source: ``True`` if a user-input source can reach this
             node via CPG edges.
+
     """
 
     node_id: str
@@ -213,8 +212,8 @@ class ExposedEndpoint:
     These are high-priority candidates for manual IDOR / business-logic review.
     """
 
-    endpoint: str          # e.g. "GET /api/orders/:id"
-    handler_func: str      # e.g. "get_order"
+    endpoint: str  # e.g. "GET /api/orders/:id"
+    handler_func: str  # e.g. "get_order"
     file_path: str
     line: int
 
@@ -230,7 +229,7 @@ class UncoveredSink:
     file_path: str
     line: int
     expression: str
-    reason: str = ""       # e.g. "no_known_rule", "sink_in_unreachable_block"
+    reason: str = ""  # e.g. "no_known_rule", "sink_in_unreachable_block"
 
 
 @dataclass
@@ -256,7 +255,7 @@ class BlindSpot:
     Included in every report so the user has visibility into what was missed.
     """
 
-    location: str          # "file.py:42"
-    reason: str            # "endpoint_has_no_known_source"
+    location: str  # "file.py:42"
+    reason: str  # "endpoint_has_no_known_source"
     recommendation: str = ""
     severity: str = "medium"

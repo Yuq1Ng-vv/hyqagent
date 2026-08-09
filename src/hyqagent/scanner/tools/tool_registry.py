@@ -94,9 +94,7 @@ class ToolRegistry:
 
         # Attach metadata as a human-readable footer
         if result.metadata:
-            meta_lines = "\n".join(
-                f"  {k}: {v}" for k, v in sorted(result.metadata.items())
-            )
+            meta_lines = "\n".join(f"  {k}: {v}" for k, v in sorted(result.metadata.items()))
             content_str += f"\n\n--- metadata ---\n{meta_lines}"
 
         return {

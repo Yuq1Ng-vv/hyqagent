@@ -292,14 +292,17 @@ class CFGBuilder:
 
         stmts = self._collect_statements(body)
         if not stmts:
-            edges.append(CFGEdge(entry.block_id, exit_block.block_id,
-                                 "fallthrough"))
+            edges.append(CFGEdge(entry.block_id, exit_block.block_id, "fallthrough"))
             return blocks, edges
 
         # Process the top-level statement sequence.
         _live = self._process_stmt_sequence(
-            body, entry.block_id, exit_block.block_id,
-            blocks, edges, entry_edge_kind="fallthrough",
+            body,
+            entry.block_id,
+            exit_block.block_id,
+            blocks,
+            edges,
+            entry_edge_kind="fallthrough",
         )
 
         # Connect any remaining live blocks to exit
@@ -317,10 +320,7 @@ class CFGBuilder:
 
     def _collect_statements(self, block_node: Node) -> list[Node]:
         """Return ordered executable-statement children of *block_node*."""
-        return [
-            c for c in block_node.named_children
-            if c.type in self._provider.statement_types
-        ]
+        return [c for c in block_node.named_children if c.type in self._provider.statement_types]
 
     # ── Recursive statement-sequence processor ────────────────────────
 
@@ -355,12 +355,11 @@ class CFGBuilder:
         stmts = self._collect_statements(block_node)
         if not stmts:
             if entry_edge_kind is not None:
-                edges.append(CFGEdge(entry_block_id, exit_block_id,
-                                     entry_edge_kind))
+                edges.append(CFGEdge(entry_block_id, exit_block_id, entry_edge_kind))
             return [entry_block_id]
 
         current: str | None = None  # current-block accumulator
-        live: list[str] = []       # block IDs that reach end-of-sequence
+        live: list[str] = []  # block IDs that reach end-of-sequence
 
         for i, stmt in enumerate(stmts):
             # Is this a fresh block start?
@@ -379,8 +378,7 @@ class CFGBuilder:
                 )
                 # Wire predecessors → this new block
                 if i == 0 and entry_edge_kind is not None:
-                    edges.append(CFGEdge(entry_block_id, current,
-                                         entry_edge_kind))
+                    edges.append(CFGEdge(entry_block_id, current, entry_edge_kind))
                 else:
                     for pred_id in dedup(live):
                         edges.append(CFGEdge(pred_id, current, "fallthrough"))
@@ -394,7 +392,9 @@ class CFGBuilder:
                 # Check BEFORE control_flow_node_types because
                 # return/break/continue/raise/throw are in both sets.
                 target_id = self._resolve_jump_target(
-                    stmt, current, exit_block_id,
+                    stmt,
+                    current,
+                    exit_block_id,
                 )
                 kind = _TERMINATOR_EDGE_KIND.get(stmt.type, "fallthrough")
                 edges.append(CFGEdge(current, target_id, kind))
@@ -406,7 +406,11 @@ class CFGBuilder:
                 # stop accumulating, delegate to the specialised handler,
                 # then the merge block becomes the next "live" source.
                 new_live = self._process_ctrl_stmt(
-                    stmt, current, exit_block_id, blocks, edges,
+                    stmt,
+                    current,
+                    exit_block_id,
+                    blocks,
+                    edges,
                 )
                 current = None
                 live.extend(new_live)
@@ -444,22 +448,23 @@ class CFGBuilder:
         targets = self._provider.get_branch_targets(node)
 
         if ntype == "if_statement":
-            return self._process_if(node, header_block_id, targets, blocks,
-                                    edges, exit_block_id)
-        elif ntype in ("for_statement", "while_statement",
-                       "do_statement", "enhanced_for_statement",
-                       "for_in_statement"):
-            return self._process_loop(node, header_block_id, targets,
-                                      blocks, edges, exit_block_id)
+            return self._process_if(node, header_block_id, targets, blocks, edges, exit_block_id)
+        elif ntype in (
+            "for_statement",
+            "while_statement",
+            "do_statement",
+            "enhanced_for_statement",
+            "for_in_statement",
+        ):
+            return self._process_loop(node, header_block_id, targets, blocks, edges, exit_block_id)
         elif ntype == "try_statement":
-            return self._process_try(node, header_block_id, targets,
-                                     blocks, edges, exit_block_id)
+            return self._process_try(node, header_block_id, targets, blocks, edges, exit_block_id)
         elif ntype in ("switch_statement", "switch_expression"):
-            return self._process_switch(node, header_block_id, targets,
-                                        blocks, edges, exit_block_id)
+            return self._process_switch(
+                node, header_block_id, targets, blocks, edges, exit_block_id
+            )
         else:
-            logger.debug("Unhandled CF node — pass-through",
-                         node_type=ntype)
+            logger.debug("Unhandled CF node — pass-through", node_type=ntype)
             return [header_block_id]
 
     # ── If / else ─────────────────────────────────────────────────────
@@ -477,41 +482,49 @@ class CFGBuilder:
         alternative: Node | None = targets.get("alternative")
 
         merge = self._new_block("normal")
-        blocks.append(BasicBlock(
-            block_id=merge.block_id,
-            file_path=self._file_path,
-            enclosing_function=self._func_name,
-            start_line=node.end_point[0] + 1,
-            end_line=node.end_point[0] + 1,
-            block_type="normal",
-        ))
+        blocks.append(
+            BasicBlock(
+                block_id=merge.block_id,
+                file_path=self._file_path,
+                enclosing_function=self._func_name,
+                start_line=node.end_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                block_type="normal",
+            )
+        )
 
         # Then branch
         if consequence is not None:
             then_live = self._process_stmt_sequence(
-                consequence, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="branch_true",
+                consequence,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="branch_true",
             )
             # Wire then-branch tails → merge as fallthrough
             for bid in then_live:
                 if bid != merge.block_id:
                     edges.append(CFGEdge(bid, merge.block_id, "fallthrough"))
         else:
-            edges.append(CFGEdge(header_block_id, merge.block_id,
-                                 "branch_true"))
+            edges.append(CFGEdge(header_block_id, merge.block_id, "branch_true"))
 
         # Else branch
         if alternative is not None:
             else_live = self._process_stmt_sequence(
-                alternative, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="branch_false",
+                alternative,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="branch_false",
             )
             for bid in else_live:
                 if bid != merge.block_id:
                     edges.append(CFGEdge(bid, merge.block_id, "fallthrough"))
         else:
-            edges.append(CFGEdge(header_block_id, merge.block_id,
-                                 "branch_false"))
+            edges.append(CFGEdge(header_block_id, merge.block_id, "branch_false"))
 
         # Also wire header→merge as branch_false if no alternative
         return [merge.block_id]
@@ -531,22 +544,28 @@ class CFGBuilder:
         alternative: Node | None = targets.get("alternative")
 
         merge = self._new_block("normal")
-        blocks.append(BasicBlock(
-            block_id=merge.block_id,
-            file_path=self._file_path,
-            enclosing_function=self._func_name,
-            start_line=node.end_point[0] + 1,
-            end_line=node.end_point[0] + 1,
-            block_type="normal",
-        ))
+        blocks.append(
+            BasicBlock(
+                block_id=merge.block_id,
+                file_path=self._file_path,
+                enclosing_function=self._func_name,
+                start_line=node.end_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                block_type="normal",
+            )
+        )
 
         # Push loop context for break / continue resolution
         self._loop_stack.append((header_block_id, merge.block_id))
 
         if body is not None:
             body_live = self._process_stmt_sequence(
-                body, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="branch_true",
+                body,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="branch_true",
             )
 
             # Back-edges: body tail blocks → header
@@ -554,13 +573,11 @@ class CFGBuilder:
                 if bid != merge.block_id:
                     edges.append(CFGEdge(bid, header_block_id, "loop_back"))
         else:
-            edges.append(CFGEdge(header_block_id, merge.block_id,
-                                 "branch_true"))
+            edges.append(CFGEdge(header_block_id, merge.block_id, "branch_true"))
 
         # Header → merge = branch_false (loop exit)
         if not _has_edge(edges, header_block_id, merge.block_id):
-            edges.append(CFGEdge(header_block_id, merge.block_id,
-                                 "branch_false"))
+            edges.append(CFGEdge(header_block_id, merge.block_id, "branch_false"))
 
         self._loop_stack.pop()
 
@@ -569,8 +586,12 @@ class CFGBuilder:
         # Python for-else / while-else
         if alternative is not None:
             else_live = self._process_stmt_sequence(
-                alternative, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="fallthrough",
+                alternative,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="fallthrough",
             )
             # The else clause is entered via the header as well (loop
             # completed normally)
@@ -598,19 +619,25 @@ class CFGBuilder:
         finalizer: Node | None = targets.get("finalizer")
 
         merge = self._new_block("normal")
-        blocks.append(BasicBlock(
-            block_id=merge.block_id,
-            file_path=self._file_path,
-            enclosing_function=self._func_name,
-            start_line=node.end_point[0] + 1,
-            end_line=node.end_point[0] + 1,
-            block_type="normal",
-        ))
+        blocks.append(
+            BasicBlock(
+                block_id=merge.block_id,
+                file_path=self._file_path,
+                enclosing_function=self._func_name,
+                start_line=node.end_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                block_type="normal",
+            )
+        )
 
         if body is not None:
             body_live = self._process_stmt_sequence(
-                body, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="fallthrough",
+                body,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="fallthrough",
             )
             for bid in body_live:
                 if bid != merge.block_id:
@@ -618,8 +645,12 @@ class CFGBuilder:
 
         for handler in handlers:
             hdr_live = self._process_stmt_sequence(
-                handler, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="exception",
+                handler,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="exception",
             )
             for bid in hdr_live:
                 if bid != merge.block_id:
@@ -627,8 +658,12 @@ class CFGBuilder:
 
         if finalizer is not None:
             fin_live = self._process_stmt_sequence(
-                finalizer, header_block_id, merge.block_id,
-                blocks, edges, entry_edge_kind="fallthrough",
+                finalizer,
+                header_block_id,
+                merge.block_id,
+                blocks,
+                edges,
+                entry_edge_kind="fallthrough",
             )
             for bid in fin_live:
                 if bid != merge.block_id:
@@ -648,35 +683,38 @@ class CFGBuilder:
         exit_block_id: str,
     ) -> list[str]:
         merge = self._new_block("normal")
-        blocks.append(BasicBlock(
-            block_id=merge.block_id,
-            file_path=self._file_path,
-            enclosing_function=self._func_name,
-            start_line=node.end_point[0] + 1,
-            end_line=node.end_point[0] + 1,
-            block_type="normal",
-        ))
+        blocks.append(
+            BasicBlock(
+                block_id=merge.block_id,
+                file_path=self._file_path,
+                enclosing_function=self._func_name,
+                start_line=node.end_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                block_type="normal",
+            )
+        )
 
         body: Node | None = targets.get("body")
         if body is not None:
             for case_child in body.named_children:
-                case_body = (
-                    case_child.child_by_field_name("consequence")
-                    or case_child.child_by_field_name("body")
-                )
+                case_body = case_child.child_by_field_name(
+                    "consequence"
+                ) or case_child.child_by_field_name("body")
                 if case_body is not None:
                     case_live = self._process_stmt_sequence(
-                        case_body, header_block_id, merge.block_id,
-                        blocks, edges, entry_edge_kind="branch_true",
+                        case_body,
+                        header_block_id,
+                        merge.block_id,
+                        blocks,
+                        edges,
+                        entry_edge_kind="branch_true",
                     )
                     for bid in case_live:
                         if bid != merge.block_id:
-                            edges.append(CFGEdge(bid, merge.block_id,
-                                                 "fallthrough"))
+                            edges.append(CFGEdge(bid, merge.block_id, "fallthrough"))
 
         if not _has_edge(edges, header_block_id, merge.block_id):
-            edges.append(CFGEdge(header_block_id, merge.block_id,
-                                 "branch_false"))
+            edges.append(CFGEdge(header_block_id, merge.block_id, "branch_false"))
         return [merge.block_id]
 
     # ── Block helpers ─────────────────────────────────────────────────
@@ -696,7 +734,10 @@ class CFGBuilder:
         )
 
     def _append_to_block(
-        self, block_id: str, stmt: Node, blocks: list[BasicBlock],
+        self,
+        block_id: str,
+        stmt: Node,
+        blocks: list[BasicBlock],
     ) -> None:
         """Append *stmt* source text to the block identified by *block_id*."""
         source = stmt.text.decode("utf-8") if stmt.text else ""
@@ -720,12 +761,14 @@ class CFGBuilder:
         return node.type in _JUMP_NODE_TYPES
 
     def _resolve_jump_target(
-        self, node: Node, current_block_id: str, exit_block_id: str,
+        self,
+        node: Node,
+        current_block_id: str,
+        exit_block_id: str,
     ) -> str:
         """Return the target block ID for an unconditional jump."""
         ntype = node.type
-        if ntype in ("return_statement", "raise_statement",
-                     "throw_statement"):
+        if ntype in ("return_statement", "raise_statement", "throw_statement"):
             return exit_block_id
         if ntype == "break_statement" and self._loop_stack:
             _hdr, loop_exit = self._loop_stack[-1]
@@ -745,14 +788,16 @@ class CFGBuilder:
             block_id=f"bb:{self._file_path}:{self._func_name}:0",
             file_path=self._file_path,
             enclosing_function=self._func_name,
-            start_line=0, end_line=0,
+            start_line=0,
+            end_line=0,
             block_type="entry",
         )
         exit_b = BasicBlock(
             block_id=f"bb:{self._file_path}:{self._func_name}:1",
             file_path=self._file_path,
             enclosing_function=self._func_name,
-            start_line=0, end_line=0,
+            start_line=0,
+            end_line=0,
             block_type="exit",
         )
         edge = CFGEdge(entry.block_id, exit_b.block_id, "fallthrough")
@@ -782,7 +827,7 @@ _TERMINATOR_EDGE_KIND: dict[str, str] = {
     "return_statement": "return",
     "raise_statement": "return",
     "throw_statement": "return",
-    "break_statement": "fallthrough",   # resolved by loop stack
+    "break_statement": "fallthrough",  # resolved by loop stack
     "continue_statement": "fallthrough",  # resolved by loop stack
 }
 

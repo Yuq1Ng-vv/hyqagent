@@ -49,22 +49,22 @@
 ```python
 class LanguageProvider(ABC):
     """每种语言实现此接口。添加 Go 只需新增一个文件。"""
-    
+
     # 元数据
-    name: str              # "python", "javascript", ...
+    name: str  # "python", "javascript", ...
     extensions: list[str]  # [".py", ".pyi"]
-    
+
     # 语法（懒加载 — cached_property）
-    _ts_module              # tree_sitter 语法包（首次访问才 import）
-    
+    _ts_module  # tree_sitter 语法包（首次访问才 import）
+
     # 查询字符串
     function_query / class_query / import_query
-    
+
     # 节点解析（从 parser.py 抽出）
     extract_function_name / extract_parameters / extract_decorators
     extract_base_classes / build_import_node
     build_function_node / build_class_node
-    
+
     # 调用图（从 callgraph.py 抽出）
     call_node_type / func_def_types
     extract_callee_info

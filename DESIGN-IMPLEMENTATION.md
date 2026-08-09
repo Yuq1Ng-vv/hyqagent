@@ -179,19 +179,23 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 from abc import ABC, abstractmethod
 
+
 # ---------- 统一返回类型 ----------
 @dataclass
 class ToolResult:
     """每个工具都返回这个结构。success=False时error必填。"""
+
     success: bool
     tool_name: str
     result: Any = None
     error: str | None = None
     metadata: dict = field(default_factory=dict)
 
+
 # ---------- 工具层 ----------
 class BaseTool(ABC):
     """ISP原则：只暴露(name, description, parameters, execute)"""
+
     @property
     @abstractmethod
     def name(self) -> str: ...
@@ -204,21 +208,26 @@ class BaseTool(ABC):
     @abstractmethod
     async def execute(self, **kwargs) -> ToolResult: ...
 
+
 # ---------- CPG分析器协议 ----------
 @runtime_checkable
 class CpgAnalyzer(Protocol):
     """Joern和tree-sitter后端都满足此契约（LSP原则）"""
+
     async def extract_cpg(self, code: str, file_path: str) -> ToolResult: ...
     async def query_cpg(self, query: str) -> ToolResult: ...
     async def get_data_flows(self, variable: str, file_path: str) -> ToolResult: ...
 
+
 # ---------- 存储协议 ----------
 class AuditRepository(ABC):
     """SQLite/PostgreSQL透明切换（DIP原则）"""
+
     @abstractmethod
     async def save_finding(self, run_id: str, finding: dict) -> str: ...
     @abstractmethod
     async def get_findings(self, run_id: str, severity: str | None = None) -> list[dict]: ...
+
 
 # ---------- LLM Provider协议 ----------
 @runtime_checkable
@@ -259,17 +268,18 @@ def main(target_path: str):
 ```python
 class Parser:
     """多语言tree-sitter解析器封装。
-    
+
     通过 LanguageProvider 策略模式委托语言特定操作。
     添加新语言 = 新增一个 LanguageProvider 子类 + 一行注册，Parser 零改动。
     """
+
     def __init__(self, languages: list[str] | None = None): ...
     def parse_file(self, file_path: str) -> Tree: ...
     def parse_code(self, code: str, language: str) -> Tree: ...
     def extract_functions(self, tree: Tree, language: str) -> list[FunctionNode]: ...
     def extract_classes(self, tree: Tree, language: str) -> list[ClassNode]: ...
     def extract_imports(self, tree: Tree, language: str) -> list[ImportNode]: ...
-    def get_language(self, file_path: str) -> str: ...        # 公开方法
+    def get_language(self, file_path: str) -> str: ...  # 公开方法
     def get_provider(self, language: str) -> LanguageProvider: ...  # 公开方法
 ```
 
@@ -278,20 +288,21 @@ class Parser:
 ```python
 class LanguageProvider(ABC):
     """每种语言实现此接口。添加 Go 只需新增一个文件。"""
-    name: str              # "python", "javascript", ...
+
+    name: str  # "python", "javascript", ...
     extensions: list[str]  # [".py", ".pyi"]
-    
+
     # 语法（懒加载 — cached_property）
-    _ts_module              # tree_sitter 语法包（首次访问才 import）
-    
+    _ts_module  # tree_sitter 语法包（首次访问才 import）
+
     # 查询字符串
     function_query / class_query / import_query
-    
+
     # 节点解析
     extract_function_name / extract_parameters / extract_decorators
     extract_base_classes / build_import_node
     build_function_node / build_class_node
-    
+
     # 调用图支持
     call_node_type / func_def_types
     extract_callee_info
@@ -311,20 +322,21 @@ class LanguageProvider(ABC):
 class SingleFileCallGraph:
     """单文件调用图。支持 Python/JS/Java 三种语言。
     通过 LanguageProvider 委托语言特定的调用提取。"""
+
     def __init__(self, parser: Parser): ...
     def build_from_file(self, file_path: str) -> None: ...
     def build_from_tree(self, tree: Tree, language: str, file_path: str = "") -> None: ...
-    
+
     # 查询接口
     def get_callees(self, func_name: str) -> list[CallEdge]: ...
     def get_callers(self, func_name: str) -> list[CallEdge]: ...
     def has_edge(self, caller: str, callee: str) -> bool: ...
-    
+
     # 属性
-    edges: list[CallEdge]                # 所有调用边
-    resolved_edges: list[CallEdge]       # 已解析的调用边（本地函数）
-    function_names: set[str]             # 文件中定义的函数名
-    unresolved: list[UnresolvedCall]     # 未解析调用（供跨文件使用）
+    edges: list[CallEdge]  # 所有调用边
+    resolved_edges: list[CallEdge]  # 已解析的调用边（本地函数）
+    function_names: set[str]  # 文件中定义的函数名
+    unresolved: list[UnresolvedCall]  # 未解析调用（供跨文件使用）
 ```
 
 **跨文件调用图**（`cpg/callgraph_builder.py`，Session 1.5 新增）:
@@ -332,11 +344,12 @@ class SingleFileCallGraph:
 ```python
 class CallGraphBuilder:
     """跨文件调用图构建。"""
+
     def __init__(self, parser: Parser): ...
-    def add_directory(self, dir_path: str) -> None: ...   # 递归遍历项目
-    def add_file(self, file_path: str) -> None: ...       # 单文件索引
-    def resolve_imports(self) -> dict[str, str]: ...       # 返回 {import_name: resolved_file_path}
-    def build_calls(self) -> list[CallEdge]: ...           # 跨文件调用边列表
+    def add_directory(self, dir_path: str) -> None: ...  # 递归遍历项目
+    def add_file(self, file_path: str) -> None: ...  # 单文件索引
+    def resolve_imports(self) -> dict[str, str]: ...  # 返回 {import_name: resolved_file_path}
+    def build_calls(self) -> list[CallEdge]: ...  # 跨文件调用边列表
 ```
 
 **支持的导入模式**（Python）:
@@ -413,6 +426,7 @@ class DataFlowBuilder:
 ```python
 class BaseFrameworkExtractor(ABC):
     """框架提取器基类。新框架只需继承并实现三个抽象成员。"""
+
     @property
     @abstractmethod
     def framework_name(self) -> str: ...
@@ -420,6 +434,7 @@ class BaseFrameworkExtractor(ABC):
     def detect(self, file_path: str) -> bool: ...
     @abstractmethod
     def extract_routes(self, file_path: str) -> list[HttpEndpoint]: ...
+
 
 # 具体实现: FlaskExtractor, DjangoExtractor, FastAPIExtractor, ExpressExtractor, SpringExtractor
 # extract_auth_requirements (AuthInfo) 为 Phase 2 规划功能，Phase 1 通过 endpoint.auth_required 布尔值覆盖
@@ -462,15 +477,17 @@ sanitizers:
 ```python
 class CPGQuery:
     """CPG上层查询接口。底层可切换Joern/tree-sitter+NetworkX后端。"""
+
     def __init__(self, graph: nx.MultiDiGraph): ...
-    def find_path(self, source_pattern: str, sink_pattern: str,
-                   max_depth: int = 20) -> list[GraphPath]: ...
+    def find_path(
+        self, source_pattern: str, sink_pattern: str, max_depth: int = 20
+    ) -> list[GraphPath]: ...
     def find_sources(self, sink_pattern: str, max_depth: int = 15) -> list[GraphNode]: ...
     def find_sinks(self, source_pattern: str, max_depth: int = 15) -> list[GraphNode]: ...
     def get_call_chain(self, func_a: str, func_b: str) -> GraphPath | None: ...
-    def get_sanitizers(self, path: GraphPath,
-                        taint_loader: object | None = None) -> list[str]: ...
+    def get_sanitizers(self, path: GraphPath, taint_loader: object | None = None) -> list[str]: ...
     def slice_path(self, path: GraphPath, context_lines: int = 3) -> str: ...
+
     """渲染路径的人类可读摘要（完整的 context_lines 切片功能待 Phase 2）"""
 ```
 
@@ -491,16 +508,26 @@ class CPGQuery:
 ```python
 class DeterministicScanner:
     """零LLM成本的确定性漏洞发现。"""
+
     def __init__(self, cpg_query: CPGQuery, rules_dir: str): ...
     async def scan_secrets(self, file_path: str) -> list[Finding]: ...
+
     """正则规则: 硬编码密钥/密码 (详见 secrets.yaml)"""
+
     async def scan_dangerous_calls(self, file_path: str) -> list[Finding]: ...
+
     """正则规则: eval/exec/os.system等 (详见 dangerous_calls.yaml)"""
+
     async def scan_cpg_taint(self) -> list[Finding]: ...
+
     """CPG污点追踪: source→sink无消毒路径直接标记"""
+
     async def scan_missing_auth(self) -> list[Finding]: ...
+
     """检测有@app.route但缺少@login_required的端点"""
+
     async def scan_config_issues(self) -> list[Finding]: ...
+
     """DEBUG=True, SECRET_KEY='dev', CORS allow_origin='*'"""
 ```
 
@@ -515,10 +542,15 @@ class DeterministicScanner:
 ```python
 class AttackSurfaceMapper:
     """用便宜LLM分类每个API端点的功能和风险。"""
+
     def __init__(self, llm: LlmProvider, cpg_query: CPGQuery): ...
     async def classify_endpoint(self, endpoint: HttpEndpoint) -> EndpointClassification: ...
+
     """返回: {function_type, trust_boundary, data_sensitivity, priority(1-10)}"""
-    async def filter_high_priority(self, endpoints: list[HttpEndpoint], threshold: int = 5) -> list[HttpEndpoint]: ...
+
+    async def filter_high_priority(
+        self, endpoints: list[HttpEndpoint], threshold: int = 5
+    ) -> list[HttpEndpoint]: ...
 ```
 
 **成本**: ~$0.01（200个端点, Kimi K2, 详见PLAN.md第4.3节）
@@ -532,11 +564,15 @@ class AttackSurfaceMapper:
 ```python
 class HypothesisGenerator:
     """CPG切片提示构建 + 结构化漏洞假设输出。"""
+
     def __init__(self, llm: LlmProvider, cpg_query: CPGQuery): ...
     async def generate_for_endpoint(self, endpoint: HttpEndpoint) -> list[Hypothesis]: ...
     async def generate_prompt(self, endpoint: HttpEndpoint) -> str: ...
+
     """核心创新: CPG切片提示——prompt中仅包含相关代码，不是整个文件"""
+
     def assess_complexity(self, data_flow_path: list[DataFlowStep]) -> int: ...
+
     """复杂度评分1-10: 数据流跳数+跨文件+异步/反射 (详见PLAN.md第4.4节)"""
 ```
 
@@ -551,19 +587,31 @@ class HypothesisGenerator:
 ```python
 class Validator:
     """L1确定性验证 + L2 LLM验证 + 补充机制。"""
+
     def __init__(self, llm: LlmProvider, cpg_query: CPGQuery): ...
     # L1: 确定性验证（零LLM成本）
     async def validate_deterministic(self, hypothesis: Hypothesis) -> ValidationResult: ...
+
     """验证: 路径存在性、source/sink类型匹配、代码一致性"""
+
     # L2: LLM验证（强模型）
-    async def validate_llm(self, hypothesis: Hypothesis, include_tests: bool = True) -> ValidationResult: ...
+    async def validate_llm(
+        self, hypothesis: Hypothesis, include_tests: bool = True
+    ) -> ValidationResult: ...
+
     """5问验证: 路径可达性、条件绕过、消毒充分性、框架保护、综合判断"""
+
     # 补充机制（详见 COVERAGE-GAP-ANALYSIS.md 第六章）
     async def reverse_sink_analysis(self) -> list[Hypothesis]: ...
+
     """方案1: 从所有sink反向追踪到用户输入"""
+
     async def blind_scan(self, files: list[str]) -> list[Hypothesis]: ...
+
     """方案2: 独立盲扫LLM通道，不依赖Phase 1输出"""
+
     async def completeness_critic(self, analyzed: dict) -> list[BlindSpot]: ...
+
     """方案3: 完整性审查——"我们漏了什么？" """
 ```
 
@@ -580,10 +628,12 @@ class Validator:
 ```python
 class ReportGenerator:
     """JSON/Markdown/SARIF输出 + 证据链组装。"""
+
     def generate_json(self, findings: list[ConfirmedFinding], session_id: str) -> str: ...
     def generate_markdown(self, findings: list[ConfirmedFinding], session_id: str) -> str: ...
     def generate_sarif(self, findings: list[ConfirmedFinding], session_id: str) -> str: ...
     def build_evidence_chain(self, finding: ConfirmedFinding) -> dict: ...
+
     """组装: 确定性证据 + LLM验证证据 + PoC可行性"""
 ```
 
@@ -607,11 +657,13 @@ class ReportGenerator:
 class ModelRouter:
     """三档模型: CHEAP(Kimi K2/GLM) / MID(Sonnet) / STRONG(Opus/GPT-5.2)。
     成本比 ≈ cheap:mid:strong = 1:30:150"""
+
     CHEAP_MODELS = ["kimi-k2-instruct", "glm-5.1"]
     MID_MODELS = ["claude-sonnet-4-6"]
     STRONG_MODELS = ["claude-opus-4-6", "gpt-5.2"]
 
     def route(self, task: Task) -> ModelSpec: ...
+
     """路由决策矩阵:
     - 代码分类/摘要 → CHEAP
     - 攻击面分析 → CHEAP
@@ -622,7 +674,9 @@ class ModelRouter:
     - LLM验证(L2, 中置信) → MID
     - LLM验证(L2, 高价值) → STRONG (confidence>0.7 且 severity>=HIGH)
     """
+
     def _assess_complexity(self, task: Task) -> int: ...
+
     """复杂度评分: 数据流跳数+跨文件+异步/反射 (详见PLAN.md第6.1节)"""
 ```
 
@@ -635,16 +689,19 @@ class ModelRouter:
 ```python
 class BudgetManager:
     """默认每项目$5预算。分配: Phase2=5%, Phase3=30%, Phase4=60%, misc=5%"""
+
     DEFAULT_BUDGET = 5.0
     DEFAULT_ALLOCATION = {
-        'phase2_mapping': 0.05,
-        'phase3_hypothesis': 0.30,
-        'phase4_l2_validation': 0.60,
-        'misc': 0.05,
+        "phase2_mapping": 0.05,
+        "phase3_hypothesis": 0.30,
+        "phase4_l2_validation": 0.60,
+        "misc": 0.05,
     }
 
     def check_and_route(self, task: Task, remaining_budget: float) -> ModelSpec | None: ...
+
     """预算不足时自动降级: STRONG→MID→CHEAP→跳过"""
+
     def estimate_cost(self, task: Task, model: ModelSpec) -> float: ...
     def get_remaining_budget(self, session_id: str) -> float: ...
 ```
@@ -658,13 +715,18 @@ class BudgetManager:
 ```python
 class AnthropicProvider:
     """Anthropic SDK封装 + Prompt Caching + 重试/熔断。"""
+
     def __init__(self, api_key: str, max_retries: int = 5): ...
     async def generate(self, messages: list[dict], model: str, **kwargs) -> dict: ...
+
     """自动添加cache_control断点在系统prompt和长期记忆（详见LONG-RUNNING-AGENT-ARCHITECTURE.md 2.2节）"""
+
     async def count_tokens(self, messages: list[dict], model: str) -> int: ...
+
 
 class OpenAICompatProvider:
     """OpenAI兼容Provider（Kimi/GLM/GPT通用接口）。"""
+
     def __init__(self, api_key: str, base_url: str, max_retries: int = 5): ...
     async def generate(self, messages: list[dict], model: str, **kwargs) -> dict: ...
     async def count_tokens(self, messages: list[dict], model: str) -> int: ...
@@ -674,12 +736,13 @@ class OpenAICompatProvider:
 
 ```python
 @retry(
-    retry=retry_if_exception_type((ConnectionError, TimeoutError)) | 
-           retry_if_result(lambda r: r.status_code in {429, 500, 502, 503, 504}),
+    retry=retry_if_exception_type((ConnectionError, TimeoutError))
+    | retry_if_result(lambda r: r.status_code in {429, 500, 502, 503, 504}),
     stop=stop_after_attempt(5) | stop_after_delay(60),
     wait=wait_exponential_jitter(initial=1, max=30),
 )
 async def robust_request(url: str) -> Response: ...
+
 
 @circuit(failure_threshold=5, recovery_timeout=60, expected_exception=ConnectionError)
 def query_external_service(query: str) -> dict: ...
@@ -738,17 +801,20 @@ class BeliefSystem:
     """假设状态机 + 贝叶斯置信度更新 + 依赖图传播。"""
 
     STATUS_TRANSITIONS = {
-        'proposed': ['investigating', 'rejected'],
-        'investigating': ['l1_validated', 'rejected'],
-        'l1_validated': ['l2_validated', 'rejected'],
-        'l2_validated': ['confirmed', 'rejected', 'inconclusive'],
-        'confirmed': ['reported'],
-        'reported': [],   # 终态
-        'rejected': [],   # 终态
-        'inconclusive': ['investigating'],  # 可重新调查
+        "proposed": ["investigating", "rejected"],
+        "investigating": ["l1_validated", "rejected"],
+        "l1_validated": ["l2_validated", "rejected"],
+        "l2_validated": ["confirmed", "rejected", "inconclusive"],
+        "confirmed": ["reported"],
+        "reported": [],  # 终态
+        "rejected": [],  # 终态
+        "inconclusive": ["investigating"],  # 可重新调查
     }
 
-    def update_confidence(self, hypothesis: Hypothesis, evidence: Evidence, strength: float) -> float: ...
+    def update_confidence(
+        self, hypothesis: Hypothesis, evidence: Evidence, strength: float
+    ) -> float: ...
+
     """贝叶斯更新: P(vuln|evidence) = P(evidence|vuln) * P(vuln) / P(evidence)
     简化: supporting → confidence += strength*(1-confidence)
          refuting   → confidence *= (1-strength*confidence)"""
@@ -757,6 +823,7 @@ class BeliefSystem:
     def add_dependency(self, hypothesis_id: str, depends_on: str) -> None: ...
     def add_conflict(self, hypothesis_id: str, conflicts_with: str) -> None: ...
     def propagate_confidence(self, changed_hypothesis_id: str) -> None: ...
+
     """确认/拒绝一个假设后，自动更新所有关联假设的置信度"""
 ```
 
@@ -771,11 +838,16 @@ class CheckpointManager:
     """混合驱动检查点: 事件/时间/阈值/信号。恢复RTO<1秒。"""
 
     def save_checkpoint(self, session_id: str, trigger: str) -> str: ...
+
     """trigger类型: event(phase_end)/time(every_5min)/threshold(token_10pct)/signal(SIGTERM)"""
+
     def load_checkpoint(self, session_id: str) -> CheckpointState: ...
     def verify_integrity(self, session_id: str) -> tuple[bool, list[str]]: ...
+
     """SHA-256链式验证 (详见 DEVELOPMENT-STANDARDS.md 第2.6节)"""
+
     def generate_recovery_summary(self, state: CheckpointState) -> str: ...
+
     """生成<2000 tokens的"状态快照"，注入恢复后的系统prompt (详见 LONG-RUNNING-AGENT-ARCHITECTURE.md 第5.3节)"""
 ```
 
@@ -803,9 +875,12 @@ class ContextManager:
 
     def __init__(self, system_prompt: str): ...
     def build_context(self, long_term_memory: str, recent_turns: list[dict]) -> list[dict]: ...
+
     """返回可直接发给LLM的messages列表，包含cache_control断点。
     详见 LONG-RUNNING-AGENT-ARCHITECTURE.md 第2.2节"""
+
     def estimate_usage(self) -> float: ...
+
     """返回当前工作记忆占用的比例(0.0-1.0)"""
 ```
 
@@ -821,6 +896,7 @@ class ContextCrystallizer:
 
     def should_crystallize(self, round_count: int, usage_ratio: float) -> bool: ...
     def crystallize(self, recent_turns: list[dict], current_state: dict) -> str: ...
+
     """生成结构化结晶文档:
     ## 分析阶段摘要: 已分析文件数、关键发现、覆盖状态
     ## 已做决策: 跳过某文件的原因
@@ -840,10 +916,16 @@ class CodeRetriever:
 
     def __init__(self, vector_store: str = "chromadb"): ...
     async def index_file(self, file_path: str) -> None: ...
+
     """用tree-sitter AST切分函数/方法，向量化存储"""
+
     async def semantic_search(self, query: str, top_k: int = 5) -> list[CodeChunk]: ...
+
     """'这段代码我分析过吗？' — 相似度>85%自动复用结论"""
-    async def hybrid_search(self, query: str, file_pattern: str | None = None) -> list[CodeChunk]: ...
+
+    async def hybrid_search(
+        self, query: str, file_pattern: str | None = None
+    ) -> list[CodeChunk]: ...
 ```
 
 **依赖**: `chromadb`/`qdrant-client`（生产切换）
@@ -865,13 +947,23 @@ class ObservabilityManager:
     """OTel GenAI SDK + LangFuse自托管。"""
 
     def __init__(self, otlp_endpoint: str, langfuse_keys: dict): ...
-    def trace_llm_call(self, model: str, input_tokens: int, output_tokens: int, 
-                       cache_read_tokens: int, duration_ms: int, cost: float,
-                       phase: str, hypothesis_id: str | None = None) -> Span: ...
-    def trace_tool_call(self, tool_name: str, input_args: dict, 
-                        result: Any, duration_ms: int) -> Span: ...
-    def trace_state_change(self, hypothesis_id: str, old_state: str, 
-                           new_state: str, evidence_id: str) -> Span: ...
+    def trace_llm_call(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_read_tokens: int,
+        duration_ms: int,
+        cost: float,
+        phase: str,
+        hypothesis_id: str | None = None,
+    ) -> Span: ...
+    def trace_tool_call(
+        self, tool_name: str, input_args: dict, result: Any, duration_ms: int
+    ) -> Span: ...
+    def trace_state_change(
+        self, hypothesis_id: str, old_state: str, new_state: str, evidence_id: str
+    ) -> Span: ...
 ```
 
 **依赖**: `opentelemetry-sdk`, `langfuse`
@@ -894,10 +986,18 @@ class ObservabilityManager:
 class CostTracker:
     """按session/phase/hypothesis归因成本。"""
 
-    def record_call(self, model: str, input_tokens: int, output_tokens: int,
-                    phase: str, hypothesis_id: str | None = None) -> None: ...
+    def record_call(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        phase: str,
+        hypothesis_id: str | None = None,
+    ) -> None: ...
     def get_cost_by_finding(self, hypothesis_id: str) -> float: ...
+
     """回答: '发现HYQ-0421花了多少钱？'"""
+
     def get_cost_by_phase(self, phase: str) -> float: ...
     def get_total_cost(self, session_id: str) -> float: ...
 ```
@@ -921,12 +1021,19 @@ class DecisionTraceStore:
     """ESAA模式: Agent→JSON意图→Orchestrator验证→activity.jsonl。SHA-256链式验证。"""
 
     def append_event(self, event: DecisionEvent) -> str: ...
+
     """返回该事件的SHA-256哈希，含前一条哈希"""
+
     def verify_integrity(self, session_id: str) -> tuple[bool, list[str]]: ...
+
     """重放activity.jsonl，验证哈希链完整性"""
+
     def get_decision_justification(self, session_id: str, step: int) -> dict: ...
+
     """'为什么Agent跳过了这个文件？' → 返回原因和证据"""
+
     def replay_session(self, session_id: str) -> list[DecisionEvent]: ...
+
     """按时间顺序重放全部决策"""
 ```
 
@@ -1010,8 +1117,11 @@ class SignalHandler:
 
     def __init__(self, checkpoint_mgr: CheckpointManager): ...
     def setup_handlers(self) -> None: ...
+
     """注册 SIGTERM, SIGUSR1 信号处理器"""
+
     async def graceful_shutdown(self, signum: int) -> None: ...
+
     """保存检查点→标记running任务为pending→清空临时文件→exit(0)"""
 ```
 

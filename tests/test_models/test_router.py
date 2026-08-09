@@ -102,8 +102,12 @@ class TestComplexityAssessment:
 class TestRouting:
     @pytest.fixture
     def router(self) -> ModelRouter:
-        return ModelRouter(providers={}, cheap_model="cheap-model",
-                           mid_model="mid-model", strong_model="strong-model")
+        return ModelRouter(
+            providers={},
+            cheap_model="cheap-model",
+            mid_model="mid-model",
+            strong_model="strong-model",
+        )
 
     def test_cheap_tier_low_complexity(self, router: ModelRouter) -> None:
         task = Task(TaskType.HYPOTHESIS_GENERATION, complexity=2)
@@ -125,8 +129,12 @@ class TestRouting:
 
     def test_fallback_to_available_provider(self) -> None:
         """When the target provider is unavailable, fall back to any available."""
-        router = ModelRouter(providers={"deepseek": "only-provider"},
-                             cheap_model="cheap", mid_model="mid", strong_model="strong")
+        router = ModelRouter(
+            providers={"deepseek": "only-provider"},
+            cheap_model="cheap",
+            mid_model="mid",
+            strong_model="strong",
+        )
         task = Task(TaskType.L2_VALIDATION, complexity=9)  # wants anthropic
         provider, model = router.route(task)
         assert provider == "only-provider"  # fallback
@@ -135,7 +143,9 @@ class TestRouting:
     def test_route_with_budget_sufficient(self) -> None:
         router = ModelRouter(
             providers={"deepseek": "ds"},
-            cheap_model="c", mid_model="m", strong_model="s",
+            cheap_model="c",
+            mid_model="m",
+            strong_model="s",
         )
         result = router.route_with_budget(
             Task(TaskType.HYPOTHESIS_GENERATION, complexity=2, estimated_prompt_tokens=100),
@@ -148,7 +158,9 @@ class TestRouting:
     def test_route_with_budget_exhausted(self) -> None:
         router = ModelRouter(
             providers={"deepseek": "ds"},
-            cheap_model="c", mid_model="m", strong_model="s",
+            cheap_model="c",
+            mid_model="m",
+            strong_model="s",
         )
         result = router.route_with_budget(
             Task(TaskType.L2_VALIDATION, complexity=9, estimated_prompt_tokens=50000),

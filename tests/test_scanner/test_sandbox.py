@@ -186,7 +186,10 @@ class TestBuildInterpretationPrompt:
             stdout="[VULNERABLE]\n",
         )
         prompt = _build_interpretation_prompt(
-            "print('poc')", result, "Should print VULNERABLE", "cmdi",
+            "print('poc')",
+            result,
+            "Should print VULNERABLE",
+            "cmdi",
         )
         assert "PoC Code Executed" in prompt
         assert "[VULNERABLE]" in prompt
@@ -197,7 +200,10 @@ class TestBuildInterpretationPrompt:
         result = SandboxResult(finding_id="f1", success=False)
         long_code = "x" * 3000
         prompt = _build_interpretation_prompt(
-            long_code, result, "nothing", "sqli",
+            long_code,
+            result,
+            "nothing",
+            "sqli",
         )
         assert len(prompt) < 5000  # Should be truncated
 
@@ -226,11 +232,15 @@ class TestSandboxExecutorMocked:
         return client
 
     def test_execute_success(
-        self, executor: SandboxExecutor, mock_docker_client: MagicMock,
+        self,
+        executor: SandboxExecutor,
+        mock_docker_client: MagicMock,
     ) -> None:
         with patch("docker.from_env", return_value=mock_docker_client):
             result = executor._execute_sync(
-                "print('hello')", "python", None,
+                "print('hello')",
+                "python",
+                None,
             )
         assert result.success is True
         assert result.exit_code == 0
@@ -238,20 +248,26 @@ class TestSandboxExecutorMocked:
         assert result.timed_out is False
 
     def test_execute_timeout(
-        self, executor: SandboxExecutor, mock_docker_client: MagicMock,
+        self,
+        executor: SandboxExecutor,
+        mock_docker_client: MagicMock,
     ) -> None:
         container = mock_docker_client.containers.run.return_value
         container.wait.side_effect = Exception("Read timed out")
 
         with patch("docker.from_env", return_value=mock_docker_client):
             result = executor._execute_sync(
-                "import time; time.sleep(999)", "python", None,
+                "import time; time.sleep(999)",
+                "python",
+                None,
             )
         assert result.timed_out is True
         assert result.success is False
 
     def test_execute_image_not_found(
-        self, executor: SandboxExecutor, mock_docker_client: MagicMock,
+        self,
+        executor: SandboxExecutor,
+        mock_docker_client: MagicMock,
     ) -> None:
         from docker.errors import ImageNotFound
 
@@ -259,7 +275,9 @@ class TestSandboxExecutorMocked:
 
         with patch("docker.from_env", return_value=mock_docker_client):
             result = executor._execute_sync(
-                "print('x')", "python", None,
+                "print('x')",
+                "python",
+                None,
             )
         assert result.success is False
         assert "not found" in result.error.lower()
@@ -272,14 +290,18 @@ class TestSandboxExecutorMocked:
             side_effect=DockerException("Docker daemon not running"),
         ):
             result = executor._execute_sync(
-                "print('x')", "python", None,
+                "print('x')",
+                "python",
+                None,
             )
         assert result.success is False
         assert "unavailable" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_execute_async_wraps_sync(
-        self, executor: SandboxExecutor, mock_docker_client: MagicMock,
+        self,
+        executor: SandboxExecutor,
+        mock_docker_client: MagicMock,
     ) -> None:
         with patch("docker.from_env", return_value=mock_docker_client):
             result = await executor.execute("print('async')", "python")
@@ -304,7 +326,8 @@ class TestPocGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_returns_poc_code(
-        self, mock_provider: AsyncMock,
+        self,
+        mock_provider: AsyncMock,
     ) -> None:
         from hyqagent.scanner.sandbox import PocGenerator
 
@@ -326,7 +349,8 @@ class TestPocGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_returns_none_on_error(
-        self, mock_provider: AsyncMock,
+        self,
+        mock_provider: AsyncMock,
     ) -> None:
         from hyqagent.scanner.sandbox import PocGenerator
 
@@ -338,7 +362,8 @@ class TestPocGenerator:
 
     @pytest.mark.asyncio
     async def test_interpret_confirmed(
-        self, mock_provider: AsyncMock,
+        self,
+        mock_provider: AsyncMock,
     ) -> None:
         from hyqagent.scanner.sandbox import PocGenerator
 
@@ -349,18 +374,25 @@ class TestPocGenerator:
         }
         gen = PocGenerator(mock_provider, "claude-opus-5")
         result = SandboxResult(
-            finding_id="f1", success=True, exit_code=0, stdout="[VULNERABLE]\n",
+            finding_id="f1",
+            success=True,
+            exit_code=0,
+            stdout="[VULNERABLE]\n",
         )
 
         interpretation = await gen.interpret(
-            "print('poc')", result, "Should print VULNERABLE", "cmdi",
+            "print('poc')",
+            result,
+            "Should print VULNERABLE",
+            "cmdi",
         )
         assert interpretation["verdict"] == "confirmed"
         assert interpretation["updated_confidence"] == 0.91
 
     @pytest.mark.asyncio
     async def test_interpret_fallback_on_error(
-        self, mock_provider: AsyncMock,
+        self,
+        mock_provider: AsyncMock,
     ) -> None:
         from hyqagent.scanner.sandbox import PocGenerator
 
@@ -369,7 +401,10 @@ class TestPocGenerator:
         result = SandboxResult(finding_id="f1", success=False)
 
         interpretation = await gen.interpret(
-            "code", result, "expected", "sqli",
+            "code",
+            result,
+            "expected",
+            "sqli",
         )
         assert interpretation["verdict"] == "inconclusive"
         assert interpretation["updated_confidence"] == 0.5
@@ -417,7 +452,9 @@ class TestVerifyFinding:
 
     @pytest.mark.asyncio
     async def test_verify_finding_full_pipeline(
-        self, mock_executor: AsyncMock, mock_generator: AsyncMock,
+        self,
+        mock_executor: AsyncMock,
+        mock_generator: AsyncMock,
     ) -> None:
         finding = {
             "id": "f1",
@@ -427,7 +464,10 @@ class TestVerifyFinding:
             "description": "Command injection in run_cmd()",
         }
         result = await verify_finding(
-            finding, mock_executor, mock_generator, language="python",
+            finding,
+            mock_executor,
+            mock_generator,
+            language="python",
         )
         assert result.verdict == "confirmed"
         assert result.updated_confidence == 0.88
@@ -436,7 +476,9 @@ class TestVerifyFinding:
 
     @pytest.mark.asyncio
     async def test_verify_finding_poc_generation_fails(
-        self, mock_executor: AsyncMock, mock_generator: AsyncMock,
+        self,
+        mock_executor: AsyncMock,
+        mock_generator: AsyncMock,
     ) -> None:
         mock_generator.generate.return_value = None
 
@@ -450,14 +492,16 @@ class TestVerifyFinding:
 
     @pytest.mark.asyncio
     async def test_verify_findings_concurrent(
-        self, mock_executor: AsyncMock, mock_generator: AsyncMock,
+        self,
+        mock_executor: AsyncMock,
+        mock_generator: AsyncMock,
     ) -> None:
-        findings = [
-            {"id": f"f{i}", "vuln_type": "sqli", "severity": "high"}
-            for i in range(3)
-        ]
+        findings = [{"id": f"f{i}", "vuln_type": "sqli", "severity": "high"} for i in range(3)]
         results = await verify_findings(
-            findings, mock_executor, mock_generator, concurrency=2,
+            findings,
+            mock_executor,
+            mock_generator,
+            concurrency=2,
         )
         assert len(results) == 3
         assert all(r.verdict == "confirmed" for r in results)

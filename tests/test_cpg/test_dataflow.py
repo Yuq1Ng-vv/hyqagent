@@ -129,8 +129,7 @@ class TestDefUseChainsPython:
         chains = py_dataflow.build_def_use_chains(py_tree, fn, "python")
         # Should have zero or only module-level references (not in function body)
         # The function body only has a return statement
-        assert all(du.var_name != "CONFIG_KEY" or len(du.use_locations) == 0
-                   for du in chains)
+        assert all(du.var_name != "CONFIG_KEY" or len(du.use_locations) == 0 for du in chains)
 
     def test_multi_assign(self, parser, py_tree, py_dataflow):
         """multi_assign() reassigns 'x' — both defs should appear."""
@@ -327,7 +326,7 @@ class TestDefUseChainsJava:
         code = (
             "class Test {\n"
             "    void doWork(String input) {\n"
-            "        String query = \"SELECT * FROM \" + input;\n"
+            '        String query = "SELECT * FROM " + input;\n'
             "        execute(query);\n"
             "    }\n"
             "    void execute(String sql) {}\n"
@@ -358,6 +357,7 @@ class TestCrossFunctionIntegration:
         import tempfile
 
         from hyqagent.cpg.callgraph_builder import CallGraphBuilder
+
         d = tempfile.mkdtemp()
         try:
             with open(os.path.join(d, "a.py"), "w") as f:
@@ -371,6 +371,7 @@ class TestCrossFunctionIntegration:
             assert isinstance(steps, list)
         finally:
             import shutil
+
             shutil.rmtree(d, ignore_errors=True)
 
 
@@ -380,6 +381,7 @@ class TestCrossFunctionIntegration:
 class TestTaintLoaderErrors:
     def test_missing_file(self):
         from hyqagent.cpg.taint_loader import TaintRuleLoader
+
         loader = TaintRuleLoader(rules_path="/nonexistent/path.yaml")
         assert loader.available_languages == []
 
@@ -387,6 +389,7 @@ class TestTaintLoaderErrors:
         from pathlib import Path
 
         from hyqagent.cpg.taint_loader import TaintRuleLoader
+
         real = Path(__file__).resolve().parent.parent.parent / "src/hyqagent/cpg/taint_rules.yaml"
         loader = TaintRuleLoader(rules_path=str(real))
         assert "python" in loader.available_languages

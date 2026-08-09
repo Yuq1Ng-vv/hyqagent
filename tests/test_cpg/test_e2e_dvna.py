@@ -31,9 +31,7 @@ def _dvna_js_files() -> list[Path]:
     return sorted(
         f
         for f in DVNA_DIR.rglob("*.js")
-        if ".git" not in str(f)
-        and "jquery" not in f.name
-        and "showdown" not in f.name
+        if ".git" not in str(f) and "jquery" not in f.name and "showdown" not in f.name
     )
 
 
@@ -112,19 +110,19 @@ class TestFunctionExtraction:
         func_names = {f.name for f in funcs}
 
         expected = {
-            "userSearch",           # SQL Injection (A1)
-            "ping",                 # Command Injection (A1)
+            "userSearch",  # SQL Injection (A1)
+            "ping",  # Command Injection (A1)
             "listProducts",
             "productSearch",
-            "modifyProduct",        # IDOR (A5)
+            "modifyProduct",  # IDOR (A5)
             "modifyProductSubmit",  # IDOR (A5)
-            "userEdit",             # IDOR (A5)
-            "userEditSubmit",       # IDOR (A5)
-            "redirect",             # Open Redirect
-            "calc",                 # Code Injection (A1)
+            "userEdit",  # IDOR (A5)
+            "userEditSubmit",  # IDOR (A5)
+            "redirect",  # Open Redirect
+            "calc",  # Code Injection (A1)
             "listUsersAPI",
-            "bulkProductsLegacy",   # Insecure Deserialization (A8)
-            "bulkProducts",         # XXE (A4)
+            "bulkProductsLegacy",  # Insecure Deserialization (A8)
+            "bulkProducts",  # XXE (A4)
         }
         missing = expected - func_names
         assert not missing, f"appHandler.js missing functions: {missing}"
@@ -248,16 +246,12 @@ class TestTaintPatternMatching:
             "javascript",
             'db.sequelize.query("SELECT name FROM Users WHERE login=\'" + login + "\'")',
         )
-        assert cat == "sql_injection", (
-            f".query() should match sql_injection, got {cat}"
-        )
+        assert cat == "sql_injection", f".query() should match sql_injection, got {cat}"
 
     def test_res_redirect_is_open_redirect_sink(self, loader):
         """res.redirect() with user input should match open_redirect."""
         cat = loader.match_sink("javascript", "res.redirect(user_url)")
-        assert cat == "open_redirect", (
-            f"res.redirect should match open_redirect, got {cat}"
-        )
+        assert cat == "open_redirect", f"res.redirect should match open_redirect, got {cat}"
 
     def test_js_has_xxe_category(self, loader):
         """JS now has XXE category (Session 1.22 expansion)."""
@@ -288,8 +282,7 @@ class TestCPGGraphConstruction:
         """All non-minified source files should be indexed in the graph."""
         assert graph_builder.node_count > 0, "Graph should contain nodes"
         assert graph_builder.graph.number_of_nodes() >= len(_dvna_js_files()), (
-            f"Expected ≥{len(_dvna_js_files())} nodes, "
-            f"got {graph_builder.graph.number_of_nodes()}"
+            f"Expected ≥{len(_dvna_js_files())} nodes, got {graph_builder.graph.number_of_nodes()}"
         )
 
     def test_call_graph_builder(self, parser):
@@ -310,9 +303,8 @@ class TestSingleFileCallGraph:
         cg = SingleFileCallGraph(parser)
         import os
         import tempfile
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".js", delete=False
-        ) as tf:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as tf:
             tf.write(dvna_files["appHandler.js"])
             tmp_path = tf.name
         try:
@@ -326,9 +318,8 @@ class TestSingleFileCallGraph:
         cg = SingleFileCallGraph(parser)
         import os
         import tempfile
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".js", delete=False
-        ) as tf:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as tf:
             tf.write(dvna_files["authHandler.js"])
             tmp_path = tf.name
         try:

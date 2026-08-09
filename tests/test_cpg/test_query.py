@@ -165,6 +165,7 @@ class TestDirectoryQuery:
 class TestQueryBoundary:
     def test_empty_graph(self):
         import networkx as nx
+
         query = CPGQuery(nx.MultiDiGraph())
         assert query.find_path("a", "b") == []
         assert query.find_sources("a") == []
@@ -173,7 +174,7 @@ class TestQueryBoundary:
 
     def test_deep_nesting_no_infinite_loop(self, parser):
         """Ensure max_depth prevents infinite BFS loops."""
-        code = "\n".join([f"def f{i}():\n    return f{i+1}()" for i in range(100)])
+        code = "\n".join([f"def f{i}():\n    return f{i + 1}()" for i in range(100)])
         code += "\ndef f100():\n    return 1"
         builder = CPGGraphBuilder(parser)
         tree = parser.parse_code(code, "python")

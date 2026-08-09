@@ -349,11 +349,15 @@ class CallGraphBuilder:
                             self_nodes.append(child)
 
             # ── Python typed assignments ───────────────────────────
-            elif (ntype == "assignment" and language == "python") or (ntype in (
-                "field_definition",
-                "public_field_definition",
-                "variable_declarator",
-            ) and language in ("javascript", "typescript")):
+            elif (ntype == "assignment" and language == "python") or (
+                ntype
+                in (
+                    "field_definition",
+                    "public_field_definition",
+                    "variable_declarator",
+                )
+                and language in ("javascript", "typescript")
+            ):
                 type_node = node.child_by_field_name("type")
                 if type_node is not None:
                     name = type_node.text.decode()

@@ -96,12 +96,15 @@ class TestUnicode:
 class TestEmptyInputs:
     """Empty or near-empty inputs should return empty results, not crash."""
 
-    @pytest.mark.parametrize("code,label", [
-        ("", "empty string"),
-        ("# just a comment\n", "comment only"),
-        ("\n\n\n", "whitespace only"),
-        ("import os\n", "import only"),
-    ])
+    @pytest.mark.parametrize(
+        "code,label",
+        [
+            ("", "empty string"),
+            ("# just a comment\n", "comment only"),
+            ("\n\n\n", "whitespace only"),
+            ("import os\n", "import only"),
+        ],
+    )
     def test_empty_variants_no_crash(self, parser: Parser, code: str, label: str) -> None:
         tree = parser.parse_code(code, "python")
         assert parser.extract_functions(tree) == []

@@ -11,8 +11,10 @@ from hyqagent.observability.tracer import ObservabilityManager, SpanEvent
 class TestSpanEvent:
     def test_creation_defaults(self) -> None:
         s = SpanEvent(
-            trace_id="trace-1", span_id="span-1",
-            parent_span_id=None, name="test",
+            trace_id="trace-1",
+            span_id="span-1",
+            parent_span_id=None,
+            name="test",
             start_time=100.0,
         )
         assert s.trace_id == "trace-1"
@@ -24,25 +26,33 @@ class TestSpanEvent:
 
     def test_duration_zero_before_end(self) -> None:
         s = SpanEvent(
-            trace_id="t1", span_id="s1",
-            parent_span_id=None, name="x",
+            trace_id="t1",
+            span_id="s1",
+            parent_span_id=None,
+            name="x",
             start_time=200.0,
         )
         assert s.duration_ms == 0.0
 
     def test_duration_after_end(self) -> None:
         s = SpanEvent(
-            trace_id="t1", span_id="s1",
-            parent_span_id=None, name="x",
-            start_time=100.0, end_time=101.5,
+            trace_id="t1",
+            span_id="s1",
+            parent_span_id=None,
+            name="x",
+            start_time=100.0,
+            end_time=101.5,
         )
         assert s.duration_ms == 1500.0
 
     def test_to_dict_basic(self) -> None:
         s = SpanEvent(
-            trace_id="abc", span_id="def",
-            parent_span_id=None, name="llm_call",
-            start_time=100.0, end_time=101.0,
+            trace_id="abc",
+            span_id="def",
+            parent_span_id=None,
+            name="llm_call",
+            start_time=100.0,
+            end_time=101.0,
             attributes={"model": "sonnet"},
         )
         d = s.to_dict()
@@ -55,17 +65,22 @@ class TestSpanEvent:
 
     def test_to_dict_with_parent(self) -> None:
         s = SpanEvent(
-            trace_id="a", span_id="b",
-            parent_span_id="c", name="child",
-            start_time=1.0, end_time=2.0,
+            trace_id="a",
+            span_id="b",
+            parent_span_id="c",
+            name="child",
+            start_time=1.0,
+            end_time=2.0,
         )
         d = s.to_dict()
         assert d["parent_span_id"] == "c"
 
     def test_attributes_set_on_end(self) -> None:
         s = SpanEvent(
-            trace_id="t1", span_id="s1",
-            parent_span_id=None, name="tool",
+            trace_id="t1",
+            span_id="s1",
+            parent_span_id=None,
+            name="tool",
             start_time=1.0,
         )
         s.end_time = 2.0
@@ -106,9 +121,12 @@ class TestObservabilityManager:
         ct = CostTracker(max_budget=10.0)
         obs = ObservabilityManager(cost_tracker=ct, session_id="test")
         obs.record_llm_call(
-            model="sonnet", phase="test-phase",
-            input_tokens=1000, output_tokens=500,
-            latency_ms=200.0, hypothesis_id="h-1",
+            model="sonnet",
+            phase="test-phase",
+            input_tokens=1000,
+            output_tokens=500,
+            latency_ms=200.0,
+            hypothesis_id="h-1",
         )
         assert ct.total_cost() > 0
         summary = ct.summary()
@@ -118,13 +136,19 @@ class TestObservabilityManager:
         mock_metrics = MagicMock()
         ct = CostTracker()
         obs = ObservabilityManager(
-            cost_tracker=ct, metrics=mock_metrics, session_id="test",
+            cost_tracker=ct,
+            metrics=mock_metrics,
+            session_id="test",
         )
         obs.record_llm_call(
-            model="claude", phase="hypothesis_gen",
-            input_tokens=200, output_tokens=100,
-            cache_read_tokens=50, latency_ms=1500.0,
-            hypothesis_id="h-42", status="success",
+            model="claude",
+            phase="hypothesis_gen",
+            input_tokens=200,
+            output_tokens=100,
+            cache_read_tokens=50,
+            latency_ms=1500.0,
+            hypothesis_id="h-42",
+            status="success",
         )
         mock_metrics.record_llm_call.assert_called_once()
         call = mock_metrics.record_llm_call.call_args
@@ -138,11 +162,15 @@ class TestObservabilityManager:
         mock_metrics = MagicMock()
         mock_metrics.record_llm_call.side_effect = RuntimeError("boom")
         obs = ObservabilityManager(
-            metrics=mock_metrics, session_id="test",
+            metrics=mock_metrics,
+            session_id="test",
         )
         # Should not raise
         obs.record_llm_call(
-            model="m", phase="p", input_tokens=1, output_tokens=1,
+            model="m",
+            phase="p",
+            input_tokens=1,
+            output_tokens=1,
         )
         obs.record_finding(severity="high", cwe="CWE-89")
         obs.record_tool_call("query", True, 0.1)
@@ -153,7 +181,8 @@ class TestObservabilityManager:
         obs = ObservabilityManager(metrics=mock_metrics, session_id="test")
         obs.record_finding(severity="critical", cwe="CWE-78")
         mock_metrics.record_finding.assert_called_once_with(
-            severity="critical", cwe="CWE-78",
+            severity="critical",
+            cwe="CWE-78",
         )
 
     def test_record_tool_call_delegates(self) -> None:
@@ -161,7 +190,9 @@ class TestObservabilityManager:
         obs = ObservabilityManager(metrics=mock_metrics, session_id="test")
         obs.record_tool_call("cpg_query", True, 0.3)
         mock_metrics.record_tool_call.assert_called_once_with(
-            tool_name="cpg_query", success=True, latency_seconds=0.3,
+            tool_name="cpg_query",
+            success=True,
+            latency_seconds=0.3,
         )
 
     def test_set_coverage_delegates(self) -> None:
@@ -169,7 +200,9 @@ class TestObservabilityManager:
         obs = ObservabilityManager(metrics=mock_metrics, session_id="test")
         obs.set_coverage("s1", 0.8, 0.7)
         mock_metrics.set_coverage.assert_called_once_with(
-            session_id="s1", endpoint=0.8, risk_weighted=0.7,
+            session_id="s1",
+            endpoint=0.8,
+            risk_weighted=0.7,
         )
 
     def test_cost_tracker_accessible(self) -> None:

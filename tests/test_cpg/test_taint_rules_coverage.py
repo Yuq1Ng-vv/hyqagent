@@ -41,17 +41,13 @@ class TestTaintRuleCoverage:
         for cat_name, cat in rules.categories.items():
             if cat_name in STATIC_DETECTION_CATEGORIES:
                 continue  # static detection categories don't need taint sources
-            assert cat.sources, (
-                f"{language}/{cat_name}: has no source patterns"
-            )
+            assert cat.sources, f"{language}/{cat_name}: has no source patterns"
 
     @pytest.mark.parametrize("language", ["python", "javascript", "java"])
     def test_all_categories_have_sinks(self, loader, language):
         rules = loader.rules_for(language)
         for cat_name, cat in rules.categories.items():
-            assert cat.sinks, (
-                f"{language}/{cat_name}: has no sink patterns"
-            )
+            assert cat.sinks, f"{language}/{cat_name}: has no sink patterns"
 
     @pytest.mark.parametrize("language", ["python", "javascript", "java"])
     def test_patterns_are_strings(self, loader, language):
@@ -158,19 +154,47 @@ class TestCategoryListing:
     """Verify expected categories exist in each language."""
 
     PYTHON_EXPECTED = {
-        "sql_injection", "command_injection", "xss", "path_traversal",
-        "ssrf", "deserialization", "open_redirect", "code_injection", "auth_bypass",
-        "xxe", "ssti", "crypto_weakness",
+        "sql_injection",
+        "command_injection",
+        "xss",
+        "path_traversal",
+        "ssrf",
+        "deserialization",
+        "open_redirect",
+        "code_injection",
+        "auth_bypass",
+        "xxe",
+        "ssti",
+        "crypto_weakness",
     }
     JS_EXPECTED = {
-        "sql_injection", "command_injection", "xss", "path_traversal",
-        "ssrf", "deserialization", "open_redirect", "code_injection", "auth_bypass",
-        "xxe", "ssti", "crypto_weakness",
+        "sql_injection",
+        "command_injection",
+        "xss",
+        "path_traversal",
+        "ssrf",
+        "deserialization",
+        "open_redirect",
+        "code_injection",
+        "auth_bypass",
+        "xxe",
+        "ssti",
+        "crypto_weakness",
     }
     JAVA_EXPECTED = {
-        "sql_injection", "command_injection", "xss", "path_traversal",
-        "ssrf", "deserialization", "open_redirect", "code_injection",
-        "auth_bypass", "xxe", "jndi_injection", "ssti", "crypto_weakness",
+        "sql_injection",
+        "command_injection",
+        "xss",
+        "path_traversal",
+        "ssrf",
+        "deserialization",
+        "open_redirect",
+        "code_injection",
+        "auth_bypass",
+        "xxe",
+        "jndi_injection",
+        "ssti",
+        "crypto_weakness",
     }
 
     def test_python_categories(self, loader):
@@ -195,16 +219,12 @@ class TestPatternDedup:
     @pytest.mark.parametrize("language", ["python", "javascript", "java"])
     def test_sources_no_duplicates(self, loader, language):
         sources = loader.all_sources(language)
-        assert len(sources) == len(set(sources)), (
-            f"{language}: duplicate source patterns found"
-        )
+        assert len(sources) == len(set(sources)), f"{language}: duplicate source patterns found"
 
     @pytest.mark.parametrize("language", ["python", "javascript", "java"])
     def test_sinks_no_duplicates(self, loader, language):
         sinks = loader.all_sinks(language)
-        assert len(sinks) == len(set(sinks)), (
-            f"{language}: duplicate sink patterns found"
-        )
+        assert len(sinks) == len(set(sinks)), f"{language}: duplicate sink patterns found"
 
 
 # ── Edge cases ───────────────────────────────────────────────────────────────

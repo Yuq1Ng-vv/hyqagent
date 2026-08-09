@@ -44,11 +44,13 @@ class SessionManager(AuditRepository):
     async def save_session(self, session: dict[str, Any]) -> str:
         """Persist a session dict. Returns the session ID."""
         import asyncio
+
         return await asyncio.to_thread(self._save_session_sync, session)
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
         """Load a session by ID, or ``None``."""
         import asyncio
+
         return await asyncio.to_thread(self._get_session_sync, session_id)
 
     async def list_sessions(
@@ -56,20 +58,21 @@ class SessionManager(AuditRepository):
     ) -> list[dict[str, Any]]:
         """List recent sessions, optionally filtered by status."""
         import asyncio
+
         return await asyncio.to_thread(self._list_sessions_sync, status, limit)
 
     async def update_session_status(self, session_id: str, status: str) -> None:
         """Transition a session to a new status."""
         import asyncio
+
         await asyncio.to_thread(self._update_status_sync, session_id, status)
 
     # ── Finding CRUD ────────────────────────────────────────────────────────
 
-    async def save_finding(
-        self, session_id: str, hypothesis: VulnerabilityHypothesis
-    ) -> str:
+    async def save_finding(self, session_id: str, hypothesis: VulnerabilityHypothesis) -> str:
         """Store a finding and return its ID."""
         import asyncio
+
         return await asyncio.to_thread(self._save_finding_sync, session_id, hypothesis)
 
     async def get_findings(
@@ -79,6 +82,7 @@ class SessionManager(AuditRepository):
     ) -> list[VulnerabilityHypothesis]:
         """Retrieve findings for *session_id*, optionally filtered by severity."""
         import asyncio
+
         return await asyncio.to_thread(self._get_findings_sync, session_id, severity)
 
     async def update_hypothesis_status(
@@ -86,6 +90,7 @@ class SessionManager(AuditRepository):
     ) -> None:
         """Update a hypothesis's status and confidence."""
         import asyncio
+
         await asyncio.to_thread(
             self._update_hypothesis_sync, hypothesis_id, status.value, confidence
         )
@@ -93,6 +98,7 @@ class SessionManager(AuditRepository):
     async def get_finding_count(self, session_id: str) -> int:
         """Return total finding count for a session."""
         import asyncio
+
         return await asyncio.to_thread(self._get_finding_count_sync, session_id)
 
     # ── Belief tracking ─────────────────────────────────────────────────────
@@ -107,9 +113,14 @@ class SessionManager(AuditRepository):
     ) -> None:
         """Record a Bayesian belief update for audit trail."""
         import asyncio
+
         await asyncio.to_thread(
             self._record_belief_sync,
-            finding_id, prior, likelihood, posterior, evidence_summary,
+            finding_id,
+            prior,
+            likelihood,
+            posterior,
+            evidence_summary,
         )
 
     # ── Sync internals ──────────────────────────────────────────────────────
@@ -135,9 +146,14 @@ class SessionManager(AuditRepository):
                 """INSERT OR REPLACE INTO sessions
                    (id, project_path, language, status, metadata_json, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (sid, project_path, language,
-                 session.get("status", "running"), meta,
-                 datetime.now(UTC).isoformat()),
+                (
+                    sid,
+                    project_path,
+                    language,
+                    session.get("status", "running"),
+                    meta,
+                    datetime.now(UTC).isoformat(),
+                ),
             )
             conn.commit()
         return sid
@@ -146,9 +162,7 @@ class SessionManager(AuditRepository):
         with sqlite3.connect(self._db_path) as conn:
             conn.row_factory = sqlite3.Row
             self._ensure_schema(conn)
-            row = conn.execute(
-                "SELECT * FROM sessions WHERE id = ?", (session_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if row is None:
             return None
         return {
@@ -161,9 +175,7 @@ class SessionManager(AuditRepository):
             "updated_at": row["updated_at"],
         }
 
-    def _list_sessions_sync(
-        self, status: str | None, limit: int
-    ) -> list[dict[str, Any]]:
+    def _list_sessions_sync(self, status: str | None, limit: int) -> list[dict[str, Any]]:
         with sqlite3.connect(self._db_path) as conn:
             conn.row_factory = sqlite3.Row
             self._ensure_schema(conn)
@@ -200,19 +212,17 @@ class SessionManager(AuditRepository):
             )
             conn.commit()
 
-    def _save_finding_sync(
-        self, session_id: str, hypothesis: VulnerabilityHypothesis
-    ) -> str:
+    def _save_finding_sync(self, session_id: str, hypothesis: VulnerabilityHypothesis) -> str:
         fid = hypothesis.id or str(uuid.uuid4())
 
         # Extract source/sink as "file:line" strings
         src_loc = (
             f"{hypothesis.source.file_path}:{hypothesis.source.start_line}"
-            if hypothesis.source else ""
+            if hypothesis.source
+            else ""
         )
         snk_loc = (
-            f"{hypothesis.sink.file_path}:{hypothesis.sink.start_line}"
-            if hypothesis.sink else ""
+            f"{hypothesis.sink.file_path}:{hypothesis.sink.start_line}" if hypothesis.sink else ""
         )
 
         # Serialize evidence chain
@@ -296,17 +306,14 @@ class SessionManager(AuditRepository):
             ).fetchone()
         return row[0] if row else 0
 
-    def _update_hypothesis_sync(
-        self, hypothesis_id: str, status: str, confidence: float
-    ) -> None:
+    def _update_hypothesis_sync(self, hypothesis_id: str, status: str, confidence: float) -> None:
         with sqlite3.connect(self._db_path) as conn:
             self._ensure_schema(conn)
             conn.execute(
                 """UPDATE findings
                    SET status = ?, confidence = ?, updated_at = ?
                    WHERE id = ?""",
-                (status, confidence,
-                 datetime.now(UTC).isoformat(), hypothesis_id),
+                (status, confidence, datetime.now(UTC).isoformat(), hypothesis_id),
             )
             conn.commit()
 

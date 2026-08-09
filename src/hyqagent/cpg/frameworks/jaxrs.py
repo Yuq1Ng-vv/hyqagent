@@ -82,10 +82,7 @@ class JaxRsExtractor(BaseFrameworkExtractor):
         except (FileNotFoundError, ValueError, OSError):
             return False
         source = self._source(tree.root_node)
-        has_import = (
-            "javax.ws.rs" in source
-            or "jakarta.ws.rs" in source
-        )
+        has_import = "javax.ws.rs" in source or "jakarta.ws.rs" in source
         has_path_annotation = "@Path" in source
         return has_import and has_path_annotation
 
@@ -235,9 +232,7 @@ class JaxRsExtractor(BaseFrameworkExtractor):
 
     # ── Parameter extraction ────────────────────────────────────────────
 
-    def _extract_method_params(
-        self, method_node: Node, provider: object
-    ) -> list[RouteParam]:
+    def _extract_method_params(self, method_node: Node, provider: object) -> list[RouteParam]:
         """Extract parameters with JAX-RS annotations."""
         params: list[RouteParam] = []
         params_node = method_node.child_by_field_name("parameters")

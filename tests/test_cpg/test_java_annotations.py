@@ -38,10 +38,8 @@ class TestJavaAnnotationExtraction:
                                     if method.is_named and method.type == "method_declaration":
                                         decorators = adapter.extract_decorators(method)
                                         assert len(decorators) == 2
-                                        assert any(
-                                            'GetMapping' in d for d in decorators)
-                                        assert any(
-                                            'PreAuthorize' in d for d in decorators)
+                                        assert any("GetMapping" in d for d in decorators)
+                                        assert any("PreAuthorize" in d for d in decorators)
                                         return
 
     def test_extract_marker_annotation(self) -> None:

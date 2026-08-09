@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
 import networkx as nx
 
-from hyqagent.cpg.query import CPGQuery, GraphNode, GraphPath
 from hyqagent.cpg.graph import (
-    EDGE_CTRL_FLOW, EDGE_DATA_FLOW,
-    NODE_BASIC_BLOCK, NODE_ASSIGNMENT,
+    EDGE_CTRL_FLOW,
+    EDGE_DATA_FLOW,
+    NODE_ASSIGNMENT,
+    NODE_BASIC_BLOCK,
 )
+from hyqagent.cpg.query import CPGQuery, GraphNode, GraphPath
 from hyqagent.scanner.annotator import (
     AnnotatedPath,
     PathAnnotator,
@@ -17,18 +18,19 @@ from hyqagent.scanner.annotator import (
     SanitizerStatus,
 )
 
-
 # ── Stubs ──────────────────────────────────────────────────────────────────
 
 
 class _FakeCategory:
     """Minimal category stub for rules_for()."""
+
     def __init__(self, sanitizers=None):
         self.sanitizers = sanitizers or []
 
 
 class _FakeRules:
     """Minimal rules stub for rules_for()."""
+
     def __init__(self, sanitizers=None):
         self.categories = {
             "sql_injection": _FakeCategory(sanitizers=sanitizers or []),
@@ -109,11 +111,15 @@ def _make_diamond_cfg_graph() -> nx.MultiDiGraph:
     }
 
     for bid, (btype, start, end) in blocks.items():
-        g.add_node(bid, node_type=NODE_BASIC_BLOCK,
-                   enclosing_function="handler",
-                   file_path="app.py",
-                   start_line=start, end_line=end,
-                   block_type=btype)
+        g.add_node(
+            bid,
+            node_type=NODE_BASIC_BLOCK,
+            enclosing_function="handler",
+            file_path="app.py",
+            start_line=start,
+            end_line=end,
+            block_type=btype,
+        )
 
     # CFG edges
     edges = [
@@ -128,8 +134,7 @@ def _make_diamond_cfg_graph() -> nx.MultiDiGraph:
         g.add_edge(src, dst, edge_type=EDGE_CTRL_FLOW, ctrl_type=kind)
 
     # Add a DATA_FLOW edge from function to entry (so CFG is "connected" to CPG)
-    g.add_node("fn_handler", node_type="function", name="handler",
-               file_path="app.py", start_line=1)
+    g.add_node("fn_handler", node_type="function", name="handler", file_path="app.py", start_line=1)
     g.add_edge("fn_handler", "entry", edge_type=EDGE_DATA_FLOW)
 
     return g
@@ -143,24 +148,42 @@ def _make_mini_taint_graph(with_sanitizer: bool = True) -> nx.MultiDiGraph:
     g = nx.MultiDiGraph()
 
     # Source
-    g.add_node("src", node_type=NODE_ASSIGNMENT, file_path="app.py",
-               enclosing_function="handler", start_line=2,
-               source="request.args.get('id')", taint_category="sql_injection")
+    g.add_node(
+        "src",
+        node_type=NODE_ASSIGNMENT,
+        file_path="app.py",
+        enclosing_function="handler",
+        start_line=2,
+        source="request.args.get('id')",
+        taint_category="sql_injection",
+    )
 
     if with_sanitizer:
         # Sanitizer
-        g.add_node("san", node_type=NODE_ASSIGNMENT, file_path="app.py",
-                   enclosing_function="handler", start_line=8,
-                   source="int(user_input)", taint_category="sql_injection")
+        g.add_node(
+            "san",
+            node_type=NODE_ASSIGNMENT,
+            file_path="app.py",
+            enclosing_function="handler",
+            start_line=8,
+            source="int(user_input)",
+            taint_category="sql_injection",
+        )
         g.add_edge("src", "san", edge_type=EDGE_DATA_FLOW)
         g.add_edge("san", "sink", edge_type=EDGE_DATA_FLOW)
     else:
         g.add_edge("src", "sink", edge_type=EDGE_DATA_FLOW)
 
     # Sink
-    g.add_node("sink", node_type=NODE_ASSIGNMENT, file_path="app.py",
-               enclosing_function="handler", start_line=12,
-               source="cursor.execute(sql)", taint_category="sql_injection")
+    g.add_node(
+        "sink",
+        node_type=NODE_ASSIGNMENT,
+        file_path="app.py",
+        enclosing_function="handler",
+        start_line=12,
+        source="cursor.execute(sql)",
+        taint_category="sql_injection",
+    )
 
     return g
 
@@ -193,9 +216,7 @@ class TestPathAnnotator:
         g = nx.MultiDiGraph()
         query = CPGQuery(g)
         tl = _FakeTaintLoader()
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
         result = annotator.annotate("python")
         assert isinstance(result, list)
 
@@ -206,15 +227,21 @@ class TestPathAnnotator:
             sources=["request.args.get"],
             sinks=[".execute("],
         )
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
 
         # Build a path manually
-        node1 = GraphNode(node_id="src", node_type="assignment",
-                          location="app.py:2", source="request.args.get('id')")
-        node2 = GraphNode(node_id="sink", node_type="assignment",
-                          location="app.py:12", source="cursor.execute(sql)")
+        node1 = GraphNode(
+            node_id="src",
+            node_type="assignment",
+            location="app.py:2",
+            source="request.args.get('id')",
+        )
+        node2 = GraphNode(
+            node_id="sink",
+            node_type="assignment",
+            location="app.py:12",
+            source="cursor.execute(sql)",
+        )
         path = GraphPath(nodes=[node1, node2], edges=["DATA_FLOW"])
 
         label = annotator._label_path(path, "python")
@@ -222,23 +249,31 @@ class TestPathAnnotator:
 
     def test_label_path_sanitized_without_cfg(self):
         """When a sanitizer is present but no CFG data exists, treat as
-        CONDITIONAL_SANITIZED (conservative default)."""
+        CONDITIONAL_SANITIZED (conservative default).
+        """
         g = _make_mini_taint_graph(with_sanitizer=True)
         query = CPGQuery(g)
         tl = _FakeTaintLoader(
             sources=["request.args.get"],
             sinks=[".execute("],
         )
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
 
-        node1 = GraphNode(node_id="src", node_type="assignment",
-                          location="app.py:2", source="request.args.get('id')")
-        node2 = GraphNode(node_id="san", node_type="assignment",
-                          location="app.py:8", source="int(user_input)")
-        node3 = GraphNode(node_id="sink", node_type="assignment",
-                          location="app.py:12", source="cursor.execute(sql)")
+        node1 = GraphNode(
+            node_id="src",
+            node_type="assignment",
+            location="app.py:2",
+            source="request.args.get('id')",
+        )
+        node2 = GraphNode(
+            node_id="san", node_type="assignment", location="app.py:8", source="int(user_input)"
+        )
+        node3 = GraphNode(
+            node_id="sink",
+            node_type="assignment",
+            location="app.py:12",
+            source="cursor.execute(sql)",
+        )
         path = GraphPath(nodes=[node1, node2, node3], edges=["DATA_FLOW", "DATA_FLOW"])
 
         label = annotator._label_path(path, "python")
@@ -253,15 +288,21 @@ class TestPathAnnotator:
         g = _make_diamond_cfg_graph()
         query = CPGQuery(g)
         tl = _FakeTaintLoader()
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
 
         # Build a path where the sanitizer is in sanitize_block (line 7-8)
-        node1 = GraphNode(node_id="src", node_type="assignment",
-                          location="app.py:7", source="html.escape(user_input)")
-        node2 = GraphNode(node_id="sink", node_type="assignment",
-                          location="app.py:14", source="cursor.execute(sql)")
+        node1 = GraphNode(
+            node_id="src",
+            node_type="assignment",
+            location="app.py:7",
+            source="html.escape(user_input)",
+        )
+        node2 = GraphNode(
+            node_id="sink",
+            node_type="assignment",
+            location="app.py:14",
+            source="cursor.execute(sql)",
+        )
         path = GraphPath(nodes=[node1, node2], edges=["DATA_FLOW"])
 
         status = annotator._verify_sanitizer_dominance(path, "python")
@@ -279,9 +320,15 @@ class TestPathAnnotator:
             ("exit", "exit", 9, 9),
         ]
         for bid, btype, start, end in blocks:
-            g.add_node(bid, node_type=NODE_BASIC_BLOCK,
-                       enclosing_function="handler", file_path="app.py",
-                       start_line=start, end_line=end, block_type=btype)
+            g.add_node(
+                bid,
+                node_type=NODE_BASIC_BLOCK,
+                enclosing_function="handler",
+                file_path="app.py",
+                start_line=start,
+                end_line=end,
+                block_type=btype,
+            )
 
         edges = [
             ("entry", "san_block", "fallthrough"),
@@ -293,14 +340,17 @@ class TestPathAnnotator:
 
         query = CPGQuery(g)
         tl = _FakeTaintLoader()
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
 
-        node1 = GraphNode(node_id="src", node_type="assignment",
-                          location="app.py:4", source="int(user_input)")
-        node2 = GraphNode(node_id="sink", node_type="assignment",
-                          location="app.py:7", source="cursor.execute(sql)")
+        node1 = GraphNode(
+            node_id="src", node_type="assignment", location="app.py:4", source="int(user_input)"
+        )
+        node2 = GraphNode(
+            node_id="sink",
+            node_type="assignment",
+            location="app.py:7",
+            source="cursor.execute(sql)",
+        )
         path = GraphPath(nodes=[node1, node2], edges=["DATA_FLOW"])
 
         status = annotator._verify_sanitizer_dominance(path, "python")
@@ -311,15 +361,21 @@ class TestPathAnnotator:
         g = _make_diamond_cfg_graph()
         query = CPGQuery(g)
         tl = _FakeTaintLoader()
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
 
         # Nodes with source text that does NOT match any sanitizer pattern
-        node1 = GraphNode(node_id="src", node_type="assignment",
-                          location="app.py:1", source="x = request.args.get('id')")
-        node2 = GraphNode(node_id="sink", node_type="assignment",
-                          location="app.py:14", source="result = cursor.fetchall()")
+        node1 = GraphNode(
+            node_id="src",
+            node_type="assignment",
+            location="app.py:1",
+            source="x = request.args.get('id')",
+        )
+        node2 = GraphNode(
+            node_id="sink",
+            node_type="assignment",
+            location="app.py:14",
+            source="result = cursor.fetchall()",
+        )
         path = GraphPath(nodes=[node1, node2], edges=["DATA_FLOW"])
 
         status = annotator._verify_sanitizer_dominance(path, "python")
@@ -330,9 +386,7 @@ class TestPathAnnotator:
         g = nx.MultiDiGraph()
         query = CPGQuery(g)
         tl = _FakeTaintLoader()
-        annotator = PathAnnotator(
-            query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker()
-        )
+        annotator = PathAnnotator(query, tl, _FakeSinkDiscoverer(), _FakeSourceChecker())
         cats = annotator._get_known_categories("python")
         assert isinstance(cats, list)
 

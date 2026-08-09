@@ -32,11 +32,12 @@
 ```python
 @dataclass(frozen=True)
 class SeedPoint:
-    function_name: str    # 发现的相邻函数名
-    file_path: str        # 所在文件
-    reason: str           # "caller_of_sink" | "callee_of_sink"
+    function_name: str  # 发现的相邻函数名
+    file_path: str  # 所在文件
+    reason: str  # "caller_of_sink" | "callee_of_sink"
     source_finding_id: str  # 追踪链：哪个确认发现触发的
-    source_sink: str      # 追踪链：原始 sink 函数
+    source_sink: str  # 追踪链：原始 sink 函数
+
 
 @dataclass
 class SaturationResult:

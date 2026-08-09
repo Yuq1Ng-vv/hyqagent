@@ -8,9 +8,9 @@ lifting is done by the CPG layer.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from hyqagent.cpg.types import BlindSpot, CoverageReport
+from hyqagent.cpg.types import BlindSpot
 
 if TYPE_CHECKING:
     from hyqagent.cpg.coverage import CoverageTracker

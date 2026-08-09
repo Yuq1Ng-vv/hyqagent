@@ -99,9 +99,7 @@ class PrometheusMetrics:
         """Record a confirmed vulnerability finding."""
         self._findings.labels(severity=severity, cwe=cwe).inc()
 
-    def record_tool_call(
-        self, tool_name: str, success: bool, latency_seconds: float
-    ) -> None:
+    def record_tool_call(self, tool_name: str, success: bool, latency_seconds: float) -> None:
         """Record a non-LLM tool invocation.
 
         Note: currently no dedicated tool-call counter exists in the
@@ -109,16 +107,10 @@ class PrometheusMetrics:
         We record it as an LLM call with phase=tool_name for now.
         """
         status = "success" if success else "failure"
-        self._llm_calls.labels(
-            model="tool", phase=tool_name, status=status
-        ).inc()
-        self._llm_latency.labels(model="tool", phase=tool_name).observe(
-            latency_seconds
-        )
+        self._llm_calls.labels(model="tool", phase=tool_name, status=status).inc()
+        self._llm_latency.labels(model="tool", phase=tool_name).observe(latency_seconds)
 
-    def set_coverage(
-        self, session_id: str, endpoint: float, risk_weighted: float
-    ) -> None:
+    def set_coverage(self, session_id: str, endpoint: float, risk_weighted: float) -> None:
         """Update the endpoint coverage gauge."""
         self._coverage.set(endpoint)
 

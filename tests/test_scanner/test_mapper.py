@@ -45,8 +45,9 @@ class TestAttackSurface:
 
     def test_high_risk_property(self) -> None:
         eps = [
-            _make_endpoint("/api/users", ["POST"], auth=False,
-                           params=[RouteParam(name="data", source="body")]),
+            _make_endpoint(
+                "/api/users", ["POST"], auth=False, params=[RouteParam(name="data", source="body")]
+            ),
         ]
         surface = AttackSurfaceMapper().map(eps)
         assert len(surface.high_risk) >= 0  # should work regardless
@@ -60,8 +61,9 @@ class TestAttackSurfaceMapper:
         assert surface.scored == []
 
     def test_post_without_auth_is_high_risk(self) -> None:
-        ep = _make_endpoint("/api/data", ["POST"], auth=False,
-                            params=[RouteParam(name="x", source="body")])
+        ep = _make_endpoint(
+            "/api/data", ["POST"], auth=False, params=[RouteParam(name="x", source="body")]
+        )
         mapper = AttackSurfaceMapper()
         surface = mapper.map([ep])
         assert surface.scored[0].risk_score >= 7
@@ -91,8 +93,9 @@ class TestAttackSurfaceMapper:
         assert yes_score < no_score
 
     def test_file_param_triggers_file_upload_category(self) -> None:
-        ep = _make_endpoint("/api/upload", ["POST"], auth=True,
-                            params=[RouteParam(name="file", source="file")])
+        ep = _make_endpoint(
+            "/api/upload", ["POST"], auth=True, params=[RouteParam(name="file", source="file")]
+        )
         mapper = AttackSurfaceMapper()
         se = mapper.map([ep]).scored[0]
         assert se.category == EndpointCategory.FILE_UPLOAD
@@ -116,8 +119,9 @@ class TestAttackSurfaceMapper:
         assert se.category == EndpointCategory.CONFIG_LEAK
 
     def test_login_without_auth_is_auth_bypass(self) -> None:
-        ep = _make_endpoint("/api/login", ["POST"], auth=False,
-                            params=[RouteParam(name="password", source="body")])
+        ep = _make_endpoint(
+            "/api/login", ["POST"], auth=False, params=[RouteParam(name="password", source="body")]
+        )
         mapper = AttackSurfaceMapper()
         se = mapper.map([ep]).scored[0]
         assert se.category == EndpointCategory.AUTH_BYPASS
@@ -125,8 +129,9 @@ class TestAttackSurfaceMapper:
     def test_sort_descending_by_risk(self) -> None:
         eps = [
             _make_endpoint("/low", ["GET"], auth=True),
-            _make_endpoint("/high", ["DELETE"], auth=False,
-                           params=[RouteParam(name="x", source="body")]),
+            _make_endpoint(
+                "/high", ["DELETE"], auth=False, params=[RouteParam(name="x", source="body")]
+            ),
         ]
         mapper = AttackSurfaceMapper()
         surface = mapper.map(eps)
@@ -134,9 +139,12 @@ class TestAttackSurfaceMapper:
         assert scores == sorted(scores, reverse=True)
 
     def test_filter_for_phase3_limits_count(self) -> None:
-        eps = [_make_endpoint(f"/api/e{i}", ["POST"], auth=False,
-                              params=[RouteParam(name="x", source="body")])
-               for i in range(10)]
+        eps = [
+            _make_endpoint(
+                f"/api/e{i}", ["POST"], auth=False, params=[RouteParam(name="x", source="body")]
+            )
+            for i in range(10)
+        ]
         mapper = AttackSurfaceMapper()
         surface = mapper.map(eps)
         phase3 = mapper.filter_for_phase3(surface, max_endpoints=3)
@@ -153,8 +161,9 @@ class TestAttackSurfaceMapper:
 class TestMapEndpointsUtility:
     def test_returns_surface_and_subset(self) -> None:
         eps = [
-            _make_endpoint("/api/x", ["POST"], auth=False,
-                           params=[RouteParam(name="data", source="body")]),
+            _make_endpoint(
+                "/api/x", ["POST"], auth=False, params=[RouteParam(name="data", source="body")]
+            ),
         ]
         surface, phase3 = map_endpoints(eps, max_for_phase3=5)
         assert surface.total_endpoints == 1

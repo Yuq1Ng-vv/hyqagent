@@ -74,24 +74,52 @@ class CoverageAuditor:
     # Categories of security-relevant operations we want full coverage of
     SINK_PATTERNS: dict[str, list[str]] = {
         "database_call": [
-            "execute", "query", "raw", "executemany", "bulk_create",
-            "find", "findOne", "findById", "aggregate",
-            "createQueryBuilder", "getRepository",
+            "execute",
+            "query",
+            "raw",
+            "executemany",
+            "bulk_create",
+            "find",
+            "findOne",
+            "findById",
+            "aggregate",
+            "createQueryBuilder",
+            "getRepository",
         ],
         "file_operation": [
-            "open", "read", "write", "readFile", "writeFile",
-            "readFileSync", "writeFileSync", "FileInputStream",
-            "FileOutputStream", "FileReader", "FileWriter",
+            "open",
+            "read",
+            "write",
+            "readFile",
+            "writeFile",
+            "readFileSync",
+            "writeFileSync",
+            "FileInputStream",
+            "FileOutputStream",
+            "FileReader",
+            "FileWriter",
         ],
         "command_exec": [
-            "exec", "system", "popen", "subprocess", "spawn",
-            "Runtime.exec", "ProcessBuilder", "child_process",
-            "os.system", "os.popen",
+            "exec",
+            "system",
+            "popen",
+            "subprocess",
+            "spawn",
+            "Runtime.exec",
+            "ProcessBuilder",
+            "child_process",
+            "os.system",
+            "os.popen",
         ],
         "deserialization": [
-            "pickle.load", "yaml.load", "json.loads",
-            "ObjectInputStream.readObject", "readObject",
-            "unserialize", "unmarshal", "XMLDecoder",
+            "pickle.load",
+            "yaml.load",
+            "json.loads",
+            "ObjectInputStream.readObject",
+            "readObject",
+            "unserialize",
+            "unmarshal",
+            "XMLDecoder",
         ],
     }
 
@@ -162,24 +190,28 @@ class CoverageAuditor:
             label_str = label.value if hasattr(label, "value") else str(label) if label else ""
 
             if label_str in ("heuristic_sink", "exposed_no_source", "uncovered_sink"):
-                gaps.append(CoverageGap(
-                    location=endpoint,
-                    category="endpoint",
-                    reason=(
-                        f"Endpoint has suspicious label '{label_str}' — "
-                        "deterministic analysis could not fully trace this path"
-                    ),
-                    risk="high",
-                ))
+                gaps.append(
+                    CoverageGap(
+                        location=endpoint,
+                        category="endpoint",
+                        reason=(
+                            f"Endpoint has suspicious label '{label_str}' — "
+                            "deterministic analysis could not fully trace this path"
+                        ),
+                        risk="high",
+                    )
+                )
 
             # Check if this endpoint's calls have coverage
             if not self._is_location_covered(endpoint):
-                gaps.append(CoverageGap(
-                    location=endpoint,
-                    category="endpoint",
-                    reason="Endpoint was not reached by any taint analysis path",
-                    risk="medium",
-                ))
+                gaps.append(
+                    CoverageGap(
+                        location=endpoint,
+                        category="endpoint",
+                        reason="Endpoint was not reached by any taint analysis path",
+                        risk="medium",
+                    )
+                )
 
         return gaps
 
@@ -206,16 +238,18 @@ class CoverageAuditor:
                     file_path = loc.split(":")[0] if ":" in loc else loc
 
                     if not self._is_location_covered(file_path):
-                        gaps.append(CoverageGap(
-                            location=loc,
-                            category=category,
-                            reason=(
-                                f"{category} '{pattern}' has no taint path "
-                                "from any known source — either safe or source "
-                                "list is incomplete"
-                            ),
-                            risk="medium",
-                        ))
+                        gaps.append(
+                            CoverageGap(
+                                location=loc,
+                                category=category,
+                                reason=(
+                                    f"{category} '{pattern}' has no taint path "
+                                    "from any known source — either safe or source "
+                                    "list is incomplete"
+                                ),
+                                risk="medium",
+                            )
+                        )
 
         return gaps
 
@@ -234,46 +268,52 @@ class CoverageAuditor:
         # High heuristic_sink count → scanner is finding things it can't classify
         heuristic_count = label_counts.get("heuristic_sink", 0)
         if heuristic_count >= 5:
-            gaps.append(CoverageGap(
-                location="(multiple locations)",
-                category="endpoint",
-                reason=(
-                    f"{heuristic_count} heuristic sinks found — "
-                    "the deterministic scanner found potentially dangerous "
-                    "operations but could not classify the vulnerability type. "
-                    "These need LLM hypothesis generation."
-                ),
-                risk="high",
-            ))
+            gaps.append(
+                CoverageGap(
+                    location="(multiple locations)",
+                    category="endpoint",
+                    reason=(
+                        f"{heuristic_count} heuristic sinks found — "
+                        "the deterministic scanner found potentially dangerous "
+                        "operations but could not classify the vulnerability type. "
+                        "These need LLM hypothesis generation."
+                    ),
+                    risk="high",
+                )
+            )
 
         # Many exposed_no_source → data flow tracing is breaking
         exposed_count = label_counts.get("exposed_no_source", 0)
         if exposed_count >= 3:
-            gaps.append(CoverageGap(
-                location="(multiple locations)",
-                category="endpoint",
-                reason=(
-                    f"{exposed_count} endpoints expose user input but data flow "
-                    "tracing could not reach a sink. Possible causes: "
-                    "dynamic dispatch, reflection, async callbacks, "
-                    "or framework internals not modeled by CPG."
-                ),
-                risk="high",
-            ))
+            gaps.append(
+                CoverageGap(
+                    location="(multiple locations)",
+                    category="endpoint",
+                    reason=(
+                        f"{exposed_count} endpoints expose user input but data flow "
+                        "tracing could not reach a sink. Possible causes: "
+                        "dynamic dispatch, reflection, async callbacks, "
+                        "or framework internals not modeled by CPG."
+                    ),
+                    risk="high",
+                )
+            )
 
         # uncovered_sink → rules don't cover this pattern
         uncovered = label_counts.get("uncovered_sink", 0)
         if uncovered > 0:
-            gaps.append(CoverageGap(
-                location="(multiple locations)",
-                category="database_call",
-                reason=(
-                    f"{uncovered} sinks are reachable but no vulnerability rule "
-                    "covers this source→sink combination. The YAML taint rules "
-                    "may need expansion for this framework or codebase."
-                ),
-                risk="medium",
-            ))
+            gaps.append(
+                CoverageGap(
+                    location="(multiple locations)",
+                    category="database_call",
+                    reason=(
+                        f"{uncovered} sinks are reachable but no vulnerability rule "
+                        "covers this source→sink combination. The YAML taint rules "
+                        "may need expansion for this framework or codebase."
+                    ),
+                    risk="medium",
+                )
+            )
 
         return gaps
 

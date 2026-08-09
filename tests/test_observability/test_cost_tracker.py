@@ -74,12 +74,16 @@ class TestCostTracker:
     def test_deepseek_cheaper_than_claude(self, tracker: CostTracker) -> None:
         """DeepSeek should be ~50x cheaper per token than Claude Opus."""
         ds = tracker.record(
-            "test", "deepseek-v4-flash",
-            input_tokens=10000, output_tokens=1000,
+            "test",
+            "deepseek-v4-flash",
+            input_tokens=10000,
+            output_tokens=1000,
         )
         opus = tracker.record(
-            "test", "claude-opus-5",
-            input_tokens=10000, output_tokens=1000,
+            "test",
+            "claude-opus-5",
+            input_tokens=10000,
+            output_tokens=1000,
         )
         assert ds.cost_usd < opus.cost_usd
         # Opus should be at least 10x more expensive
@@ -141,23 +145,31 @@ class TestCostTracker:
     def test_cache_read_tokens_reduce_cost(self, tracker: CostTracker) -> None:
         """Cache reads should be cheaper than fresh reads."""
         no_cache = tracker.record(
-            "a", "deepseek-v4-flash", input_tokens=1000, output_tokens=100,
+            "a",
+            "deepseek-v4-flash",
+            input_tokens=1000,
+            output_tokens=100,
         )
         # Same tokens but with cache reads
         tracker2 = CostTracker()
-        with_cache = tracker2.record("a", "deepseek-v4-flash",
-                                     input_tokens=1000, output_tokens=100,
-                                     cache_read_tokens=500)
+        with_cache = tracker2.record(
+            "a", "deepseek-v4-flash", input_tokens=1000, output_tokens=100, cache_read_tokens=500
+        )
         # Cache reads should reduce the cost
         assert with_cache.cost_usd < no_cache.cost_usd
 
     def test_hypothesis_id_tracking(self, tracker: CostTracker) -> None:
-        entry = tracker.record("hypothesis_gen", "model",
-                               input_tokens=100, output_tokens=50,
-                               hypothesis_id="hyp-abc123")
+        entry = tracker.record(
+            "hypothesis_gen",
+            "model",
+            input_tokens=100,
+            output_tokens=50,
+            hypothesis_id="hyp-abc123",
+        )
         assert entry.hypothesis_id == "hyp-abc123"
 
     def test_latency_tracking(self, tracker: CostTracker) -> None:
-        entry = tracker.record("test", "model", input_tokens=100, output_tokens=50,
-                               latency_ms=250.5)
+        entry = tracker.record(
+            "test", "model", input_tokens=100, output_tokens=50, latency_ms=250.5
+        )
         assert entry.latency_ms == 250.5

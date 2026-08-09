@@ -6,7 +6,7 @@ and token counting without real API calls.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -159,9 +159,7 @@ class TestAnthropicProviderCountTokens:
     def test_count_tokens_fallback(self, provider: AnthropicProvider) -> None:
         """When SDK count_tokens fails, fall back to char/4 estimation."""
         provider._client.messages = MagicMock()
-        provider._client.messages.count_tokens = MagicMock(
-            side_effect=Exception("Not supported")
-        )
+        provider._client.messages.count_tokens = MagicMock(side_effect=Exception("Not supported"))
 
         msg = "This is a test message with roughly forty characters"
         count = provider.count_tokens(

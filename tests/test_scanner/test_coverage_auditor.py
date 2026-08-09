@@ -13,8 +13,9 @@ from hyqagent.scanner.coverage_auditor import (
 
 class TestCoverageGap:
     def test_defaults(self) -> None:
-        gap = CoverageGap(location="app.py:42", category="endpoint",
-                          reason="Not covered by analysis")
+        gap = CoverageGap(
+            location="app.py:42", category="endpoint", reason="Not covered by analysis"
+        )
         assert gap.location == "app.py:42"
         assert gap.category == "endpoint"
         assert gap.risk == "unknown"
@@ -43,8 +44,9 @@ class TestCoverageAuditor:
     def _make_mock_query(self) -> MagicMock:
         return MagicMock()
 
-    def _make_mock_annotated(self, label_value: str = "confirmed_taint",
-                              metadata: dict | None = None) -> MagicMock:
+    def _make_mock_annotated(
+        self, label_value: str = "confirmed_taint", metadata: dict | None = None
+    ) -> MagicMock:
         """Create a mock AnnotatedPath."""
         ap = MagicMock()
         ap.label = MagicMock()
@@ -99,32 +101,23 @@ class TestCoverageAuditor:
 
     def test_high_heuristic_count_creates_gap(self) -> None:
         """5+ heuristic_sink labeled paths → high-risk gap."""
-        aps = [
-            self._make_mock_annotated(label_value="heuristic_sink")
-            for _ in range(5)
-        ]
+        aps = [self._make_mock_annotated(label_value="heuristic_sink") for _ in range(5)]
         auditor = CoverageAuditor(self._make_mock_query(), aps)
         gaps = auditor._check_label_patterns()
-        assert any("heuristic sink" in g.reason.lower() and g.risk == "high"
-                   for g in gaps)
+        assert any("heuristic sink" in g.reason.lower() and g.risk == "high" for g in gaps)
 
     def test_multiple_exposed_no_source_creates_gap(self) -> None:
         """3+ exposed_no_source paths → high-risk gap."""
-        aps = [
-            self._make_mock_annotated(label_value="exposed_no_source")
-            for _ in range(3)
-        ]
+        aps = [self._make_mock_annotated(label_value="exposed_no_source") for _ in range(3)]
         auditor = CoverageAuditor(self._make_mock_query(), aps)
         gaps = auditor._check_label_patterns()
-        assert any("expose" in g.reason.lower() and g.risk == "high"
-                   for g in gaps)
+        assert any("expose" in g.reason.lower() and g.risk == "high" for g in gaps)
 
     def test_uncovered_sink_label_pattern(self) -> None:
         aps = [self._make_mock_annotated(label_value="uncovered_sink")]
         auditor = CoverageAuditor(self._make_mock_query(), aps)
         gaps = auditor._check_label_patterns()
-        assert any("no vulnerability rule covers" in g.reason.lower()
-                   for g in gaps)
+        assert any("no vulnerability rule covers" in g.reason.lower() for g in gaps)
 
     def test_is_location_covered(self) -> None:
         ap = self._make_mock_annotated()
@@ -140,8 +133,9 @@ class TestCoverageAuditor:
         aps = [
             self._make_mock_annotated(label_value="confirmed_taint"),
             self._make_mock_annotated(label_value="heuristic_sink"),
-            self._make_mock_annotated(label_value="exposed_no_source",
-                                       metadata={"endpoint": "GET /api/test"}),
+            self._make_mock_annotated(
+                label_value="exposed_no_source", metadata={"endpoint": "GET /api/test"}
+            ),
         ]
         auditor = CoverageAuditor(self._make_mock_query(), aps)
         audit = auditor.audit()

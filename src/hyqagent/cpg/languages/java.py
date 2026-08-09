@@ -347,22 +347,17 @@ class JavaAdapter(LanguageProvider):
 
     @property
     def statement_types(self) -> set[str]:
-        return (
-            self.control_flow_node_types
-            | {
-                "expression_statement",
-                "local_variable_declaration",
-                "assert_statement",
-                "synchronized_statement",
-                "class_declaration",
-                "method_declaration",
-                "constructor_declaration",
-            }
-        )
+        return self.control_flow_node_types | {
+            "expression_statement",
+            "local_variable_declaration",
+            "assert_statement",
+            "synchronized_statement",
+            "class_declaration",
+            "method_declaration",
+            "constructor_declaration",
+        }
 
-    def get_branch_targets(
-        self, node: Node
-    ) -> dict[str, Node | list[Node] | None]:
+    def get_branch_targets(self, node: Node) -> dict[str, Node | list[Node] | None]:
         ntype = node.type
         result: dict[str, Node | list[Node] | None] = {
             "consequence": None,
@@ -385,11 +380,14 @@ class JavaAdapter(LanguageProvider):
                     handlers.append(child)
             result["handlers"] = handlers
             result["finalizer"] = node.child_by_field_name("finalizer")
-        elif ntype in ("for_statement", "enhanced_for_statement",
-                       "while_statement"):
+        elif ntype in ("for_statement", "enhanced_for_statement", "while_statement"):
             result["body"] = node.child_by_field_name("body")
-        elif ntype in ("return_statement", "break_statement",
-                       "continue_statement", "throw_statement"):
+        elif ntype in (
+            "return_statement",
+            "break_statement",
+            "continue_statement",
+            "throw_statement",
+        ):
             pass  # Unconditional jumps
 
         return result

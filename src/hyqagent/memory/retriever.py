@@ -216,12 +216,14 @@ class CodeRetriever:
                 # Find which chunk contains this line
                 for chunk in self._chunks.values():
                     if chunk.file_path == fp and chunk.start_line <= line_no <= chunk.end_line:
-                        results.append(SearchResult(
-                            chunk=chunk,
-                            score=1.0,
-                            match_type="exact",
-                            match_detail=f"L{line_no}: {matched_text}",
-                        ))
+                        results.append(
+                            SearchResult(
+                                chunk=chunk,
+                                score=1.0,
+                                match_type="exact",
+                                match_detail=f"L{line_no}: {matched_text}",
+                            )
+                        )
                         break
 
         return self._dedup_results(results)
@@ -254,12 +256,14 @@ class CodeRetriever:
             # Find containing chunk
             for chunk in self._chunks.values():
                 if chunk.file_path == fp and chunk.start_line <= line_no <= chunk.end_line:
-                    results.append(SearchResult(
-                        chunk=chunk,
-                        score=1.0,
-                        match_type="exact",
-                        match_detail=f"L{line_no}: {matched[:120]}",
-                    ))
+                    results.append(
+                        SearchResult(
+                            chunk=chunk,
+                            score=1.0,
+                            match_type="exact",
+                            match_detail=f"L{line_no}: {matched[:120]}",
+                        )
+                    )
                     break
 
         return self._dedup_results(results)
@@ -281,12 +285,14 @@ class CodeRetriever:
             key = self._function_index.get(name)
             if key and key in self._chunks:
                 chunk = self._chunks[key]
-                return [SearchResult(
-                    chunk=chunk,
-                    score=1.0,
-                    match_type="structural",
-                    match_detail=f"function {name} @ {chunk.file_path}:{chunk.start_line}",
-                )]
+                return [
+                    SearchResult(
+                        chunk=chunk,
+                        score=1.0,
+                        match_type="structural",
+                        match_detail=f"function {name} @ {chunk.file_path}:{chunk.start_line}",
+                    )
+                ]
 
         # Tree-sitter fallback for broader structural queries
         from hyqagent.cpg.parser import Parser
@@ -314,12 +320,14 @@ class CodeRetriever:
                 # Find containing chunk
                 for chunk in self._chunks.values():
                     if chunk.file_path == fp and chunk.start_line <= line_no <= chunk.end_line:
-                        results.append(SearchResult(
-                            chunk=chunk,
-                            score=0.9,
-                            match_type="structural",
-                            match_detail=f"{node_type} '{node_name}' @ {fp}:{line_no}",
-                        ))
+                        results.append(
+                            SearchResult(
+                                chunk=chunk,
+                                score=0.9,
+                                match_type="structural",
+                                match_detail=f"{node_type} '{node_name}' @ {fp}:{line_no}",
+                            )
+                        )
                         break
 
         return self._dedup_results(results)
@@ -343,12 +351,14 @@ class CodeRetriever:
         for chunk in list(self._chunks.values())[:limit]:
             ratio = difflib.SequenceMatcher(None, code, chunk.code).ratio()
             if ratio >= threshold:
-                results.append(SearchResult(
-                    chunk=chunk,
-                    score=ratio,
-                    match_type="similarity",
-                    match_detail=f"{ratio:.0%} similar to {chunk.key}",
-                ))
+                results.append(
+                    SearchResult(
+                        chunk=chunk,
+                        score=ratio,
+                        match_type="similarity",
+                        match_detail=f"{ratio:.0%} similar to {chunk.key}",
+                    )
+                )
 
         # Sort by score descending, limit
         results.sort(key=lambda r: r.score, reverse=True)

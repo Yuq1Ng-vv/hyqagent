@@ -24,11 +24,35 @@ if TYPE_CHECKING:
 
 # Keywords that suggest a function call may be dangerous (case-insensitive)
 _DANGEROUS_KEYWORDS: set[str] = {
-    "sql", "exec", "system", "cmd", "eval", "query", "execute",
-    "read", "write", "open", "process", "run", "popen", "pipeline",
-    "load", "dump", "parse", "decode", "deseriali",
-    "render", "template", "redirect", "include", "require",
-    "send", "fetch", "request", "connect", "socket",
+    "sql",
+    "exec",
+    "system",
+    "cmd",
+    "eval",
+    "query",
+    "execute",
+    "read",
+    "write",
+    "open",
+    "process",
+    "run",
+    "popen",
+    "pipeline",
+    "load",
+    "dump",
+    "parse",
+    "decode",
+    "deseriali",
+    "render",
+    "template",
+    "redirect",
+    "include",
+    "require",
+    "send",
+    "fetch",
+    "request",
+    "connect",
+    "socket",
 }
 
 # Module prefixes that indicate a known dangerous library
@@ -116,9 +140,7 @@ class SinkDiscoverer:
         results.sort(key=lambda h: h.score, reverse=True)
         return results
 
-    def is_potentially_dangerous(
-        self, node_id: str, language: str = ""
-    ) -> tuple[bool, int]:
+    def is_potentially_dangerous(self, node_id: str, language: str = "") -> tuple[bool, int]:
         """Score a single node.  Returns ``(is_dangerous, score)``."""
         data = self._graph.nodes.get(node_id, {})
         source_text: str = data.get("source", "")
@@ -129,7 +151,7 @@ class SinkDiscoverer:
         src_lower = source_text.lower()
 
         # 1. String concatenation / interpolation (tainted data may be mixed)
-        if any(op in source_text for op in ("+", "%", ".format(", "${", "f\"", "f'")):
+        if any(op in source_text for op in ("+", "%", ".format(", "${", 'f"', "f'")):
             score += 20
 
         # 2. Dangerous keywords
@@ -213,15 +235,24 @@ class SinkDiscoverer:
                 pdata = self._graph.nodes.get(pred, {})
                 src = pdata.get("source", "").lower()
                 # Heuristic HTTP source patterns (language-agnostic subset)
-                http_markers = [".args", ".form", ".query", ".param", ".body",
-                                ".cookies", ".headers", "@request", "@pathvar",
-                                "request.", "req."]
+                http_markers = [
+                    ".args",
+                    ".form",
+                    ".query",
+                    ".param",
+                    ".body",
+                    ".cookies",
+                    ".headers",
+                    "@request",
+                    "@pathvar",
+                    "request.",
+                    "req.",
+                ]
                 if any(m in src for m in http_markers):
                     return True
                 edge_data = self._graph.get_edge_data(pred, cur)
                 valid = any(
-                    ed.get("edge_type") in {EDGE_DATA_FLOW, EDGE_CALLS}
-                    for ed in edge_data.values()
+                    ed.get("edge_type") in {EDGE_DATA_FLOW, EDGE_CALLS} for ed in edge_data.values()
                 )
                 if valid:
                     queue.append((pred, depth + 1))
@@ -293,7 +324,8 @@ class SourceCompletenessChecker:
 
     def find_uncovered_sinks(self, language: str) -> list[UncoveredSink]:
         """Return all ``NODE_ASSIGNMENT`` nodes that lack a ``taint_category`` label
-        but whose expression text looks like a function call."""
+        but whose expression text looks like a function call.
+        """
         uncovered: list[UncoveredSink] = []
         for nid, data in self._graph.nodes(data=True):
             if data.get("node_type") != NODE_ASSIGNMENT:

@@ -84,7 +84,11 @@ class GetRelatedTool(BaseTool):
 
         if not related:
             return ToolResult.ok(
-                self.name, [], file_path=file_path, function_name=func_name, count=0,
+                self.name,
+                [],
+                file_path=file_path,
+                function_name=func_name,
+                count=0,
             )
 
         # Cap
@@ -94,12 +98,14 @@ class GetRelatedTool(BaseTool):
         results: list[dict[str, Any]] = []
         for c in related:
             sig = c.code.split("\n")[0].strip()[:120] if c.code else ""
-            results.append({
-                "name": c.function_name or "<module>",
-                "start_line": c.start_line,
-                "end_line": c.end_line,
-                "signature": sig,
-            })
+            results.append(
+                {
+                    "name": c.function_name or "<module>",
+                    "start_line": c.start_line,
+                    "end_line": c.end_line,
+                    "signature": sig,
+                }
+            )
 
         return ToolResult.ok(
             self.name,

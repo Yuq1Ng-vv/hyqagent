@@ -21,9 +21,7 @@ from hyqagent.cpg.traversal import Traverser
 
 # ── Path to a real large file (optional — skipped if not found) ────────────
 
-_MYPY_CHECKER = Path(
-    "/root/hyqagent/.venv/lib/python3.12/site-packages/mypy/checker.py"
-)
+_MYPY_CHECKER = Path("/root/hyqagent/.venv/lib/python3.12/site-packages/mypy/checker.py")
 
 
 def _make_large_python_file(n_funcs: int = 200, n_calls: int = 50) -> str:
@@ -96,7 +94,7 @@ class TestParsePerformance:
         parser.parse_code(large_code, "python")
         elapsed = time.perf_counter() - start
         # 200 funcs * 50 calls should be well under 100ms
-        assert elapsed < 0.1, f"Parse took {elapsed*1000:.0f}ms, expected < 100ms"
+        assert elapsed < 0.1, f"Parse took {elapsed * 1000:.0f}ms, expected < 100ms"
 
     @pytest.mark.skipif(not _MYPY_CHECKER.exists(), reason="mypy not installed")
     @pytest.mark.benchmark(min_rounds=3)
@@ -114,7 +112,7 @@ class TestParsePerformance:
         start = time.perf_counter()
         parser.parse_code(code, "python")
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.5, f"Parse took {elapsed*1000:.0f}ms, expected < 500ms"
+        assert elapsed < 0.5, f"Parse took {elapsed * 1000:.0f}ms, expected < 500ms"
 
 
 class TestTraversePerformance:
@@ -138,7 +136,7 @@ class TestTraversePerformance:
         start = time.perf_counter()
         _ = sum(1 for _ in Traverser(tree).traverse())
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.05, f"Deep traversal took {elapsed*1000:.0f}ms, expected < 50ms"
+        assert elapsed < 0.05, f"Deep traversal took {elapsed * 1000:.0f}ms, expected < 50ms"
 
 
 class TestCallGraphPerformance:

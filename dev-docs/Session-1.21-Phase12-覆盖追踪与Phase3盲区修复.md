@@ -85,11 +85,11 @@ MISC      (10):  7C +  1P +  2U — 74% 覆盖
 `_STRUCTURAL_BLIND_SPOTS` 原来只有 5 条硬编码盲区：
 ```python
 # 原来只有这 5 条：
-- idor_no_structural_signature
-- business_logic_no_sink
-- race_condition_not_modeled
-- second_order_not_modeled
-- prototype_pollution_not_modeled
+-idor_no_structural_signature
+-business_logic_no_sink
+-race_condition_not_modeled
+-second_order_not_modeled
+-prototype_pollution_not_modeled
 ```
 
 Phase 3 LLM 如果仅依赖此清单作为"需要分析的检测维度"，会遗漏：

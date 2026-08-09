@@ -8,7 +8,9 @@ app = Flask(__name__)
 @app.route("/search")
 def search():
     keyword = request.args.get("q", "")  # $ source=sql_injection
-    cursor.execute("SELECT * FROM posts WHERE title LIKE '%" + keyword + "%'")  # $ sink=sql_injection
+    cursor.execute(
+        "SELECT * FROM posts WHERE title LIKE '%" + keyword + "%'"
+    )  # $ sink=sql_injection
 
 
 @app.route("/user/<int:user_id>")

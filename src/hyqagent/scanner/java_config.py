@@ -211,8 +211,7 @@ class JavaConfigScanner:
                         if min_ver and ver and _compare_versions(ver, min_ver):
                             continue  # Version is safe
                         meta.warnings.append(
-                            f"{path.name}: {hint} (found {gid}:{aid}"
-                            + (f":{ver})" if ver else ")")
+                            f"{path.name}: {hint} (found {gid}:{aid}" + (f":{ver})" if ver else ")")
                         )
 
         # Also check properties for version placeholders
@@ -379,6 +378,4 @@ class JavaConfigScanner:
                     if _local_tag(child) == "web-resource-collection":
                         for sub in child:
                             if _local_tag(sub) == "url-pattern" and sub.text:
-                                meta.servlet_mappings.append(
-                                    f"[SECURED] {sub.text.strip()}"
-                                )
+                                meta.servlet_mappings.append(f"[SECURED] {sub.text.strip()}")

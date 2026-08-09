@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.35 完成后 (2026-08-09)
-> 最新: Phase 5 Task 3 — LLM Eval (DeepEval) 已完成
+> 上次更新: Session 1.36 完成后 (2026-08-09)
+> 最新: Phase 5 全部完成 — CI/CD + 文档最终化 + 发布准备
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -156,7 +156,7 @@
   - `scanner/coverage_metrics.py` — CoverageMetrics 指标聚合
 - [x] **测试**: 883 tests, 0 failures
 
-## Phase 3: LLM Integration — 🔵 进行中
+## Phase 3: LLM Integration — ✅ 完成
 
 - [x] **Session 1.18** — LLM 深度审计管道 (commit: `1950c36`)
   - `models/providers/anthropic_provider.py` — Anthropic SDK 封装 (DeepSeek + Claude 双 base_url)
@@ -192,21 +192,24 @@
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **1340** tests, 2 skipped, 0 failures (+83 new: 35 reverse_sink + 48 blind_scan) |
-| Phase 3 累计新增代码 | **24 文件, +~5,100 行** |
-| Phase 4 memory 代码 | **3 文件, +~900 行** (context + crystallizer + retriever) |
-| 源码总模块 | **45** 个 (+1: saturation.py) |
+| 测试 | **2,267** collected, 2,057 passed, 202 skipped, 0 failures |
+| 源码模块 | **84** 个 |
+| 源码行数 | **~23,000** 行 |
+| Phase 5 新增文件 | **6** (2 CI workflows + LICENSE + README rewrite + CHANGELOG + ARCHITECTURE_OVERVIEW update) |
+| 支持语言 | **3** (Python/JavaScript/Java) |
+| 支持框架 | **6** (Flask/Django/FastAPI/Express/Spring/JAX-RS) |
 | 模型提供商 | **2** (DeepSeek + Anthropic, 同一 Provider 类) |
 | 模型层级 | **3** (CHEAP/MID/STRONG) |
 | CLI 命令 | **4** (scan/scan --deep/resume/sessions) |
-| Nudge 类型 | **3** (TERMINAL/CONTINUE/QUALITY) + 3 内置 StopHook |
-| 覆盖盲区缓解 | **3/7** 方案已实现 (CompletenessCritic + 差异覆盖分析 + 盲扫增强) |
+| 收敛指标 | **5** (VDR/EC/RWC/VCC/C_hat) |
+| Golden Dataset | **28** labeled cases, 4-level regression (L1-L5) |
+| CI/CD | GitHub Actions: lint + typecheck + unit tests + eval + security audit |
 
 ## Phase 3 — ✅ 全部完成
 
 Phase 3 全部 8 项任务已全部完成。
 
-## Phase 4: 长任务能力 — 🔵 进行中
+## Phase 4: 长任务能力 — ✅ 完成
 
 > **Session 1.23 里程碑**: Orchestrator + 收敛检测 + 断点续扫 已完成（2 新文件、~1300 行源码、64 tests）。
 > **Session 1.24 里程碑**: 对抗性审查 AdversarialReviewer 已完成（1 新文件、~365 行源码、41 tests）。
@@ -324,7 +327,7 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
 ## 当前阻塞
 - 无
 
-## Phase 5: Quality & Release — 🔵 进行中
+## Phase 5: Quality & Release — ✅ 完成
 
 - [x] **Session 1.33** — Task 1: Golden Dataset 构建 (commit: `90d1dff`)
   - 28 个标签化漏洞用例 (14 reuse + 13 gap-fill + 1 negative)
@@ -358,8 +361,24 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
 | 1 | Golden Dataset (25-30 labeled cases) | ✅ Session 1.33 完成 |
 | 2 | Scanner-level Golden 测试 (完整扫描流水线回归) | ✅ Session 1.34 完成 |
 | 3 | LLM-based eval (DeepEval) | ✅ Session 1.35 完成 |
-| 4 | CI/CD 集成 (GitHub Actions) | 🔲 待开始 |
-| 5 | 文档最终化 + 发布准备 | 🔲 待开始 |
+| 4 | CI/CD 集成 (GitHub Actions) | ✅ Session 1.36 完成 |
+| 5 | 文档最终化 + 发布准备 | ✅ Session 1.36 完成 |
+
+## Phase 5 — ✅ 全部完成
+
+Phase 5 全部 5 项任务已全部完成。
+
+- [x] **Session 1.36** — Task 4+5: CI/CD + 文档最终化 + 发布准备
+  - **CI/CD**: `.github/workflows/ci.yml` (lint/typecheck/unit-tests/security-audit) + `.github/workflows/eval.yml` (golden tests/full suite)
+  - **LICENSE**: MIT 许可证
+  - **README.md**: 从 37 行重写为完整 README（项目状态/快速开始/核心能力/架构/文档导航/开发指南）
+  - **ARCHITECTURE_OVERVIEW.md**: §3.2 模块表更新（8 模块 ✅）+ §8.1 实现状态重写 + §8.2 session 规划更新 + 顶部声明更新
+  - **CHANGELOG.md**: Keep a Changelog 格式，Phase 1-5 全部里程碑
+  - **pre-commit**: 已配置 ruff/ruff-format/mypy/trailing-whitespace/end-of-file-fixer 等 9 个 hook
+  - **ruff format**: 全部 243 文件通过格式检查
+  - **pytest**: 2,057 passed, 202 skipped, 0 failures
+  - **ruff check**: 392 remaining (all pre-existing — Chinese punctuation/Docstrings)
+  - **mypy**: 82 errors in 22 files (all pre-existing — type-arg/import-untyped)
 
 ## 文档索引
 

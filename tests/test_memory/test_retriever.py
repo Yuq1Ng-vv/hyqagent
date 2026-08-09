@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import difflib
 import tempfile
 from pathlib import Path
 
@@ -12,16 +11,22 @@ from hyqagent.memory.retriever import CodeChunk, CodeRetriever, SearchResult
 class TestCodeChunk:
     def test_key_format(self) -> None:
         chunk = CodeChunk(
-            file_path="app.py", function_name="login",
-            start_line=10, end_line=20, code="def login(): pass",
+            file_path="app.py",
+            function_name="login",
+            start_line=10,
+            end_line=20,
+            code="def login(): pass",
             language="python",
         )
         assert chunk.key == "app.py:login:10"
 
     def test_key_no_function(self) -> None:
         chunk = CodeChunk(
-            file_path="app.py", function_name=None,
-            start_line=1, end_line=50, code="...",
+            file_path="app.py",
+            function_name=None,
+            start_line=1,
+            end_line=50,
+            code="...",
             language="python",
         )
         assert chunk.key == "app.py:<module>:1"
@@ -50,13 +55,17 @@ class TestCodeRetriever:
     def test_build_index_single_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            fp = self._write_py_file(d, "app.py", """
+            fp = self._write_py_file(
+                d,
+                "app.py",
+                """
 def login(user, password):
     return user == "admin" and password == "secret"
 
 def search(query):
     return f"SELECT * FROM users WHERE name='{query}'"
-""")
+""",
+            )
             retriever = CodeRetriever([fp], "python")
             count = retriever.build_index()
             # Module-level chunk + 2 function chunks = 3
@@ -66,11 +75,15 @@ def search(query):
     def test_search_exact_finds_pattern(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            fp = self._write_py_file(d, "app.py", """
+            fp = self._write_py_file(
+                d,
+                "app.py",
+                """
 def login(user, password):
     query = f"SELECT * FROM users WHERE name='{user}'"
     return db.execute(query)
-""")
+""",
+            )
             retriever = CodeRetriever([fp], "python")
             retriever.build_index()
 
@@ -94,13 +107,17 @@ def login(user, password):
     def test_search_structural_function_lookup(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            fp = self._write_py_file(d, "app.py", """
+            fp = self._write_py_file(
+                d,
+                "app.py",
+                """
 def handle_request(req):
     return process(req)
 
 def process(data):
     return str(data)
-""")
+""",
+            )
             retriever = CodeRetriever([fp], "python")
             retriever.build_index()
 
@@ -111,7 +128,10 @@ def process(data):
     def test_search_similar_finds_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            fp = self._write_py_file(d, "app.py", """
+            fp = self._write_py_file(
+                d,
+                "app.py",
+                """
 def func_a():
     query = "SELECT * FROM users WHERE id=" + user_input
     return db.execute(query)
@@ -120,11 +140,14 @@ def func_b():
     # Nearly identical to func_a
     query = "SELECT * FROM products WHERE id=" + user_input
     return db.execute(query)
-""")
+""",
+            )
             retriever = CodeRetriever([fp], "python")
             retriever.build_index()
 
-            code = 'query = "SELECT * FROM users WHERE id=" + user_input\n    return db.execute(query)'
+            code = (
+                'query = "SELECT * FROM users WHERE id=" + user_input\n    return db.execute(query)'
+            )
             results = retriever.search_similar(code, threshold=0.0)  # low threshold to catch any
             assert len(results) >= 1
             assert results[0].match_type == "similarity"
@@ -167,10 +190,14 @@ def func_b():
     def test_get_chunks_for_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             d = Path(tmpdir)
-            fp = self._write_py_file(d, "app.py", """
+            fp = self._write_py_file(
+                d,
+                "app.py",
+                """
 def foo(): pass
 def bar(): pass
-""")
+""",
+            )
             retriever = CodeRetriever([fp], "python")
             retriever.build_index()
 

@@ -69,27 +69,46 @@ class TaintRuleLoader:
     def _validate(self) -> None:
         """Check YAML structure and warn about issues."""
         if not isinstance(self._data, dict):
-            logger.warning("taint_rules.yaml top-level should be a dict, got %s", type(self._data).__name__)
+            logger.warning(
+                "taint_rules.yaml top-level should be a dict, got %s", type(self._data).__name__
+            )
             return
 
         for lang, lang_data in self._data.items():
             if lang not in _VALID_LANGUAGES:
-                logger.warning("Unknown language %r in taint_rules.yaml (expected one of %s)", lang, sorted(_VALID_LANGUAGES))
+                logger.warning(
+                    "Unknown language %r in taint_rules.yaml (expected one of %s)",
+                    lang,
+                    sorted(_VALID_LANGUAGES),
+                )
                 continue
 
             if not isinstance(lang_data, dict):
-                logger.warning("Language %r section should be a dict, got %s", lang, type(lang_data).__name__)
+                logger.warning(
+                    "Language %r section should be a dict, got %s", lang, type(lang_data).__name__
+                )
                 continue
 
             for section in lang_data:
                 if section not in _VALID_SECTIONS:
-                    logger.warning("Unknown section %r in language %r (expected one of %s)", section, lang, sorted(_VALID_SECTIONS))
+                    logger.warning(
+                        "Unknown section %r in language %r (expected one of %s)",
+                        section,
+                        lang,
+                        sorted(_VALID_SECTIONS),
+                    )
 
                 section_data = lang_data.get(section, {})
                 if isinstance(section_data, dict):
                     for cat_name, patterns in section_data.items():
                         if not isinstance(patterns, list):
-                            logger.warning("%s.%s.%s should be a list, got %s", lang, section, cat_name, type(patterns).__name__)
+                            logger.warning(
+                                "%s.%s.%s should be a list, got %s",
+                                lang,
+                                section,
+                                cat_name,
+                                type(patterns).__name__,
+                            )
                         elif not patterns:
                             logger.info("%s.%s.%s is empty", lang, section, cat_name)
 

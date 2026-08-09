@@ -33,8 +33,12 @@ def _make_finding(**kwargs) -> Finding:
 
 
 def _make_annotated_path(label: PathLabel = PathLabel.CONFIRMED_TAINT) -> AnnotatedPath:
-    n = GraphNode(node_id="n1", node_type="assignment",
-                  location="app.py:10", source="x = request.args.get('id')")
+    n = GraphNode(
+        node_id="n1",
+        node_type="assignment",
+        location="app.py:10",
+        source="x = request.args.get('id')",
+    )
     return AnnotatedPath(path=GraphPath(nodes=[n]), label=label)
 
 
@@ -84,7 +88,8 @@ class TestReportGeneratorBasics:
             stats={"total_findings": 1, "confirmed_taint": 1},
         )
         text = g.generate(
-            result, fmt="json",
+            result,
+            fmt="json",
             scan_duration_ms=3200,
             files_scanned=10,
             language="python",
@@ -123,8 +128,9 @@ class TestReportGeneratorMarkdown:
     def test_markdown_basic(self):
         g = ReportGenerator()
         result = ScanResult()
-        text = g.generate(result, fmt="markdown", language="python",
-                          scan_duration_ms=1500, files_scanned=5)
+        text = g.generate(
+            result, fmt="markdown", language="python", scan_duration_ms=1500, files_scanned=5
+        )
 
         assert "# HyqAgent 扫描报告" in text
         assert "**语言**: python" in text
@@ -156,14 +162,19 @@ class TestReportGeneratorMarkdown:
     def test_markdown_with_multiple_findings(self):
         g = ReportGenerator()
         findings = [
-            _make_finding(id="f1", severity="critical", rule_id="TAINT-001",
-                          title="RCE via eval"),
-            _make_finding(id="f2", severity="high", rule_id="AUTH-001",
-                          title="Missing auth on /admin"),
-            _make_finding(id="f3", severity="medium", rule_id="CONFIG-001",
-                          title="DEBUG=True in production"),
-            _make_finding(id="f4", severity="low", rule_id="DANGER-010",
-                          title="File open without path sanitization"),
+            _make_finding(id="f1", severity="critical", rule_id="TAINT-001", title="RCE via eval"),
+            _make_finding(
+                id="f2", severity="high", rule_id="AUTH-001", title="Missing auth on /admin"
+            ),
+            _make_finding(
+                id="f3", severity="medium", rule_id="CONFIG-001", title="DEBUG=True in production"
+            ),
+            _make_finding(
+                id="f4",
+                severity="low",
+                rule_id="DANGER-010",
+                title="File open without path sanitization",
+            ),
         ]
         result = ScanResult(findings=findings)
         text = g.generate(result, fmt="markdown")
@@ -177,9 +188,11 @@ class TestReportGeneratorMarkdown:
     def test_markdown_with_no_blind_spots(self):
         g = ReportGenerator()
         cov = CoverageReport(
-            endpoint_total=5, endpoint_analyzed=5,
+            endpoint_total=5,
+            endpoint_analyzed=5,
             endpoint_coverage_ratio=1.0,
-            sink_total=10, sink_labeled=10,
+            sink_total=10,
+            sink_labeled=10,
             sink_coverage_ratio=1.0,
             blind_spots=[],
         )
@@ -210,10 +223,22 @@ class TestReportGeneratorSARIF:
 
     def test_sarif_with_findings(self):
         g = ReportGenerator()
-        f1 = _make_finding(id="f1", rule_id="TAINT-001", severity="critical",
-                           title="RCE in eval", file_path="views.py", line=55)
-        f2 = _make_finding(id="f2", rule_id="CONFIG-001", severity="medium",
-                           title="DEBUG enabled", file_path="settings.py", line=3)
+        f1 = _make_finding(
+            id="f1",
+            rule_id="TAINT-001",
+            severity="critical",
+            title="RCE in eval",
+            file_path="views.py",
+            line=55,
+        )
+        f2 = _make_finding(
+            id="f2",
+            rule_id="CONFIG-001",
+            severity="medium",
+            title="DEBUG enabled",
+            file_path="settings.py",
+            line=3,
+        )
         result = ScanResult(findings=[f1, f2])
 
         text = g.generate(result, fmt="sarif")
@@ -225,7 +250,9 @@ class TestReportGeneratorSARIF:
         assert results[0]["level"] == "error"  # critical → error
         assert results[1]["level"] == "warning"  # medium → warning
         assert results[0]["ruleId"] == "TAINT-001"
-        assert results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "views.py"
+        assert (
+            results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "views.py"
+        )
         assert results[0]["locations"][0]["physicalLocation"]["region"]["startLine"] == 55
 
         # Rules array
@@ -236,8 +263,14 @@ class TestReportGeneratorSARIF:
 
     def test_sarif_without_line(self):
         g = ReportGenerator()
-        f = _make_finding(id="f1", rule_id="SECRET-001", severity="high",
-                          file_path="", line=0, code_snippet="key = 'abc123'")
+        f = _make_finding(
+            id="f1",
+            rule_id="SECRET-001",
+            severity="high",
+            file_path="",
+            line=0,
+            code_snippet="key = 'abc123'",
+        )
         result = ScanResult(findings=[f])
 
         text = g.generate(result, fmt="sarif")
@@ -271,15 +304,20 @@ class TestReportGeneratorFormats:
         g = ReportGenerator()
         f = _make_finding()
         result = ScanResult(findings=[f], coverage=_make_coverage())
-        text = g.generate(result, fmt="json", language="python",
-                          scan_duration_ms=1000, files_scanned=5)
+        text = g.generate(
+            result, fmt="json", language="python", scan_duration_ms=1000, files_scanned=5
+        )
         data = json.loads(text)
         assert isinstance(data, dict)
 
         # Verify all expected keys present
         assert set(data.keys()) == {
-            "scan_info", "findings", "annotated_paths",
-            "coverage", "blind_spot_manifest", "stats",
+            "scan_info",
+            "findings",
+            "annotated_paths",
+            "coverage",
+            "blind_spot_manifest",
+            "stats",
         }
 
     def test_sarif_is_valid(self):
@@ -317,8 +355,9 @@ class TestReportGeneratorHelpers:
 class _FakeHypothesis:
     """Minimal hypothesis stub for testing deep audit report output."""
 
-    def __init__(self, hid: str, summary: str, confidence: float,
-                 endpoint: str = "", vuln_category: str = ""):
+    def __init__(
+        self, hid: str, summary: str, confidence: float, endpoint: str = "", vuln_category: str = ""
+    ):
         self.id = hid
         self.summary = summary
         self.confidence = confidence
@@ -354,7 +393,8 @@ class TestDeepAuditJSONReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="json",
+            result,
+            fmt="json",
             mode="deep",
             hypotheses=[_FakeHypothesis("h1", "SQLi in /login", 0.85)],
             convergence=_FakeConvergence(),
@@ -368,11 +408,13 @@ class TestDeepAuditJSONReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="json",
+            result,
+            fmt="json",
             mode="deep",
             hypotheses=[
-                _FakeHypothesis("h1", "SQLi in /login", 0.85,
-                                endpoint="/login", vuln_category="sql_injection"),
+                _FakeHypothesis(
+                    "h1", "SQLi in /login", 0.85, endpoint="/login", vuln_category="sql_injection"
+                ),
                 _FakeHypothesis("h2", "XSS in /search", 0.60),
             ],
         )
@@ -387,7 +429,8 @@ class TestDeepAuditJSONReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="json",
+            result,
+            fmt="json",
             mode="deep",
             cost_summary=_FakeCostSummary(0.42),
         )
@@ -402,7 +445,8 @@ class TestDeepAuditJSONReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="json",
+            result,
+            fmt="json",
             mode="deep",
             convergence=_FakeConvergence(round_num=3, recommendation="converged"),
         )
@@ -416,7 +460,8 @@ class TestDeepAuditJSONReport:
         result = ScanResult()
         phases = ["cpg_build", "deterministic_scan", "hypothesis_gen", "convergence_check"]
         text = g.generate(
-            result, fmt="json",
+            result,
+            fmt="json",
             mode="deep",
             phases_completed=phases,
         )
@@ -443,7 +488,8 @@ class TestDeepAuditMarkdownReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="markdown",
+            result,
+            fmt="markdown",
             mode="deep",
             hypotheses=[_FakeHypothesis("h1", "Test hypothesis", 0.9)],
         )
@@ -454,11 +500,13 @@ class TestDeepAuditMarkdownReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="markdown",
+            result,
+            fmt="markdown",
             mode="deep",
             hypotheses=[
-                _FakeHypothesis("h1", "SQLi in login", 0.85,
-                                endpoint="/login", vuln_category="sql_injection"),
+                _FakeHypothesis(
+                    "h1", "SQLi in login", 0.85, endpoint="/login", vuln_category="sql_injection"
+                ),
             ],
         )
         assert "🤖 LLM 假设" in text
@@ -469,7 +517,8 @@ class TestDeepAuditMarkdownReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="markdown",
+            result,
+            fmt="markdown",
             mode="deep",
             convergence=_FakeConvergence(round_num=2, recommendation="converged"),
         )
@@ -481,7 +530,8 @@ class TestDeepAuditMarkdownReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="markdown",
+            result,
+            fmt="markdown",
             mode="deep",
             cost_summary=_FakeCostSummary(0.42),
         )
@@ -493,7 +543,8 @@ class TestDeepAuditMarkdownReport:
         g = ReportGenerator()
         result = ScanResult(findings=[_make_finding()])
         text = g.generate(
-            result, fmt="markdown",
+            result,
+            fmt="markdown",
             mode="deep",
             hypotheses=[_FakeHypothesis("h1", "Test", 0.5)],
             convergence=_FakeConvergence(),
@@ -507,7 +558,8 @@ class TestDeepAuditMarkdownReport:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(
-            result, fmt="markdown",
+            result,
+            fmt="markdown",
             mode="deep",
             phases_completed=["cpg_build", "hypothesis_gen", "convergence_check"],
         )

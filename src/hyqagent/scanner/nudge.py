@@ -158,11 +158,7 @@ def stop_on_low_confidence(threshold: float = 0.3) -> StopHook:
         if not isinstance(items, list) or len(items) == 0:
             return None  # handled by stop_on_empty
 
-        confidences = [
-            float(item.get("confidence", 0))
-            for item in items
-            if isinstance(item, dict)
-        ]
+        confidences = [float(item.get("confidence", 0)) for item in items if isinstance(item, dict)]
         if confidences and all(c < threshold for c in confidences):
             return (
                 f"All {len(confidences)} findings have confidence < "
@@ -413,12 +409,8 @@ class NudgeLoop:
                 ):
                     if continue_count < config.continue_nudge_limit:
                         continue_count += 1
-                        _record_nudge(
-                            nudges, turn, NudgeType.CONTINUE, _CONTINUE_NUDGE
-                        )
-                        working_messages.append(
-                            {"role": "user", "content": _CONTINUE_NUDGE}
-                        )
+                        _record_nudge(nudges, turn, NudgeType.CONTINUE, _CONTINUE_NUDGE)
+                        working_messages.append({"role": "user", "content": _CONTINUE_NUDGE})
                         continue
                     else:
                         # CONTINUE limit hit
@@ -433,12 +425,8 @@ class NudgeLoop:
                 # TERMINAL nudge
                 if terminal_count < config.terminal_nudge_limit:
                     terminal_count += 1
-                    _record_nudge(
-                        nudges, turn, NudgeType.TERMINAL, _TERMINAL_NUDGE
-                    )
-                    working_messages.append(
-                        {"role": "user", "content": _TERMINAL_NUDGE}
-                    )
+                    _record_nudge(nudges, turn, NudgeType.TERMINAL, _TERMINAL_NUDGE)
+                    working_messages.append({"role": "user", "content": _TERMINAL_NUDGE})
                     continue
                 else:
                     # TERMINAL limit hit
@@ -452,7 +440,7 @@ class NudgeLoop:
 
             # ── Stop-hook checks ─────────────────────────────────────────
             blocked = False
-            for hook in (stop_hooks or []):
+            for hook in stop_hooks or []:
                 blocking_reason = hook(result)
                 if blocking_reason is not None:
                     blocked = True
@@ -460,9 +448,7 @@ class NudgeLoop:
                         quality_count += 1
                         msg = _quality_nudge(blocking_reason)
                         _record_nudge(nudges, turn, NudgeType.QUALITY, msg)
-                        working_messages.append(
-                            {"role": "user", "content": msg}
-                        )
+                        working_messages.append({"role": "user", "content": msg})
                     else:
                         # QUALITY limit hit — accept the result anyway
                         logger.warning(

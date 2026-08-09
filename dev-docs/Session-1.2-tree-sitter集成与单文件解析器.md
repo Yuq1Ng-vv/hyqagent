@@ -97,9 +97,10 @@ class FunctionNode:
     end_line: int
     source: str
     params: list[str]
-    is_method: bool          # 是否在 class 内部
-    class_name: str | None   # 所属类名（方法才有）
-    decorators: list[str]    # @装饰器 列表
+    is_method: bool  # 是否在 class 内部
+    class_name: str | None  # 所属类名（方法才有）
+    decorators: list[str]  # @装饰器 列表
+
 
 @dataclass
 class ClassNode:
@@ -109,12 +110,13 @@ class ClassNode:
     source: str
     base_classes: list[str]  # 父类/接口名称
 
+
 @dataclass
 class ImportNode:
-    module: str              # 模块路径
-    names: list[str]         # 导入的名称列表
-    is_relative: bool        # 是否相对导入
-    source: str              # 原始导入语句文本
+    module: str  # 模块路径
+    names: list[str]  # 导入的名称列表
+    is_relative: bool  # 是否相对导入
+    source: str  # 原始导入语句文本
 ```
 
 ### 3.3 核心技术点

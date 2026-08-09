@@ -261,9 +261,10 @@ print(cats)  # → ["auth_bypass", "code_injection", "command_injection", ...]
 # microblog/app.py (简化版)
 @app.route("/search")
 def search():
-    q = request.args.get("q")           # ← SOURCE
-    posts = db.search_posts(q)          # ← 数据流向 db 层
+    q = request.args.get("q")  # ← SOURCE
+    posts = db.search_posts(q)  # ← 数据流向 db 层
     return str(posts)
+
 
 # microblog/db.py
 class Database:
@@ -300,7 +301,7 @@ query.get_sanitizers(paths[0])
 # 5. 匹配污点规则
 loader = TaintRuleLoader()
 loader.match_source("python", "request.args.get('q')")  # → sql_injection
-loader.match_sink("python", "cursor.execute(sql)")       # → sql_injection
+loader.match_sink("python", "cursor.execute(sql)")  # → sql_injection
 ```
 
 **结论**：`/search` 端点存在从用户输入到 SQL 执行的无消毒路径，且无认证保护——这是一个真实的 SQL 注入漏洞。

@@ -56,9 +56,7 @@ class AuditTrail:
         trail.export_jsonl()             # writes to disk
     """
 
-    def __init__(
-        self, session_id: str, output_path: str | Path | None = None
-    ) -> None:
+    def __init__(self, session_id: str, output_path: str | Path | None = None) -> None:
         self._session_id = session_id
         self._entries: list[AuditEntry] = []
         self._output_path = Path(output_path) if output_path else None
@@ -79,11 +77,7 @@ class AuditTrail:
         seq = len(self._entries) + 1
         prev_hash = self._entries[-1].chain_hash if self._entries else ""
 
-        evidence_hash = (
-            hashlib.sha256(evidence.encode("utf-8")).hexdigest()
-            if evidence
-            else ""
-        )
+        evidence_hash = hashlib.sha256(evidence.encode("utf-8")).hexdigest() if evidence else ""
 
         entry = AuditEntry(
             sequence=seq,

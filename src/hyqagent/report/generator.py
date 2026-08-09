@@ -156,23 +156,27 @@ class ReportGenerator:
             # Hypotheses summary
             hypotheses: list[dict[str, Any]] = []
             for h in ctx.get("hypotheses", []):
-                hypotheses.append({
-                    "id": getattr(h, "id", ""),
-                    "summary": getattr(h, "summary", str(h)[:200]),
-                    "confidence": getattr(h, "confidence", 0.0),
-                    "endpoint": getattr(h, "endpoint", ""),
-                    "vuln_category": getattr(h, "vuln_category", ""),
-                })
+                hypotheses.append(
+                    {
+                        "id": getattr(h, "id", ""),
+                        "summary": getattr(h, "summary", str(h)[:200]),
+                        "confidence": getattr(h, "confidence", 0.0),
+                        "endpoint": getattr(h, "endpoint", ""),
+                        "vuln_category": getattr(h, "vuln_category", ""),
+                    }
+                )
             output["hypotheses"] = hypotheses
 
             # Validations summary
             validations: list[dict[str, Any]] = []
             for v in ctx.get("validations", []):
-                validations.append({
-                    "hypothesis_id": getattr(v, "hypothesis_id", ""),
-                    "verdict": str(getattr(v, "verdict", "")),
-                    "evidence_strength": str(getattr(v, "evidence_strength", "")),
-                })
+                validations.append(
+                    {
+                        "hypothesis_id": getattr(v, "hypothesis_id", ""),
+                        "verdict": str(getattr(v, "verdict", "")),
+                        "evidence_strength": str(getattr(v, "evidence_strength", "")),
+                    }
+                )
             output["validations"] = validations
 
             # Convergence
@@ -202,12 +206,8 @@ class ReportGenerator:
                 "phases_completed": ctx.get("phases_completed", []),
                 "hypotheses_count": len(hypotheses),
                 "validations_count": len(validations),
-                "convergence_rounds": (
-                    getattr(conv, "round", 0) if conv is not None else 0
-                ),
-                "total_llm_cost": (
-                    getattr(cost, "total_cost", 0.0) if cost is not None else 0.0
-                ),
+                "convergence_rounds": (getattr(conv, "round", 0) if conv is not None else 0),
+                "total_llm_cost": (getattr(cost, "total_cost", 0.0) if cost is not None else 0.0),
             }
 
         return json.dumps(output, ensure_ascii=False, indent=2)

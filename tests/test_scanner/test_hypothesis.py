@@ -14,21 +14,35 @@ from hyqagent.scanner.hypothesis import HypothesisGenerator
 def _build_seed_graph() -> nx.MultiDiGraph:
     """Build a minimal CPG graph with function nodes for seed testing."""
     g = nx.MultiDiGraph()
-    g.add_node("f1", node_type="function", name="do_query",
-               file_path="app.py", start_line=10, end_line=25,
-               source="def do_query(sql):\n    return db.execute(sql)")
     g.add_node(
-        "f2", node_type="function", name="handle_upload",
-        file_path="upload.py", start_line=5, end_line=30,
+        "f1",
+        node_type="function",
+        name="do_query",
+        file_path="app.py",
+        start_line=10,
+        end_line=25,
+        source="def do_query(sql):\n    return db.execute(sql)",
+    )
+    g.add_node(
+        "f2",
+        node_type="function",
+        name="handle_upload",
+        file_path="upload.py",
+        start_line=5,
+        end_line=30,
         source=(
-            "def handle_upload(file):\n"
-            "    name = file.filename\n"
-            "    os.system(f'touch {name}')"
+            "def handle_upload(file):\n    name = file.filename\n    os.system(f'touch {name}')"
         ),
     )
-    g.add_node("f3", node_type="function", name="helper",
-               file_path="app.py", start_line=30, end_line=32,
-               source="")  # empty source → test fallback
+    g.add_node(
+        "f3",
+        node_type="function",
+        name="helper",
+        file_path="app.py",
+        start_line=30,
+        end_line=32,
+        source="",
+    )  # empty source → test fallback
     return g
 
 
@@ -58,7 +72,8 @@ class TestReadFunctionSource:
         g = _build_seed_graph()
         q = _mock_query(g)
         gen = HypothesisGenerator(
-            query=q, router=_mock_router(),
+            query=q,
+            router=_mock_router(),
             cheap_provider=_mock_provider({}),
             mid_provider=_mock_provider({}),
             strong_provider=_mock_provider({}),
@@ -75,7 +90,8 @@ class TestReadFunctionSource:
         g = _build_seed_graph()
         q = _mock_query(g)
         gen = HypothesisGenerator(
-            query=q, router=_mock_router(),
+            query=q,
+            router=_mock_router(),
             cheap_provider=_mock_provider({}),
             mid_provider=_mock_provider({}),
             strong_provider=_mock_provider({}),
@@ -88,7 +104,8 @@ class TestReadFunctionSource:
         g = _build_seed_graph()
         q = _mock_query(g)
         gen = HypothesisGenerator(
-            query=q, router=_mock_router(),
+            query=q,
+            router=_mock_router(),
             cheap_provider=_mock_provider({}),
             mid_provider=_mock_provider({}),
             strong_provider=_mock_provider({}),
@@ -100,11 +117,13 @@ class TestReadFunctionSource:
     def test_truncates_long_sources(self) -> None:
         g = nx.MultiDiGraph()
         long_src = "x = 1\n" * 2000  # ~14000 chars
-        g.add_node("big", node_type="function", name="big_func",
-                   file_path="big.py", source=long_src)
+        g.add_node(
+            "big", node_type="function", name="big_func", file_path="big.py", source=long_src
+        )
         q = _mock_query(g)
         gen = HypothesisGenerator(
-            query=q, router=_mock_router(),
+            query=q,
+            router=_mock_router(),
             cheap_provider=_mock_provider({}),
             mid_provider=_mock_provider({}),
             strong_provider=_mock_provider({}),
@@ -134,15 +153,23 @@ class TestGenerateFromSeeds:
 
     async def test_generates_from_seed_functions(self) -> None:
         g = _build_seed_graph()
-        cheap = _mock_provider({"hypotheses": [
-            {"vuln_type": "sql_injection", "severity": "high",
-             "title": "SQLi in do_query",
-             "description": "Direct SQL execution without parameterisation.",
-             "confidence": 0.9, "cwe_id": "CWE-89",
-             "source_location": "app.py:10",
-             "sink_location": "app.py:11",
-             "sanitizer_exists": False},
-        ]})
+        cheap = _mock_provider(
+            {
+                "hypotheses": [
+                    {
+                        "vuln_type": "sql_injection",
+                        "severity": "high",
+                        "title": "SQLi in do_query",
+                        "description": "Direct SQL execution without parameterisation.",
+                        "confidence": 0.9,
+                        "cwe_id": "CWE-89",
+                        "source_location": "app.py:10",
+                        "sink_location": "app.py:11",
+                        "sanitizer_exists": False,
+                    },
+                ]
+            }
+        )
         gen = HypothesisGenerator(
             query=_mock_query(g),
             router=_mock_router(),
@@ -159,15 +186,23 @@ class TestGenerateFromSeeds:
 
     async def test_generates_from_sink_discoveries(self) -> None:
         g = nx.MultiDiGraph()
-        cheap = _mock_provider({"hypotheses": [
-            {"vuln_type": "command_injection", "severity": "critical",
-             "title": "Command injection in handle_upload",
-             "description": "Unsanitised filename passed to os.system.",
-             "confidence": 0.85, "cwe_id": "CWE-78",
-             "source_location": "upload.py:5",
-             "sink_location": "upload.py:7",
-             "sanitizer_exists": False},
-        ]})
+        cheap = _mock_provider(
+            {
+                "hypotheses": [
+                    {
+                        "vuln_type": "command_injection",
+                        "severity": "critical",
+                        "title": "Command injection in handle_upload",
+                        "description": "Unsanitised filename passed to os.system.",
+                        "confidence": 0.85,
+                        "cwe_id": "CWE-78",
+                        "source_location": "upload.py:5",
+                        "sink_location": "upload.py:7",
+                        "sanitizer_exists": False,
+                    },
+                ]
+            }
+        )
         gen = HypothesisGenerator(
             query=_mock_query(g),
             router=_mock_router(),
@@ -177,9 +212,14 @@ class TestGenerateFromSeeds:
             language="python",
         )
         discoveries = [
-            {"sink_name": "os.system", "sink_file": "upload.py",
-             "sink_line": 7, "source_names": ["file.filename"],
-             "taint_category": "", "confidence": "high"},
+            {
+                "sink_name": "os.system",
+                "sink_file": "upload.py",
+                "sink_line": 7,
+                "source_names": ["file.filename"],
+                "taint_category": "",
+                "confidence": "high",
+            },
         ]
         result = await gen.generate_from_seeds(
             seed_functions=[],
@@ -191,15 +231,23 @@ class TestGenerateFromSeeds:
     async def test_merge_seeds_and_discoveries(self) -> None:
         """Both seed functions AND sink discoveries produce merged hypotheses."""
         g = _build_seed_graph()
-        cheap = _mock_provider({"hypotheses": [
-            {"vuln_type": "sql_injection", "severity": "high",
-             "title": "SQLi",
-             "description": "desc.",
-             "confidence": 0.8, "cwe_id": "CWE-89",
-             "source_location": "app.py:10",
-             "sink_location": "app.py:11",
-             "sanitizer_exists": False},
-        ]})
+        cheap = _mock_provider(
+            {
+                "hypotheses": [
+                    {
+                        "vuln_type": "sql_injection",
+                        "severity": "high",
+                        "title": "SQLi",
+                        "description": "desc.",
+                        "confidence": 0.8,
+                        "cwe_id": "CWE-89",
+                        "source_location": "app.py:10",
+                        "sink_location": "app.py:11",
+                        "sanitizer_exists": False,
+                    },
+                ]
+            }
+        )
         gen = HypothesisGenerator(
             query=_mock_query(g),
             router=_mock_router(),
@@ -210,17 +258,23 @@ class TestGenerateFromSeeds:
         )
         result = await gen.generate_from_seeds(
             seed_functions=["do_query"],
-            sink_discoveries=[{"sink_name": "exec", "sink_file": "a.py",
-                                "sink_line": 1, "source_names": [],
-                                "taint_category": "", "confidence": "low"}],
+            sink_discoveries=[
+                {
+                    "sink_name": "exec",
+                    "sink_file": "a.py",
+                    "sink_line": 1,
+                    "source_names": [],
+                    "taint_category": "",
+                    "confidence": "low",
+                }
+            ],
         )
         assert len(result) == 1  # single LLM call returns 1 hypothesis
 
     async def test_llm_failure_returns_empty(self) -> None:
         g = _build_seed_graph()
         cheap = MagicMock()
-        cheap.generate_structured = AsyncMock(
-            side_effect=RuntimeError("API error"))
+        cheap.generate_structured = AsyncMock(side_effect=RuntimeError("API error"))
         gen = HypothesisGenerator(
             query=_mock_query(g),
             router=_mock_router(),
@@ -234,18 +288,34 @@ class TestGenerateFromSeeds:
 
     async def test_produces_multiple_hypotheses(self) -> None:
         g = _build_seed_graph()
-        cheap = _mock_provider({"hypotheses": [
-            {"vuln_type": "sql_injection", "severity": "high",
-             "title": "SQLi", "description": "d1.",
-             "confidence": 0.9, "cwe_id": "CWE-89",
-             "source_location": "a.py:1", "sink_location": "a.py:2",
-             "sanitizer_exists": False},
-            {"vuln_type": "info_disclosure", "severity": "medium",
-             "title": "Info leak", "description": "d2.",
-             "confidence": 0.7, "cwe_id": "CWE-200",
-             "source_location": "a.py:1", "sink_location": "a.py:2",
-             "sanitizer_exists": False},
-        ]})
+        cheap = _mock_provider(
+            {
+                "hypotheses": [
+                    {
+                        "vuln_type": "sql_injection",
+                        "severity": "high",
+                        "title": "SQLi",
+                        "description": "d1.",
+                        "confidence": 0.9,
+                        "cwe_id": "CWE-89",
+                        "source_location": "a.py:1",
+                        "sink_location": "a.py:2",
+                        "sanitizer_exists": False,
+                    },
+                    {
+                        "vuln_type": "info_disclosure",
+                        "severity": "medium",
+                        "title": "Info leak",
+                        "description": "d2.",
+                        "confidence": 0.7,
+                        "cwe_id": "CWE-200",
+                        "source_location": "a.py:1",
+                        "sink_location": "a.py:2",
+                        "sanitizer_exists": False,
+                    },
+                ]
+            }
+        )
         gen = HypothesisGenerator(
             query=_mock_query(g),
             router=_mock_router(),
@@ -270,14 +340,20 @@ class TestGenerateFromSeeds:
             language="python",
         )
         discoveries = [
-            {"sink_name": f"sink_{i}", "sink_file": "a.py",
-             "sink_line": i, "source_names": ["x"],
-             "taint_category": "", "confidence": "medium"}
+            {
+                "sink_name": f"sink_{i}",
+                "sink_file": "a.py",
+                "sink_line": i,
+                "source_names": ["x"],
+                "taint_category": "",
+                "confidence": "medium",
+            }
             for i in range(25)
         ]
         # Should not raise — 25 discoveries truncated to 15
         result = await gen.generate_from_seeds(
-            seed_functions=[], sink_discoveries=discoveries,
+            seed_functions=[],
+            sink_discoveries=discoveries,
         )
         assert result == []
 
@@ -323,13 +399,17 @@ class TestPhaseHypothesisGenSeedFeedback:
         )
         state.phase_states["annotated_paths"] = []
         disc = ReverseSinkDiscovery(
-            sink_name="exec_cmd", sink_file="app.py",
-            sink_line=42, sink_source="exec(cmd)",
-            source_names=["stdin"], taint_category="",
+            sink_name="exec_cmd",
+            sink_file="app.py",
+            sink_line=42,
+            sink_source="exec(cmd)",
+            source_names=["stdin"],
+            taint_category="",
             confidence="high",
         )
         state.phase_states["reverse_sink_result"] = ReverseSinkResult(
-            total_sinks_checked=5, discoveries=[disc],
+            total_sinks_checked=5,
+            discoveries=[disc],
         )
 
         await orch._phase_hypothesis_gen(state)
@@ -345,20 +425,40 @@ class TestPhaseHypothesisGenSeedFeedback:
         from hyqagent.scanner.orchestrator import Orchestrator, PhaseName, PipelineState
 
         gen = MagicMock()
-        gen.generate = AsyncMock(return_value=[
-            Hypothesis(id="h-1", vuln_type="xss", severity="medium",
-                       title="XSS", description="d",
-                       confidence=0.7, cwe_id="CWE-79",
-                       source_location="a.py:1", sink_location="a.py:2",
-                       evidence="<script>", reasoning="user input in HTML"),
-        ])
-        gen.generate_from_seeds = AsyncMock(return_value=[
-            Hypothesis(id="h-2", vuln_type="sql_injection", severity="high",
-                       title="SQLi from seed", description="d",
-                       confidence=0.85, cwe_id="CWE-89",
-                       source_location="a.py:10", sink_location="a.py:11",
-                       evidence="' OR 1=1", reasoning="parameterised"),
-        ])
+        gen.generate = AsyncMock(
+            return_value=[
+                Hypothesis(
+                    id="h-1",
+                    vuln_type="xss",
+                    severity="medium",
+                    title="XSS",
+                    description="d",
+                    confidence=0.7,
+                    cwe_id="CWE-79",
+                    source_location="a.py:1",
+                    sink_location="a.py:2",
+                    evidence="<script>",
+                    reasoning="user input in HTML",
+                ),
+            ]
+        )
+        gen.generate_from_seeds = AsyncMock(
+            return_value=[
+                Hypothesis(
+                    id="h-2",
+                    vuln_type="sql_injection",
+                    severity="high",
+                    title="SQLi from seed",
+                    description="d",
+                    confidence=0.85,
+                    cwe_id="CWE-89",
+                    source_location="a.py:10",
+                    sink_location="a.py:11",
+                    evidence="' OR 1=1",
+                    reasoning="parameterised",
+                ),
+            ]
+        )
 
         orch = Orchestrator(hypothesis_generator=gen)
         state = PipelineState(
@@ -400,8 +500,7 @@ class TestPhaseHypothesisGenSeedFeedback:
 
         gen = MagicMock()
         gen.generate = AsyncMock(return_value=[])
-        gen.generate_from_seeds = AsyncMock(
-            side_effect=RuntimeError("LLM down"))
+        gen.generate_from_seeds = AsyncMock(side_effect=RuntimeError("LLM down"))
 
         orch = Orchestrator(hypothesis_generator=gen)
         state = PipelineState(

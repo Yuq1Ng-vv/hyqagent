@@ -10,12 +10,11 @@ from hyqagent.scanner.saturation import (
     SaturationResult,
     SaturationScanner,
     SeedPoint,
-    _find_callers,
     _find_callees,
+    _find_callers,
     _resolve_function_at,
     confirmed_from_state,
 )
-
 
 # ── SeedPoint ────────────────────────────────────────────────────────────────
 
@@ -158,6 +157,7 @@ class TestGraphTraversal:
 
 
 # ── SaturationScanner ────────────────────────────────────────────────────────
+
 
 def _mock_cpg_query(graph: nx.MultiDiGraph) -> MagicMock:
     q = MagicMock()
@@ -431,9 +431,7 @@ class TestPhaseSaturationScan:
             session_id="test-sat-ok",
             current_phase=PhaseName.SATURATION_SCAN,
         )
-        state.phase_states["hypotheses"] = [
-            _mock_hypothesis(id="h1", sink_location="db.py:45")
-        ]
+        state.phase_states["hypotheses"] = [_mock_hypothesis(id="h1", sink_location="db.py:45")]
         state.phase_states["validations"] = [
             _mock_validation(hypothesis_id="h1", verdict="confirmed")
         ]
@@ -458,9 +456,7 @@ class TestPhaseSaturationScan:
             session_id="test-sat-ec",
             current_phase=PhaseName.SATURATION_SCAN,
         )
-        state.phase_states["hypotheses"] = [
-            _mock_hypothesis(id="h1", sink_location="db.py:45")
-        ]
+        state.phase_states["hypotheses"] = [_mock_hypothesis(id="h1", sink_location="db.py:45")]
         state.phase_states["validations"] = [
             _mock_validation(hypothesis_id="h1", verdict="confirmed")
         ]

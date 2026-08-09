@@ -277,9 +277,7 @@ class CompletenessCritic:
                 missed_vuln_classes=result.get("missed_vuln_classes", []),
                 skipped_code_paths=result.get("skipped_code_paths", []),
                 questionable_assumptions=result.get("questionable_assumptions", []),
-                framework_specific_blind_spots=result.get(
-                    "framework_specific_blind_spots", []
-                ),
+                framework_specific_blind_spots=result.get("framework_specific_blind_spots", []),
                 recommendations=result.get("recommendations", []),
                 raw_response=str(result),
             )

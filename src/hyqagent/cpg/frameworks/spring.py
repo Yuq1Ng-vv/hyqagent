@@ -30,6 +30,7 @@ _SPRING_METHOD_ANNOTATIONS = {
     "RequestMapping": "GET",  # default, may be overridden by method= attribute
 }
 
+
 def _merge_routes(prefix: str, route: str) -> str:
     """Merge a class-level prefix with a method-level route (BUG 11).
 
@@ -320,22 +321,14 @@ class SpringExtractor(BaseFrameworkExtractor):
                                 if sub.type == "annotation":
                                     ann_text = self._source(sub)
                                     if _SPRING_CLOUD_FEIGN in ann_text:
-                                        feign_name = (
-                                            self._extract_element_value(sub, "name")
-                                            or ""
-                                        )
-                                        feign_url = (
-                                            self._extract_element_value(sub, "url")
-                                            or ""
-                                        )
+                                        feign_name = self._extract_element_value(sub, "name") or ""
+                                        feign_url = self._extract_element_value(sub, "url") or ""
                                         break
                             return (feign_name, feign_url)
                 break
         return None
 
-    def _find_actuator_endpoint(
-        self, method_node: Node
-    ) -> tuple[str, str] | None:
+    def _find_actuator_endpoint(self, method_node: Node) -> tuple[str, str] | None:
         """Return ``(endpoint_id, operation)`` for Actuator endpoints, or ``None``.
 
         Spring Boot Actuator ``@Endpoint`` / ``@WebEndpoint`` classes expose
@@ -351,8 +344,7 @@ class SpringExtractor(BaseFrameworkExtractor):
                     if child.type == "modifiers":
                         modifiers_text = self._source(child)
                         is_actuator = any(
-                            ann in modifiers_text
-                            for ann in _SPRING_ACTUATOR_ENDPOINT_ANNOTATIONS
+                            ann in modifiers_text for ann in _SPRING_ACTUATOR_ENDPOINT_ANNOTATIONS
                         )
                         if is_actuator:
                             # Extract endpoint id
@@ -445,7 +437,9 @@ class SpringExtractor(BaseFrameworkExtractor):
 
     # ── Parameter extraction ────────────────────────────────────────────
 
-    def _extract_method_params(self, method_node: Node, provider: LanguageProvider) -> list[RouteParam]:
+    def _extract_method_params(
+        self, method_node: Node, provider: LanguageProvider
+    ) -> list[RouteParam]:
         """Extract parameters with Spring annotations."""
         params: list[RouteParam] = []
         params_node = method_node.child_by_field_name("parameters")

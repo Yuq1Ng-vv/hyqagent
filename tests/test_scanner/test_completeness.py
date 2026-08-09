@@ -81,8 +81,12 @@ class TestBuildCriticPrompt:
     def test_prompt_includes_hypotheses(self) -> None:
         prompt = build_critic_prompt(
             hypotheses=[
-                {"severity": "high", "vuln_type": "sql_injection",
-                 "confidence": 0.9, "title": "SQLi in login"},
+                {
+                    "severity": "high",
+                    "vuln_type": "sql_injection",
+                    "confidence": 0.9,
+                    "title": "SQLi in login",
+                },
             ],
         )
         assert "SQLi in login" in prompt

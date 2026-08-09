@@ -17,6 +17,7 @@ class AuditMode(StrEnum):
     PRECISION = "precision"  # Default: reduce false positives (current behavior)
     RECALL = "recall"  # Reduce false negatives (LLM gets full code access + tools)
 
+
 # Fields that MUST be present for a valid initial state (BUG 25)
 _REQUIRED_FIELDS = ("session_id", "target_path", "language", "mode")
 

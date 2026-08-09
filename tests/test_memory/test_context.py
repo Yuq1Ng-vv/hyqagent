@@ -82,10 +82,12 @@ class TestContextManager:
     def test_working_sliding_window_eviction(self) -> None:
         ctx = ContextManager(budget=ZoneBudget(working=50))  # tiny budget
         for i in range(10):
-            ctx.add_to_working(TurnRecord(
-                role="user",
-                content=f"Turn {i} with enough content to fill budget " + "x" * 30,
-            ))
+            ctx.add_to_working(
+                TurnRecord(
+                    role="user",
+                    content=f"Turn {i} with enough content to fill budget " + "x" * 30,
+                )
+            )
         # Should have evicted some turns
         assert ctx.turn_count == 10
         assert len(ctx._working) < 10
@@ -136,9 +138,7 @@ class TestContextManager:
         # First message should have cache_control
         content0 = msgs[0]["content"]
         assert isinstance(content0, list)
-        has_cache = any(
-            isinstance(b, dict) and "cache_control" in b for b in content0
-        )
+        has_cache = any(isinstance(b, dict) and "cache_control" in b for b in content0)
         assert has_cache
 
     def test_build_simple_messages(self) -> None:

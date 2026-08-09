@@ -1,16 +1,14 @@
 # HyqAgent 代码审计智能体 -- 架构白皮书
 
 > **文档定位**: 项目白皮书，面向新加入开发者、技术决策者、潜在用户。
-> **编制日期**: 2026年8月2日 · **最后更新**: 2026年8月5日
+> **编制日期**: 2026年8月2日 · **最后更新**: 2026年8月9日
 > **上游文档**: 本白皮书整合了9份深度研究/设计文档的核心结论，重在串联与概括。
 
 ---
 
-> ⚠️ **重要：本文档描述的是 HyqAgent 的完整设计愿景。当前仅 Phase 1（CPG Engine）已实现。**
+> ⚠️ **重要：本文档描述 HyqAgent 的完整设计愿景。Phase 1-4 已全部实现，Phase 5 (Quality & Release) 进行中。**
 >
-> **已实现（Phase 1）**：CPG 代码属性图引擎——多语言解析、调用图、数据流分析、CPG 图构建与查询、框架提取器、污点规则、CPG pickle 缓存。**372 tests，零 bug，26 个已知问题全部修复**。ureport2 (469 Java 文件) 端到端验证：76K 节点/240K 边 CPG 图，XXE 跨文件 sink 检测确认，缓存 0.3s 加载。详见 `progress.md`。
->
-> **设计中（Phase 2-5）**：五阶段扫描流水线、LLM 集成、SQLite 信念系统、三区段上下文、ESAA 审计链、CLI、报告生成——这些模块的架构设计已完成，代码尚未实现（仅 `__init__.py` 骨架）。
+> **已实现**：CPG Engine (多语言解析/调用图/数据流/污点传播/框架提取)、Deterministic Scanner (五阶段扫描/覆盖追踪)、LLM Integration (假设生成/验证/双模式策略/Nudge)、Long-Running Agent (收敛循环/饱和扫描/可观测性/审计链)。**84 模块，~23,000 行源码，2,267 tests，0 failures**。详见 `progress.md`。
 >
 > 本文档第 1-7 章描述完整愿景；第 8 章标注了各模块的实际实现状态。
 
@@ -177,11 +175,16 @@ graph TB
 | 模块 | 职责 | 核心组件 | 状态 |
 |:-----|:-----|:--------|:----|
 | **CPG Engine** ✅ 完成 | 代码属性图构建与查询 | ✅ tree-sitter多语言解析（Parser）、AST遍历器（Traverser）、LanguageProvider策略模式（`languages/`包）、单文件调用图（SingleFileCallGraph）、跨文件调用图（CallGraphBuilder + 同名函数消歧 + Java限定名索引）、数据流分析（DataFlowBuilder + 跨函数 taint 追踪）、CPG图构建与查询（CPGGraphBuilder + CPGQuery + pickle 缓存 0.3s 加载）、污点规则（taint_rules.yaml + 结构校验）、框架提取器（Flask/Django/FastAPI/Express/Spring，含 BUG 10-13 增强）<br>✅ ureport2 469 Java 文件端到端验证（76K 节点/240K 边/XXE sink 检测确认） | ✅ 完成 |
-| **Scan Engine** | 五阶段流水线执行 | Phase1确定性→Phase2攻击面映射→Phase3假设生成→Phase4验证→Phase5报告 | 📋 设计阶段 |
-| **Model Router** | 三级模型按任务类型路由 | cheap/mid/strong分级，预算自动降级，成本追踪 | 📋 设计阶段 |
-| **Session Manager** | 信念系统与假设生命周期 | SQLite持久化，贝叶斯置信度更新，状态机（proposed→confirmed/rejected） | 📋 设计阶段 |
-| **Context Manager** | 三区段上下文+向量检索 | Prompt Caching、上下文结晶协议、Qdrant语义检索 | 📋 设计阶段 |
-| **Orchestrator** | 工作流编排+事件溯源 | ESAA六条审计不变量，工作流引擎，检查点与恢复 | 📋 设计阶段 |
+| **Scan Engine** | 五阶段流水线执行 | Phase1确定性→Phase2攻击面映射→Phase3假设生成→Phase4验证→Phase5报告 | ✅ 完成 |
+| **Model Router** | 三级模型按任务类型路由 | cheap/mid/strong分级，预算自动降级，成本追踪 | ✅ 完成 |
+| **Session Manager** | 信念系统与假设生命周期 | SQLite持久化，贝叶斯置信度更新，状态机（proposed→confirmed/rejected） | ✅ 完成 |
+| **Context Manager** | 三区段上下文+向量检索 | Prompt Caching、上下文结晶协议、混合代码检索（ripgrep+tree-sitter） | ✅ 完成 |
+| **Orchestrator** | 工作流编排+事件溯源 | ESAA六条审计不变量，收敛循环编排，检查点与恢复 | ✅ 完成 |
+| **API & Report** | CLI 入口 + 报告生成 | click CLI（scan/scan --deep/resume/sessions）+ JSON/Markdown 报告 | ✅ 完成 |
+| **Observability** | 可观测性体系 | structlog + Prometheus 指标 + SHA-256 审计链 + span tracing | ✅ 完成 |
+| **Java 深化** | 注解提取 + 框架扩展 | JAX-RS/Jakarta REST + Spring 深化 + Java 配置扫描（pom.xml/web.xml） | ✅ 完成 |
+| **Nudge 系统** | LLM 鲁棒性增强 | 3 种 Nudge + 3 内置 StopHook（借鉴 AutoCVE） | ✅ 完成 |
+| **Golden Eval** | 评估体系 | 28 labeled cases + DeepEval 4 指标 + L1-L5 回归测试 | ✅ 完成 |
 
 > 图例：✅ 已实现　📋 设计/计划阶段　🔄 部分实现
 
@@ -472,51 +475,48 @@ hyqagent report <session-id> --format sarif
 
 ## 8. 当前进度与后续规划
 
-### 8.1 当前进度（2026-08-05）
+### 8.1 当前进度（2026-08-09）
 
-**CPG Engine — ✅ 完成**（Session 1.1-1.16，23 个模块，~5,700 行，372 tests）
+**全部模块 — ✅ 完成**（Phase 1-4 全部完成，Phase 5 进行中）
 
-| 组件 | 说明 | 语言支持 |
-|------|------|---------|
-| Parser + Traverser | tree-sitter 多语言解析 + AST 遍历 | Python/JS/Java |
-| LanguageProvider | 策略模式可扩展架构 | Python/JS/Java |
-| SingleFileCallGraph | 单文件调用图 + Java 限定名消歧 | Python/JS/Java |
-| CallGraphBuilder | 跨文件调用图 + 导入解析 + 同名函数消歧 | Python/JS/Java |
-| DataFlowBuilder | def-use + 跨函数 taint 追踪 + BFS 污点传播 | Python/JS/Java |
-| CPGGraphBuilder | NetworkX MultiDiGraph 统一索引 + pickle 缓存 | Python/JS/Java |
-| CPGQuery | 图查询接口（find_path/sources/sinks 等） | Python/JS/Java |
-| taint_rules.yaml | 10 种漏洞类别 × 3 语言 source/sink/sanitizer | Python/JS/Java |
-| Framework Extractors | Flask/Django/FastAPI/Express/Spring (5 种) | Python/JS/Java |
-| TaintRuleLoader | YAML → 结构化规则加载 + 校验 | Python/JS/Java |
-
-✅ ureport2 端到端验证: 469 Java 文件, 76K 节点/240K 边, 缓存 0.3s 加载, XXE sink 检测确认
-
-**Core Runtime — 基础完成**
-
-| 组件 | 说明 |
+| 维度 | 数据 |
 |------|------|
-| protocols.py | 6 个核心抽象协议 |
-| state.py | AgentState + AuditState |
-| events.py | 12 种 ESAA 事件类型 |
+| 测试 | **2,267** tests, 0 failures |
+| 源码模块 | **84** 个 |
+| 源码行数 | **~23,000** 行 |
+| 支持语言 | **3** 种 (Python/JavaScript/Java) |
+| 支持框架 | **6** 种 (Flask/Django/FastAPI/Express/Spring/JAX-RS) |
+| CPG 边类型 | **4** 种 (AST/CALLS/DATA_FLOW/CTRL_FLOW) |
+| Taint 规则 | **3** 语言 × 10 类别 |
+| CPG 图规模 | ureport2: 76K 节点 / 240K 边 / 缓存 0.3s |
+| 模型提供商 | **2** (Anthropic + DeepSeek) |
+| 收敛指标 | **5** 维 (VDR/EC/RWC/VCC/C_hat) |
+| Golden Dataset | **28** labeled cases, 4-level regression (L1-L5) |
 
-**其余模块 — 待实现**
+**Phase 1: CPG Engine** ✅
+Parser / Traverser / LanguageProvider / SingleFileCallGraph / CallGraphBuilder / DataFlowBuilder / CPGGraphBuilder / CPGQuery / taint_rules.yaml / Framework Extractors (6) / TaintRuleLoader / JavaConfigScanner / pickle 缓存
 
-Scanner / Model Router / Session Manager / Context Manager / CLI / Report 均为空壳（`__init__.py`）。
+**Phase 2: Deterministic Scanner** ✅
+五阶段扫描 / PathAnnotator (10 labels) / SinkDiscoverer / CoverageTracker (~179 blind spots) / CoverageMetrics
 
-### 8.2 后续 Session 规划
+**Phase 3: LLM Integration** ✅
+Anthropic Provider (DeepSeek + Claude) / 三级路由 (CHEAP/MID/STRONG) / HypothesisGenerator / Validator (L1+L2) / CostTracker / Nudge 系统 (3 types + 3 StopHooks) / AttackSurfaceMapper / SessionManager + BeliefSystem + CheckpointManager / ReportGenerator
 
-Phase 1 全部完成（Sessions 1.1-1.16），每个模块一次性做到最终版，支持 Python/JS/Java 三种语言，不分 MVP→扩展两阶段：
+**Phase 4: Long-Running Agent** ✅
+三区段上下文 / 上下文结晶 / 混合代码检索 / Orchestrator 收敛循环 / AdversarialReviewer / SaturationScanner / ReverseSink / BlindScan / ObservabilityManager + Prometheus + AuditTrail / 双模式策略 (precision vs recall) / AgentLoop ReAct / ToolRegistry
 
-| Session | 模块 | 核心产出 |
-|---------|------|---------|
-| ~~1.8~~ ✅ | ~~框架提取器~~ | Flask/Django/FastAPI/Express/Spring 已完成 |
-| ~~1.9~~ ✅ | ~~端到端 CPG 测试~~ | CWE-89/78/79/639 全链路通过 |
-| ~~1.10-1.16~~ ✅ | ~~Bug 清零 + 优化~~ | 26 bugs fixed, CPG 缓存, ureport2 验证 |
-| 2.x | Scanner | 五阶段扫描流水线（确定性→攻击面映射→假设生成→验证→报告） |
-| 3.x | Models | 三级模型路由 + 预算管理 + Provider 适配器 |
-| 4.x | Session + Memory | SQLite 信念系统 + 三区段上下文 + 检查点 |
-| 5.x | CLI + Report | 命令行入口 + JSON/Markdown/SARIF 报告 |
-| 6.x | Observability | OTel + LangFuse + Prometheus + 审计链 |
+### 8.2 已完成 Session 概览
+
+Phase 1-4 全部完成（Sessions 1.1-1.32），Phase 5 进行中（Sessions 1.33-1.35 完成）。
+
+| Phase | Sessions | 核心产出 |
+|-------|----------|---------|
+| 1: CPG | 1.1-1.20 | CPG Engine 全线完成，ureport2 验证，26 bugs fixed |
+| 2: Scanner | 1.14-1.17 | 确定性五阶段扫描 + 覆盖追踪 |
+| 3: LLM | 1.18-1.22 | 假设生成/验证/成本追踪/Nudge/会话管理/报告 |
+| 4: Long-Run | 1.23-1.32 | 收敛循环/对抗审查/饱和扫描/双模式/可观测性 |
+| Java 深化 | 1.30 | JAX-RS/Spring 深化/Java 配置扫描 |
+| 5: Quality | 1.33-1.35 | Golden Dataset/Scanner Eval/DeepEval — CI/CD+文档 进行中 |
 
 ### 8.3 长期演进
 

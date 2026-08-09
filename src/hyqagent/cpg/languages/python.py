@@ -442,23 +442,18 @@ class PythonAdapter(LanguageProvider):
 
     @property
     def statement_types(self) -> set[str]:
-        return (
-            self.control_flow_node_types
-            | {
-                "expression_statement",
-                "assert_statement",
-                "pass_statement",
-                "import_statement",
-                "import_from_statement",
-                "function_definition",
-                "class_definition",
-                "decorated_definition",
-            }
-        )
+        return self.control_flow_node_types | {
+            "expression_statement",
+            "assert_statement",
+            "pass_statement",
+            "import_statement",
+            "import_from_statement",
+            "function_definition",
+            "class_definition",
+            "decorated_definition",
+        }
 
-    def get_branch_targets(
-        self, node: Node
-    ) -> dict[str, Node | list[Node] | None]:
+    def get_branch_targets(self, node: Node) -> dict[str, Node | list[Node] | None]:
         ntype = node.type
         result: dict[str, Node | list[Node] | None] = {
             "consequence": None,
@@ -473,9 +468,7 @@ class PythonAdapter(LanguageProvider):
             result["alternative"] = node.child_by_field_name("alternative")
         elif ntype in ("for_statement", "while_statement"):
             result["body"] = node.child_by_field_name("body")
-            result["alternative"] = node.child_by_field_name(
-                "alternative"
-            )  # else clause
+            result["alternative"] = node.child_by_field_name("alternative")  # else clause
         elif ntype == "try_statement":
             result["body"] = node.child_by_field_name("body")
             # Collect except_clause children as handlers
@@ -485,8 +478,12 @@ class PythonAdapter(LanguageProvider):
                     handlers.append(child)
             result["handlers"] = handlers
             result["finalizer"] = node.child_by_field_name("finalizer")
-        elif ntype in ("return_statement", "break_statement",
-                       "continue_statement", "raise_statement"):
+        elif ntype in (
+            "return_statement",
+            "break_statement",
+            "continue_statement",
+            "raise_statement",
+        ):
             pass  # Unconditional jumps — no branch targets
 
         return result

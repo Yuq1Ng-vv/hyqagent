@@ -92,14 +92,10 @@ def builder(parser: Parser, multi_file_project: str) -> CallGraphBuilder:
 class TestFileIndexing:
     """Tests for add_file and add_directory."""
 
-    def test_add_directory_finds_python_files(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_add_directory_finds_python_files(self, builder: CallGraphBuilder) -> None:
         assert len(builder.files) >= 3  # main, models, utils at minimum
 
-    def test_all_files_are_python(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_all_files_are_python(self, builder: CallGraphBuilder) -> None:
         for fp in builder.files:
             assert fp.endswith(".py")
 
@@ -112,9 +108,7 @@ class TestFileIndexing:
         builder.add_file(main_py)
         assert len(builder.files) == before
 
-    def test_functions_indexed(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_functions_indexed(self, builder: CallGraphBuilder) -> None:
         func_map = builder.all_functions
         all_names = set()
         for names in func_map.values():
@@ -133,23 +127,17 @@ class TestFileIndexing:
 class TestFindDefinition:
     """Tests for find_definition."""
 
-    def test_find_known_function(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_find_known_function(self, builder: CallGraphBuilder) -> None:
         path = builder.find_definition("helper")
         assert path is not None
         assert "utils.py" in path
 
-    def test_find_class_method(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_find_class_method(self, builder: CallGraphBuilder) -> None:
         path = builder.find_definition("__init__")
         assert path is not None
         assert "models.py" in path
 
-    def test_find_nonexistent(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_find_nonexistent(self, builder: CallGraphBuilder) -> None:
         assert builder.find_definition("no_such_function") is None
 
 
@@ -166,14 +154,10 @@ class TestCrossFileCalls:
         return builder.build_calls()
 
     @pytest.fixture(scope="module")
-    def edge_map(
-        self, cross_edges: list[CallEdge]
-    ) -> dict[tuple[str, str], CallEdge]:
+    def edge_map(self, cross_edges: list[CallEdge]) -> dict[tuple[str, str], CallEdge]:
         return {(e.caller, e.callee): e for e in cross_edges}
 
-    def test_cross_file_helper_from_main(
-        self, edge_map: dict[tuple[str, str], CallEdge]
-    ) -> None:
+    def test_cross_file_helper_from_main(self, edge_map: dict[tuple[str, str], CallEdge]) -> None:
         assert ("run", "helper") in edge_map
         edge = edge_map[("run", "helper")]
         assert edge.is_resolved
@@ -184,41 +168,29 @@ class TestCrossFileCalls:
     ) -> None:
         assert ("run", "create_user") in edge_map
 
-    def test_cross_file_helper_from_subpkg(
-        self, edge_map: dict[tuple[str, str], CallEdge]
-    ) -> None:
+    def test_cross_file_helper_from_subpkg(self, edge_map: dict[tuple[str, str], CallEdge]) -> None:
         """Relative import (..utils) in subpkg/module.py."""
         assert ("process", "helper") in edge_map
 
-    def test_cross_file_other_from_subpkg(
-        self, edge_map: dict[tuple[str, str], CallEdge]
-    ) -> None:
+    def test_cross_file_other_from_subpkg(self, edge_map: dict[tuple[str, str], CallEdge]) -> None:
         assert ("process", "other") in edge_map
 
-    def test_intra_file_not_in_cross(
-        self, cross_edges: list[CallEdge]
-    ) -> None:
+    def test_intra_file_not_in_cross(self, cross_edges: list[CallEdge]) -> None:
         """local() → run() is intra-file — should NOT be in cross edges."""
         for e in cross_edges:
             assert not (e.caller == "local" and e.callee == "run")
 
-    def test_self_call_not_in_cross(
-        self, cross_edges: list[CallEdge]
-    ) -> None:
+    def test_self_call_not_in_cross(self, cross_edges: list[CallEdge]) -> None:
         """other() → helper() is intra-file (both in utils.py)."""
         for e in cross_edges:
             assert not (e.caller == "other" and e.callee == "helper")
 
-    def test_builtin_not_in_cross(
-        self, cross_edges: list[CallEdge]
-    ) -> None:
+    def test_builtin_not_in_cross(self, cross_edges: list[CallEdge]) -> None:
         """print() should never be resolved cross-file."""
         for e in cross_edges:
             assert e.callee != "print"
 
-    def test_all_cross_edges_resolved(
-        self, cross_edges: list[CallEdge]
-    ) -> None:
+    def test_all_cross_edges_resolved(self, cross_edges: list[CallEdge]) -> None:
         assert all(e.is_resolved for e in cross_edges)
 
 
@@ -230,25 +202,19 @@ class TestCrossFileCalls:
 class TestImportResolution:
     """Tests for resolve_imports."""
 
-    def test_relative_import_resolved(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_relative_import_resolved(self, builder: CallGraphBuilder) -> None:
         resolved = builder.resolve_imports()
         # ..utils → utils.py (from subpkg/module.py)
         assert "..utils" in resolved or any(
             v and "utils.py" in v for k, v in resolved.items() if "utils" in k
         )
 
-    def test_absolute_import_resolved(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_absolute_import_resolved(self, builder: CallGraphBuilder) -> None:
         resolved = builder.resolve_imports()
         # utils → utils.py (from main.py)
         assert "utils" in resolved
 
-    def test_bare_name_resolved(
-        self, builder: CallGraphBuilder
-    ) -> None:
+    def test_bare_name_resolved(self, builder: CallGraphBuilder) -> None:
         resolved = builder.resolve_imports()
         # helper → utils.py
         assert resolved.get("helper", "").endswith("utils.py")

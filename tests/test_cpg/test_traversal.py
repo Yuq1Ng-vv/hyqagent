@@ -130,9 +130,7 @@ class TestTraverseTypeFilter:
             assert n.type == "function_definition"
 
     def test_multiple_types(self, py_traverser: Traverser) -> None:
-        nodes = list(
-            py_traverser.traverse({"function_definition", "class_definition"})
-        )
+        nodes = list(py_traverser.traverse({"function_definition", "class_definition"}))
         types = {n.type for n in nodes}
         assert types <= {"function_definition", "class_definition"}
         # 5 functions + 2 classes = 7 in sample.py
@@ -175,9 +173,7 @@ class TestTraverseNamedOnly:
 
     def test_named_only_with_type_filter(self, py_traverser: Traverser) -> None:
         # function_definition is always a named node
-        nodes = list(
-            py_traverser.traverse({"function_definition"}, named_only=True)
-        )
+        nodes = list(py_traverser.traverse({"function_definition"}, named_only=True))
         assert len(nodes) == 5
         for n in nodes:
             assert n.type == "function_definition"
@@ -195,9 +191,7 @@ class TestTraversePostOrder:
         for node in nodes:
             for child in node.named_children:
                 if child.id in position:
-                    assert (
-                        position[child.id] < position[node.id]
-                    ), (
+                    assert position[child.id] < position[node.id], (
                         f"In post-order, child {child.type!r} should appear "
                         f"before parent {node.type!r}"
                     )
@@ -214,9 +208,7 @@ class TestTraversePostOrder:
         assert pre != post
 
     def test_post_order_with_type_filter(self, py_traverser: Traverser) -> None:
-        nodes = list(
-            py_traverser.traverse({"return_statement"}, order=Order.POST)
-        )
+        nodes = list(py_traverser.traverse({"return_statement"}, order=Order.POST))
         for n in nodes:
             assert n.type == "return_statement"
 
@@ -534,9 +526,7 @@ class TestConsistency:
     def test_find_all_equals_filtered_traverse(self, py_traverser: Traverser) -> None:
         for node_type in ("function_definition", "class_definition", "string"):
             via_find = [n.id for n in py_traverser.find_all(node_type)]
-            via_traverse = [
-                n.id for n in py_traverser.traverse({node_type})
-            ]
+            via_traverse = [n.id for n in py_traverser.traverse({node_type})]
             assert via_find == via_traverse
 
 

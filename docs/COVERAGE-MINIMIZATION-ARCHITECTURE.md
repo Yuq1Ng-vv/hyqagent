@@ -76,6 +76,7 @@
 ```python
 from enum import Enum
 
+
 class PathLabel(str, Enum):
     """代码路径标签 — 定义下游处理策略"""
 
@@ -160,11 +161,10 @@ class PathAnnotator:
     def __init__(
         self,
         cpg_query: CPGQuery,
-        taint_config: TaintConfig,       # taint_rules.yaml
-        heuristic_config: HeuristicConfig, # 启发式评分规则
+        taint_config: TaintConfig,  # taint_rules.yaml
+        heuristic_config: HeuristicConfig,  # 启发式评分规则
         framework_extractors: list[BaseFrameworkExtractor],
-    ):
-        ...
+    ): ...
 
     async def annotate_all_paths(self) -> AnnotatedPathGraph:
         """核心方法: 遍历所有路径, 返回带标签的路径图。
@@ -350,8 +350,7 @@ class PathAnnotator:
 class BlindScanChannel:
     """独立盲扫 LLM 通道 — 不依赖通道1 输出。"""
 
-    def __init__(self, llm_provider: LlmProvider, cpg_query: CPGQuery):
-        ...
+    def __init__(self, llm_provider: LlmProvider, cpg_query: CPGQuery): ...
 
     async def scan_endpoint(self, endpoint: AnnotatedEndpoint) -> list[BlindHypothesis]:
         """对一个端点做独立的探索性安全审查。
@@ -426,8 +425,7 @@ class BlindScanChannel:
 class ReverseSinkChannel:
     """反向 Sink 分析通道 — 从调用点反向找源头。"""
 
-    def __init__(self, cpg_query: CPGQuery, heuristic_config: HeuristicConfig):
-        ...
+    def __init__(self, cpg_query: CPGQuery, heuristic_config: HeuristicConfig): ...
 
     async def analyze_all_calls(self) -> list[HeuristicCandidate]:
         """遍历 CPG 中所有函数调用, 对每个调用:
@@ -501,8 +499,7 @@ class ReverseSinkChannel:
 class ArchitectureDeviationChannel:
     """架构偏离检测通道。"""
 
-    def __init__(self, llm_provider: LlmProvider, cpg_query: CPGQuery):
-        ...
+    def __init__(self, llm_provider: LlmProvider, cpg_query: CPGQuery): ...
 
     async def build_security_model(self) -> SecurityArchitectureModel:
         """用便宜 LLM 构建预期安全架构模型。
@@ -533,8 +530,7 @@ class ArchitectureDeviationChannel:
         """
         ...
 
-    async def analyze(self) -> ArchitectureResult:
-        ...
+    async def analyze(self) -> ArchitectureResult: ...
 ```
 
 **产出**:
@@ -560,8 +556,7 @@ class ArchitectureDeviationChannel:
 class DifferentialCoverageChannel:
     """差异覆盖分析通道 — 零 LLM 成本。"""
 
-    def __init__(self, cpg_query: CPGQuery):
-        ...
+    def __init__(self, cpg_query: CPGQuery): ...
 
     async def compute_coverage(
         self,
@@ -621,16 +616,15 @@ class DifferentialCoverageChannel:
 class MergeEngine:
     """多通道假设合并、去重、优先级排序。"""
 
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def merge(
         self,
-        channel1_paths: AnnotatedPathGraph,           # 通道1: 带标签路径
-        channel2_hypotheses: list[BlindHypothesis],   # 通道2: 盲扫假设
-        channel3_candidates: list[HeuristicCandidate], # 通道3: 启发式候选
-        channel4_deviations: list[ArchitectureDeviation], # 通道4: 架构偏离
-        channel5_blind_spots: BlindSpotManifest,      # 通道5: 盲区清单
+        channel1_paths: AnnotatedPathGraph,  # 通道1: 带标签路径
+        channel2_hypotheses: list[BlindHypothesis],  # 通道2: 盲扫假设
+        channel3_candidates: list[HeuristicCandidate],  # 通道3: 启发式候选
+        channel4_deviations: list[ArchitectureDeviation],  # 通道4: 架构偏离
+        channel5_blind_spots: BlindSpotManifest,  # 通道5: 盲区清单
     ) -> MergeResult:
         """合并五个通道的产出。
 
@@ -646,9 +640,7 @@ class MergeEngine:
         """
         ...
 
-    def _compute_priority_score(
-        self, hypothesis: MergedHypothesis
-    ) -> float:
+    def _compute_priority_score(self, hypothesis: MergedHypothesis) -> float:
         """综合优先级评分。
 
         priority_score = (
@@ -664,9 +656,7 @@ class MergeEngine:
         """
         ...
 
-    def _deduplicate(
-        self, hypotheses: list[Any]
-    ) -> list[MergedHypothesis]:
+    def _deduplicate(self, hypotheses: list[Any]) -> list[MergedHypothesis]:
         """去重逻辑:
 
         两个假设视为相同当:
@@ -698,12 +688,9 @@ class SaturationScanner:
     成本自然递减 (每轮候选减少), 循环自然收敛。
     """
 
-    def __init__(self, orchestrator: "CoverageAwareOrchestrator", max_rounds: int = 4):
-        ...
+    def __init__(self, orchestrator: "CoverageAwareOrchestrator", max_rounds: int = 4): ...
 
-    async def run(
-        self, initial_findings: list[ConfirmedFinding]
-    ) -> SaturationResult:
+    async def run(self, initial_findings: list[ConfirmedFinding]) -> SaturationResult:
         round_num = 0
         all_findings = list(initial_findings)
         new_seeds = self._extract_seeds(initial_findings)
@@ -723,9 +710,7 @@ class SaturationScanner:
             new_per_round=[...],
         )
 
-    def _extract_seeds(
-        self, findings: list[ConfirmedFinding]
-    ) -> set[SeedPoint]:
+    def _extract_seeds(self, findings: list[ConfirmedFinding]) -> set[SeedPoint]:
         """从已确认漏洞提取新分析目标:
         - 漏洞 sink 函数的所有被调用者
         - 漏洞 source 函数的所有调用者
@@ -866,9 +851,8 @@ def rebalance_budget(budget: CoverageBudget, phase_results: dict) -> CoverageBud
       从 Phase 3 转移 10% 预算到饱和扫描 (探索盲区)
     """
 
-    total_high_value = (
-        phase_results.get("confirmed_taint_count", 0)
-        + phase_results.get("heuristic_sink_count", 0)
+    total_high_value = phase_results.get("confirmed_taint_count", 0) + phase_results.get(
+        "heuristic_sink_count", 0
     )
 
     blind_spot_ratio = phase_results.get("uncovered_ratio", 0)
@@ -882,7 +866,9 @@ def rebalance_budget(budget: CoverageBudget, phase_results: dict) -> CoverageBud
     # 情景2: 盲区比例高 → 增加盲扫和饱和扫描预算
     if blind_spot_ratio > 0.3:
         transfer = budget.allocation.get("phase3_hypothesis", 0) * 0.1
-        budget.allocation["saturation_scan"] = budget.allocation.get("saturation_scan", 0) + transfer
+        budget.allocation["saturation_scan"] = (
+            budget.allocation.get("saturation_scan", 0) + transfer
+        )
         budget.allocation["phase3_hypothesis"] -= transfer
 
     return budget
@@ -999,7 +985,7 @@ class BlindSpot:
 
     location: CodeLocation
     category: str  # "uncovered_endpoint" | "unreachable_sink" | "uncovered_db_call" | ...
-    reason: str    # 为什么这个区域未被覆盖
+    reason: str  # 为什么这个区域未被覆盖
     estimated_risk: str  # "high" | "medium" | "low" | "unknown"
     risk_rationale: str  # 风险评估理由
     suggested_action: str  # 建议的下一步
@@ -1050,8 +1036,7 @@ class BlindSpotManifest:
 class CompletenessCritic:
     """完整性审查员 — 在所有分析完成后运行的元分析。"""
 
-    def __init__(self, llm_provider: LlmProvider):
-        ...
+    def __init__(self, llm_provider: LlmProvider): ...
 
     async def review(self, context: CompletenessContext) -> CriticReport:
         """用强模型系统性地审查覆盖完整性。
@@ -1086,9 +1071,7 @@ class CompletenessCritic:
         """
         ...
 
-    async def suggest_next_steps(
-        self, critic_report: CriticReport
-    ) -> list[CandidateSeed]:
+    async def suggest_next_steps(self, critic_report: CriticReport) -> list[CandidateSeed]:
         """将完整性审查的建议转化为具体的分析种子。
 
         例如:
@@ -1192,11 +1175,11 @@ class ScanPhase(str, Enum):
     CHANNELS_RUNNING = "channels_running"
     MERGING = "merging"
     ATTACK_SURFACE_MAPPING = "attack_surface_mapping"  # Phase 2
-    HYPOTHESIS_GENERATING = "hypothesis_generating"     # Phase 3
-    VALIDATING = "validating"                           # Phase 4
+    HYPOTHESIS_GENERATING = "hypothesis_generating"  # Phase 3
+    VALIDATING = "validating"  # Phase 4
     COMPLETENESS_REVIEW = "completeness_review"
-    SATURATING = "saturating"                           # 饱和扫描 (deep)
-    REPORTING = "reporting"                             # Phase 5
+    SATURATING = "saturating"  # 饱和扫描 (deep)
+    REPORTING = "reporting"  # Phase 5
     DONE = "done"
     ERROR = "error"
 
@@ -1224,8 +1207,7 @@ class CoverageAwareOrchestrator:
         completeness_critic: CompletenessCritic,
         saturation_scanner: SaturationScanner | None,
         report_gen: ReportGenerator,
-    ):
-        ...
+    ): ...
 
     async def run(self, target_path: str, mode: str) -> ScanResult:
         """主编排流程。"""
@@ -1252,8 +1234,10 @@ class CoverageAwareOrchestrator:
 ```python
 # ─── 路径标注协议 ───
 
+
 class PathLabel(str, Enum):
     """代码路径标签"""
+
     CONFIRMED_TAINT = "confirmed_taint"
     SANITIZED_TAINT = "sanitized_taint"
     HEURISTIC_SINK = "heuristic_sink"
@@ -1269,6 +1253,7 @@ class PathLabel(str, Enum):
 @dataclass
 class AnnotatedPath:
     """一条被标注的代码路径。"""
+
     id: str
     source: CodeLocation
     sink: CodeLocation
@@ -1283,6 +1268,7 @@ class AnnotatedPath:
 @dataclass
 class AnnotatedEndpoint:
     """一个被标注的 HTTP 端点。"""
+
     id: str
     route: str
     methods: list[str]
@@ -1296,6 +1282,7 @@ class AnnotatedEndpoint:
 @dataclass
 class AnnotatedPathGraph:
     """全量路径标注图。"""
+
     endpoints: list[AnnotatedEndpoint]
     all_paths: list[AnnotatedPath]
     all_sinks: list[CodeLocation]
@@ -1305,6 +1292,7 @@ class AnnotatedPathGraph:
 @dataclass
 class AnnotationStats:
     """标注统计。"""
+
     total_endpoints: int
     total_paths: int
     total_sinks: int
@@ -1316,20 +1304,18 @@ class PathAnnotatorProtocol(Protocol):
 
     async def annotate_all_paths(self) -> ToolResult[AnnotatedPathGraph]: ...
 
-    def get_paths_by_label(
-        self, label: PathLabel
-    ) -> list[AnnotatedPath]: ...
+    def get_paths_by_label(self, label: PathLabel) -> list[AnnotatedPath]: ...
 
-    async def heuristic_sink_score(
-        self, call_node: Any
-    ) -> tuple[float, str]: ...
+    async def heuristic_sink_score(self, call_node: Any) -> tuple[float, str]: ...
 
 
 # ─── 多通道协议 ───
 
+
 @dataclass
 class BlindHypothesis:
     """盲扫 LLM 产生的假设。"""
+
     id: str
     endpoint_id: str
     vuln_type: str
@@ -1344,6 +1330,7 @@ class BlindHypothesis:
 @dataclass
 class HeuristicCandidate:
     """反向 Sink 分析产生的候选。"""
+
     id: str
     sink_location: CodeLocation
     danger_score: float
@@ -1355,6 +1342,7 @@ class HeuristicCandidate:
 @dataclass
 class SecurityArchitectureModel:
     """安全架构模型。"""
+
     trust_boundaries: list[dict[str, Any]]
     auth_gates: list[dict[str, Any]]
     sensitivity_zones: list[dict[str, Any]]
@@ -1364,11 +1352,12 @@ class SecurityArchitectureModel:
 @dataclass
 class ArchitectureDeviation:
     """架构偏离。"""
+
     id: str
     deviation_type: str  # "missing_auth" | "boundary_violation" | "property_violation"
     location: CodeLocation
     expected: str  # 预期行为描述
-    actual: str    # 实际行为描述
+    actual: str  # 实际行为描述
     severity: FindingSeverity
     label: PathLabel  # TRUST_BOUNDARY_CROSSING or ARCHITECTURE_DEVIATION
 
@@ -1376,6 +1365,7 @@ class ArchitectureDeviation:
 @dataclass
 class BlindSpot:
     """盲区条目。"""
+
     location: CodeLocation
     category: str
     reason: str
@@ -1388,6 +1378,7 @@ class BlindSpot:
 @dataclass
 class BlindSpotManifest:
     """盲区清单。"""
+
     session_id: str
     metrics: "CoverageMetrics"
     blind_spots: list[BlindSpot]
@@ -1399,9 +1390,11 @@ class BlindSpotManifest:
 
 # ─── 覆盖度量协议 ───
 
+
 @dataclass
 class CoverageMetrics:
     """覆盖完整性度量。"""
+
     endpoint_coverage_ratio: float
     endpoint_risk_weighted_coverage: float
     sink_coverage_ratio: float
@@ -1416,9 +1409,11 @@ class CoverageMetrics:
 
 # ─── 合并协议 ───
 
+
 @dataclass
 class MergedHypothesis:
     """合并后的假设。"""
+
     id: str
     vuln_type: str
     severity: FindingSeverity
@@ -1435,6 +1430,7 @@ class MergedHypothesis:
 @dataclass
 class MergeResult:
     """合并结果。"""
+
     merged_hypotheses: list[MergedHypothesis]
     stats: dict[str, Any]
     blind_spot_manifest: BlindSpotManifest
@@ -1448,7 +1444,7 @@ class MergeResult:
 @dataclass
 class VulnerabilityHypothesis:
     # ... 原有字段保持不变 ...
-    path_label: PathLabel | None = None        # 新增: 路径标签
+    path_label: PathLabel | None = None  # 新增: 路径标签
     origin_channels: list[str] = field(default_factory=list)  # 新增: 来源通道
     channel_confidence_votes: dict[str, float] = field(default_factory=dict)  # 新增: 各通道置信度
 ```
@@ -1460,19 +1456,28 @@ class VulnerabilityHypothesis:
 ```python
 # 新增方法 (添加到 CpgAnalyzer 协议)
 async def get_all_http_endpoints(self) -> ToolResult[list[dict[str, Any]]]: ...
+
+
 """获取所有 HTTP 端点 (路由 + 方法 + handler + 参数 + 装饰器)"""
 
+
 async def get_all_function_calls(self) -> ToolResult[list[dict[str, Any]]]: ...
+
+
 """获取所有函数调用节点 (支持按模块/类型过滤)"""
+
 
 async def find_reachable_sources(
     self, call_node: dict[str, Any], max_depth: int = 10
 ) -> ToolResult[list[dict[str, Any]]]: ...
+
+
 """反向追踪: 从 call_node 出发找到所有可达的用户输入源"""
 
-async def get_call_chain_reverse(
-    self, func_name: str
-) -> ToolResult[list[dict[str, Any]]]: ...
+
+async def get_call_chain_reverse(self, func_name: str) -> ToolResult[list[dict[str, Any]]]: ...
+
+
 """反向调用链: 找到所有调用 func_name 的函数"""
 ```
 

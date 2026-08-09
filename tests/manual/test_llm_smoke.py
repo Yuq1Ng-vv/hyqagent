@@ -19,14 +19,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from hyqagent.api.config import HyqAgentConfig
 from hyqagent.models.providers.anthropic_provider import AnthropicProvider, ProviderConfig
 from hyqagent.models.router import ModelRouter, Task, TaskType
-from hyqagent.observability.cost_tracker import CostTracker, PRICING
+from hyqagent.observability.cost_tracker import PRICING, CostTracker
 from hyqagent.scanner.nudge import (
     NudgeConfig,
     NudgeLoop,
     stop_on_empty,
     stop_on_low_confidence,
 )
-
 
 # ── Mini schema for hypothesis generation ─────────────────────────────────────
 
@@ -95,7 +94,7 @@ Use the report_validation tool for output."""
 
 
 def sep(title: str) -> None:
-    print(f"\n{'='*60}\n  {title}\n{'='*60}")
+    print(f"\n{'=' * 60}\n  {title}\n{'=' * 60}")
 
 
 def ok(msg: str) -> None:
@@ -117,12 +116,16 @@ async def test_1_provider_connectivity(cfg: HyqAgentConfig) -> AnthropicProvider
     )
 
     result = await provider.generate_structured(
-        messages=[{"role": "user", "content": "What is 2+2? Answer in JSON: {\"answer\": N}"}],
+        messages=[{"role": "user", "content": 'What is 2+2? Answer in JSON: {"answer": N}'}],
         model="deepseek-v4-flash",
-        output_schema={"name": "math", "input_schema": {
-            "type": "object", "properties": {"answer": {"type": "integer"}},
-            "required": ["answer"]
-        }},
+        output_schema={
+            "name": "math",
+            "input_schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "integer"}},
+                "required": ["answer"],
+            },
+        },
         max_tokens=256,
         temperature=0.0,
     )
@@ -143,7 +146,9 @@ async def test_2_model_router(cfg: HyqAgentConfig) -> None:
     """Test 2: ModelRouter — route decisions."""
     sep("Test 2: ModelRouter")
     # Need at least a fake provider to instantiate router
-    cheap = AnthropicProvider(ProviderConfig(api_key=cfg.deepseek_key, base_url=cfg.deepseek_base_url))
+    cheap = AnthropicProvider(
+        ProviderConfig(api_key=cfg.deepseek_key, base_url=cfg.deepseek_base_url)
+    )
     mid = AnthropicProvider(ProviderConfig(api_key="sk-placeholder"))
     strong = AnthropicProvider(ProviderConfig(api_key="sk-placeholder"))
 
@@ -155,11 +160,15 @@ async def test_2_model_router(cfg: HyqAgentConfig) -> None:
     )
 
     # Low complexity → CHEAP
-    _, model_low = router.route(Task(TaskType.HYPOTHESIS_GENERATION, complexity=3, estimated_prompt_tokens=500))
+    _, model_low = router.route(
+        Task(TaskType.HYPOTHESIS_GENERATION, complexity=3, estimated_prompt_tokens=500)
+    )
     ok(f"Complexity 3 → model='{model_low}' (expected cheap)")
 
     # High complexity → STRONG
-    _, model_high = router.route(Task(TaskType.L2_VALIDATION, complexity=9, estimated_prompt_tokens=2000))
+    _, model_high = router.route(
+        Task(TaskType.L2_VALIDATION, complexity=9, estimated_prompt_tokens=2000)
+    )
     ok(f"Complexity 9 → model='{model_high}' (expected strong)")
 
     # Complexity scoring
@@ -202,11 +211,16 @@ def search():
     result = await loop.run(
         provider=provider,
         model="deepseek-v4-flash",
-        messages=[{"role": "user", "content": (
-            "Analyse this Python code for vulnerabilities:\n"
-            f"```python\n{vuln_code}\n```\n"
-            "Use the report_hypotheses tool."
-        )}],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Analyse this Python code for vulnerabilities:\n"
+                    f"```python\n{vuln_code}\n```\n"
+                    "Use the report_hypotheses tool."
+                ),
+            }
+        ],
         output_schema=HYP_SCHEMA,
         system=SYSTEM_PROMPT,
         max_tokens=1024,
@@ -218,7 +232,9 @@ def search():
         hyps = result.data.get("hypotheses", [])
         ok(f"Nudge happy path: {result.turns} turn, {len(hyps)} hypotheses, 0 nudges")
         for h in hyps:
-            print(f"     - [{h.get('severity', '?')}] {h.get('vuln_type', '?')}: {h.get('description', '')[:80]}...")
+            print(
+                f"     - [{h.get('severity', '?')}] {h.get('vuln_type', '?')}: {h.get('description', '')[:80]}..."
+            )
     elif result.success:
         ok(f"Nudge passed after {result.turns} turns, {len(result.nudges)} nudges")
     else:
@@ -240,11 +256,16 @@ def add(a: int, b: int) -> int:
     result = await loop.run(
         provider=provider,
         model="deepseek-v4-flash",
-        messages=[{"role": "user", "content": (
-            "Analyse this Python code for vulnerabilities:\n"
-            f"```python\n{safe_code}\n```\n"
-            "Use the report_hypotheses tool."
-        )}],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Analyse this Python code for vulnerabilities:\n"
+                    f"```python\n{safe_code}\n```\n"
+                    "Use the report_hypotheses tool."
+                ),
+            }
+        ],
         output_schema=HYP_SCHEMA,
         system=SYSTEM_PROMPT,
         max_tokens=1024,
@@ -254,11 +275,15 @@ def add(a: int, b: int) -> int:
 
     hyps = result.data.get("hypotheses", [])
     if result.success:
-        ok(f"Quality block test: {result.turns} turns, {len(result.nudges)} nudges, {len(hyps)} hypotheses")
+        ok(
+            f"Quality block test: {result.turns} turns, {len(result.nudges)} nudges, {len(hyps)} hypotheses"
+        )
         for n in result.nudges:
             print(f"     🔔 Nudge: {n['type']} — {n['message'][:100]}...")
     else:
-        ok(f"Quality block exhausted: {result.termination_reason} ({result.turns} turns, {len(result.nudges)} nudges)")
+        ok(
+            f"Quality block exhausted: {result.termination_reason} ({result.turns} turns, {len(result.nudges)} nudges)"
+        )
         # Empty is expected for truly safe code with limited turns
 
 
@@ -274,22 +299,27 @@ async def test_6_validator_l2(provider: AnthropicProvider) -> None:
     )
 
     result = await provider.generate_structured(
-        messages=[{"role": "user", "content": (
-            "## Vulnerability Hypothesis\n"
-            f"**Type**: sql_injection\n"
-            f"**Severity**: high\n"
-            f"**Source**: app.py:5 (request.args.get('q'))\n"
-            f"**Sink**: app.py:7 (db.execute(sql))\n"
-            f"**Description**: {hypothesis_desc}\n\n"
-            "## Code Context\n```python\n"
-            "from flask import request\n"
-            "query = request.args.get('q')\n"
-            "sql = \"SELECT * FROM p WHERE n = '%s'\" % query\n"
-            "db.execute(sql)\n"
-            "```\n\n"
-            "Answer the 5 validation questions and provide your verdict "
-            "using the report_validation tool."
-        )}],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "## Vulnerability Hypothesis\n"
+                    f"**Type**: sql_injection\n"
+                    f"**Severity**: high\n"
+                    f"**Source**: app.py:5 (request.args.get('q'))\n"
+                    f"**Sink**: app.py:7 (db.execute(sql))\n"
+                    f"**Description**: {hypothesis_desc}\n\n"
+                    "## Code Context\n```python\n"
+                    "from flask import request\n"
+                    "query = request.args.get('q')\n"
+                    "sql = \"SELECT * FROM p WHERE n = '%s'\" % query\n"
+                    "db.execute(sql)\n"
+                    "```\n\n"
+                    "Answer the 5 validation questions and provide your verdict "
+                    "using the report_validation tool."
+                ),
+            }
+        ],
         model="deepseek-v4-flash",
         output_schema=VAL_SCHEMA,
         system=VAL_SYSTEM,
@@ -353,12 +383,17 @@ def load():
     gen_result = await loop.run(
         provider=provider,
         model="deepseek-v4-flash",
-        messages=[{"role": "user", "content": (
-            "Analyse this Python Flask application for ALL vulnerabilities:\n"
-            f"```python\n{code}\n```\n"
-            "Report EVERY vulnerability you find using the report_hypotheses tool. "
-            "Check each endpoint carefully."
-        )}],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Analyse this Python Flask application for ALL vulnerabilities:\n"
+                    f"```python\n{code}\n```\n"
+                    "Report EVERY vulnerability you find using the report_hypotheses tool. "
+                    "Check each endpoint carefully."
+                ),
+            }
+        ],
         output_schema=HYP_SCHEMA,
         system=SYSTEM_PROMPT,
         max_tokens=2048,
@@ -367,23 +402,30 @@ def load():
     )
 
     hyps = gen_result.data.get("hypotheses", [])
-    print(f"  Step 1 — Generation: {len(hyps)} hypotheses, {gen_result.turns} turns, {len(gen_result.nudges)} nudges")
+    print(
+        f"  Step 1 — Generation: {len(hyps)} hypotheses, {gen_result.turns} turns, {len(gen_result.nudges)} nudges"
+    )
 
     # Step 2: Validate each hypothesis
     confirmed = 0
     for h in hyps:
         val_result = await provider.generate_structured(
-            messages=[{"role": "user", "content": (
-                "## Vulnerability Hypothesis\n"
-                f"**Type**: {h.get('vuln_type')}\n"
-                f"**Severity**: {h.get('severity')}\n"
-                f"**Source**: {h.get('source_location')}\n"
-                f"**Sink**: {h.get('sink_location')}\n"
-                f"**Description**: {h.get('description')}\n"
-                f"**LLM Reasoning**: {h.get('reasoning')}\n\n"
-                "Answer the 5 questions and provide your verdict "
-                "using the report_validation tool."
-            )}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "## Vulnerability Hypothesis\n"
+                        f"**Type**: {h.get('vuln_type')}\n"
+                        f"**Severity**: {h.get('severity')}\n"
+                        f"**Source**: {h.get('source_location')}\n"
+                        f"**Sink**: {h.get('sink_location')}\n"
+                        f"**Description**: {h.get('description')}\n"
+                        f"**LLM Reasoning**: {h.get('reasoning')}\n\n"
+                        "Answer the 5 questions and provide your verdict "
+                        "using the report_validation tool."
+                    ),
+                }
+            ],
             model="deepseek-v4-flash",
             output_schema=VAL_SCHEMA,
             system=VAL_SYSTEM,
@@ -393,7 +435,9 @@ def load():
         verdict = val_result.get("verdict", "?")
         if verdict == "confirmed":
             confirmed += 1
-        print(f"     [{h.get('vuln_type','?')}] → {verdict} (conf={val_result.get('confidence',0):.0%})")
+        print(
+            f"     [{h.get('vuln_type', '?')}] → {verdict} (conf={val_result.get('confidence', 0):.0%})"
+        )
 
     if len(hyps) >= 2 and confirmed >= 1:
         ok(f"Full flow: {len(hyps)} found, {confirmed} confirmed")
@@ -409,8 +453,10 @@ def load():
 async def main() -> None:
     print("=" * 60)
     print("  HyqAgent Phase 3 — Full LLM Integration Smoke Test")
-    print(f"  Model: DeepSeek-V4-Flash (CHEAP)")
-    print(f"  Pricing: ${PRICING.get('deepseek-v4-flash', {}).get('input_price_per_1k', 0)}/1M input")
+    print("  Model: DeepSeek-V4-Flash (CHEAP)")
+    print(
+        f"  Pricing: ${PRICING.get('deepseek-v4-flash', {}).get('input_price_per_1k', 0)}/1M input"
+    )
     print("=" * 60)
 
     cfg = HyqAgentConfig()
@@ -432,14 +478,14 @@ async def main() -> None:
 
     # ── Summary ────────────────────────────────────────────────────────
     sep("Summary")
-    print(f"  All 7 tests executed against DeepSeek-V4-Flash")
-    print(f"  Estimated total: ~20K input + ~5K output tokens")
+    print("  All 7 tests executed against DeepSeek-V4-Flash")
+    print("  Estimated total: ~20K input + ~5K output tokens")
     pricing = PRICING.get("deepseek-v4-flash", {})
     input_cost = pricing.get("input_price_per_1k", 0)
     output_cost = pricing.get("output_price_per_1k", 0)
     est = (20000 * input_cost + 5000 * output_cost) / 1000
     print(f"  Estimated cost: ${est:.4f}")
-    print(f"\n  Run: uv run python tests/manual/test_llm_smoke.py")
+    print("\n  Run: uv run python tests/manual/test_llm_smoke.py")
 
 
 if __name__ == "__main__":

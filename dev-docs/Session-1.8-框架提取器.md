@@ -34,15 +34,15 @@
 ```python
 @dataclass
 class HttpEndpoint:
-    route: str            # "/users/<id>" 或 "/users/:id"
-    methods: list[str]    # ["GET", "POST"]
-    handler_func: str     # 处理函数名
+    route: str  # "/users/<id>" 或 "/users/:id"
+    methods: list[str]  # ["GET", "POST"]
+    handler_func: str  # 处理函数名
     file_path: str
     line: int
     params: list[RouteParam]
-    auth_required: bool   # @login_required / middleware / @PreAuthorize
+    auth_required: bool  # @login_required / middleware / @PreAuthorize
     auth_decorators: list[str]
-    framework: str        # "flask"|"django"|"fastapi"|"express"|"spring"
+    framework: str  # "flask"|"django"|"fastapi"|"express"|"spring"
     source_lines: list[str]  # 处理函数内的 taint source 行
 ```
 

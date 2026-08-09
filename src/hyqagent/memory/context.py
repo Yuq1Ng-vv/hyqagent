@@ -171,10 +171,12 @@ class ContextManager:
 
         # Working memory → actual conversation turns
         for turn in self._working:
-            messages.append({
-                "role": turn.role,
-                "content": turn.content,
-            })
+            messages.append(
+                {
+                    "role": turn.role,
+                    "content": turn.content,
+                }
+            )
 
         return messages
 
