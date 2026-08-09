@@ -13,11 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import sys
 import time
-import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -277,27 +274,78 @@ def resume(ctx: click.Context, session_id: str, quiet: bool) -> None:
     Loads the session checkpoint and continues from where it left off.
     Use ``hyqagent sessions list`` to see past sessions.
     """
-    session_file = _ensure_session_dir() / f"{session_id}.json"
-    if not session_file.exists():
+    # Use SQLite-backed session store
+    from pathlib import Path as _Path
+
+    db_path = _Path.home() / ".hyqagent" / "sessions.db"
+    from hyqagent.session.checkpoint import CheckpointManager
+    from hyqagent.session.manager import SessionManager
+
+    session_mgr = SessionManager(db_path)
+    checkpoint_mgr = CheckpointManager(db_path)
+
+    session = asyncio.run(session_mgr.get_session(session_id))
+    if session is None:
         click.secho(f"✖ Session '{session_id}' not found.", fg="red")
-        click.echo(f"   Looked in: {session_file}")
+        click.echo(f"   Database: {db_path}")
+        click.echo("   Use 'hyqagent sessions list' to see all sessions.")
         sys.exit(1)
 
-    session = json.loads(session_file.read_text())
+    cp = asyncio.run(checkpoint_mgr.load_latest(session_id))
+    if cp is None:
+        click.secho(f"✖ No checkpoint found for session '{session_id}'.", fg="red")
+        sys.exit(1)
+
+    target = _Path(session["project_path"])
+    language = session["language"]
+
     if not quiet:
         click.echo(f"📋 Resuming session {session_id}")
-        click.echo(f"   Project:     {session.get('target', 'unknown')}")
-        click.echo(f"   Language:    {session.get('language', 'unknown')}")
-        click.echo(f"   Started:     {session.get('started_at', 'unknown')}")
-        click.echo(f"   Status:      {session.get('status', 'unknown')}")
-        click.echo(f"   Files:       {session.get('files_scanned', 0)}")
-        click.echo(f"   Findings so far: {len(session.get('findings', []))}")
+        click.echo(f"   Project:     {session['project_path']}")
+        click.echo(f"   Language:    {language}")
+        click.echo(f"   Last phase:  {cp.phase}")
+        click.echo(f"   Findings so far: {cp.finding_count}")
+        click.echo(f"   Cost so far: ${cp.cost_total:.4f}")
 
-    click.secho(
-        "⏳ Resume not yet fully implemented — re-running scan instead.",
-        fg="yellow",
+    # Discover files
+    if target.is_file():
+        file_paths = [str(target)]
+    else:
+        file_paths = sorted(
+            str(p)
+            for p in target.rglob("*")
+            if p.suffix in _EXTENSIONS.get(language, set()) and p.is_file()
+        )
+
+    if not file_paths:
+        click.secho(f"✖ No source files found for '{language}'.", fg="red")
+        sys.exit(1)
+
+    # Run via orchestrator
+    from hyqagent.scanner.orchestrator import Orchestrator
+
+    orch = Orchestrator(
+        session_manager=session_mgr,
+        checkpoint_manager=checkpoint_mgr,
+        db_path=db_path,
+        quiet=quiet,
     )
-    # TODO: Implement full checkpoint resume in a future session
+
+    start_time = time.monotonic()
+    try:
+        report = asyncio.run(orch.resume(session_id))
+    except Exception as exc:
+        if not quiet:
+            click.secho(f"✖ Resume failed: {exc}", fg="red")
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+    # ── Generate report ─────────────────────────────────────────────
+    _output_report(report, target, language, file_paths, elapsed_ms, quiet)
 
 
 # ── sessions command ───────────────────────────────────────────────────────
@@ -312,25 +360,24 @@ def sessions() -> None:
 @sessions.command("list")
 def list_sessions() -> None:
     """List all past audit sessions."""
-    sd = _ensure_session_dir()
-    files = sorted(sd.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    db_path = Path.home() / ".hyqagent" / "sessions.db"
+    from hyqagent.session.manager import SessionManager
 
-    if not files:
+    session_mgr = SessionManager(db_path)
+    sessions_list = asyncio.run(session_mgr.list_sessions(limit=20))
+
+    if not sessions_list:
         click.echo("No past sessions found.")
         return
 
     click.echo(f"{'SESSION ID':<38} {'DATE':<20} {'TARGET':<30} {'STATUS':<12}")
     click.echo("-" * 100)
-    for f in files[:20]:  # show last 20
-        try:
-            sess = json.loads(f.read_text())
-            sid = f.stem
-            started = sess.get("started_at", "unknown")[:19]
-            target = str(sess.get("target", ""))[:28]
-            status = sess.get("status", "unknown")
-            click.echo(f"{sid:<38} {started:<20} {target:<30} {status:<12}")
-        except (json.JSONDecodeError, KeyError):
-            click.echo(f"{f.stem:<38} (corrupt or empty)")
+    for sess in sessions_list:
+        sid = sess.get("id", "?")[:36]
+        started = sess.get("created_at", "unknown")[:19]
+        target = str(sess.get("project_path", ""))[:28]
+        status = sess.get("status", "unknown")
+        click.echo(f"{sid:<38} {started:<20} {target:<30} {status:<12}")
 
 
 @main.command()
@@ -355,517 +402,103 @@ async def _run_deep_audit(
     config: HyqAgentConfig,
     quiet: bool = False,
 ) -> ScanResult:
-    """Phase 3 deep audit: scan → understand → hypothesise → validate.
+    """Phase 3+ deep audit powered by :class:`Orchestrator`.
 
-    Order is deliberate:
-    1. Phase 2 deterministic scan first (zero LLM, fast) → concrete evidence
-    2. Project understanding based on scan results (evidence-based, not speculative)
-    3. Phase 3 hypothesis generation guided by understanding + coverage gaps
-
-    Creates a persistent session that can be resumed via ``hyqagent resume``.
+    Delegates the full pipeline (CPG build → deterministic scan → hypothesis
+    generation → validation → coverage audit → completeness critic →
+    convergence loop) to the Orchestrator, which handles checkpointing,
+    signal handling, and resume support automatically.
     """
-    ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    session_id = f"audit-{ts}-{uuid.uuid4().hex[:6]}"
-    session: dict[str, Any] = {
-        "session_id": session_id,
-        "target": str(target),
-        "language": language,
-        "started_at": datetime.now(UTC).isoformat(),
-        "status": "running",
-        "phase": "phase2_scan",
-    }
+    from pathlib import Path as _Path
 
-    # ══════════════════════════════════════════════════════════════════
-    # Step 1: Phase 2 Deterministic scan (zero LLM, fast)
-    # ══════════════════════════════════════════════════════════════════
-    if not quiet:
-        click.echo()
-        click.secho("⚡ Phase 2: Deterministic scan...", fg="cyan")
+    db_path = _Path.home() / ".hyqagent" / "sessions.db"
+    from hyqagent.scanner.orchestrator import Orchestrator
 
-    result = _run_scan(file_paths, language, config, quiet=quiet)
-    session["phase2_findings"] = len(result.findings)
-    session["phase2_annotated_paths"] = len(result.annotated_paths)
+    orch = Orchestrator(db_path=db_path, quiet=quiet)
 
-    if not quiet:
-        click.echo(f"   Findings: {len(result.findings)}")
-        click.echo(f"   Annotated paths: {len(result.annotated_paths)}")
-
-    # Summarise by label for project understanding
-    label_breakdown: dict[str, int] = {}
-    for ap in result.annotated_paths:
-        lbl = getattr(ap, "label", None)
-        if lbl is not None:
-            key = lbl.value if hasattr(lbl, "value") else str(lbl)
-            label_breakdown[key] = label_breakdown.get(key, 0) + 1
-
-    if not quiet and label_breakdown:
-        for lbl, cnt in sorted(label_breakdown.items()):
-            click.echo(f"     {lbl}: {cnt}")
-
-    # ══════════════════════════════════════════════════════════════════
-    # Step 2: Project understanding (evidence-based, cheap LLM)
-    # ══════════════════════════════════════════════════════════════════
-    session["phase"] = "understanding"
-
-    if not quiet:
-        click.echo()
-        click.secho("🧠 Project understanding (based on scan results)...", fg="cyan")
-
-    project_context = await _understand_project(
-        target=target,
+    report = await orch.run(
+        project_path=target,
         language=language,
         file_paths=file_paths,
-        config=config,
-        scan_findings=result.findings,
-        label_breakdown=label_breakdown,
-        coverage_summary=getattr(result, "coverage_summary", {}),
-        quiet=quiet,
     )
-    session["project_context"] = project_context
 
-    if not quiet and project_context:
-        summary = project_context.get("summary", "")
-        if summary:
-            click.echo(f"   {summary[:300]}")
-        audit_plan = project_context.get("audit_plan", [])
-        if audit_plan:
-            click.echo(f"   Audit priorities: {', '.join(audit_plan[:6])}")
-
-    # ══════════════════════════════════════════════════════════════════
-    # Step 3: Phase 3 LLM hypothesis generation
-    # ══════════════════════════════════════════════════════════════════
-    annotated = result.annotated_paths
-    llm_targets = [
-        ap
-        for ap in annotated
-        if getattr(ap, "label", None) is not None
-        and getattr(ap.label, "value", str(ap.label))
-        in (
-            "heuristic_sink",
-            "exposed_no_source",
-            "uncovered_sink",
-            "conditional_sanitized",
-            "uncovered_but_reachable",
-        )
-    ]
-
-    hypotheses: list[Any] = []
-    if llm_targets and _has_llm_keys(config):
-        if not quiet:
-            click.echo()
-            click.secho(
-                f"🤖 Phase 3: LLM hypothesis generation ({len(llm_targets)} candidate paths)...",
-                fg="cyan",
-            )
-
-        hypotheses = await _run_phase3_hypotheses(
-            llm_targets,
-            language,
-            config,
-            quiet=quiet,
-        )
-        session["hypotheses"] = [
-            {
-                "id": h.id,
-                "vuln_type": h.vuln_type,
-                "severity": h.severity,
-                "confidence": h.confidence,
-            }
-            for h in hypotheses
-        ]
-    else:
-        if not quiet:
-            click.echo()
-            click.secho(
-                "⏭  Phase 3 skipped — no LLM-eligible paths or missing API keys.",
-                fg="yellow",
-            )
-
-    # ══════════════════════════════════════════════════════════════════
-    # Step 4: Coverage audit (zero-LLM, differential coverage analysis)
-    # ══════════════════════════════════════════════════════════════════
-    if not quiet:
-        click.echo()
-        click.secho("📊 Coverage audit: differential coverage analysis...", fg="cyan")
-
-    from hyqagent.scanner.coverage_auditor import CoverageAuditor
-
-    # Build CPG query for auditor (reuse or rebuild minimally)
-    cq = _build_cpg_query(file_paths, language)
-    auditor = CoverageAuditor(cq, annotated, language=language)
-    coverage_audit = auditor.audit()
-    session["coverage_audit"] = {
-        "total_entries": coverage_audit.total_entries,
-        "covered": coverage_audit.covered,
-        "coverage_pct": round(coverage_audit.coverage_pct, 2),
-        "high_risk_gaps": len(coverage_audit.high_risk_gaps),
-        "medium_risk_gaps": len(coverage_audit.medium_risk_gaps),
-        "total_gaps": len(coverage_audit.gaps),
-    }
+    # ── Convert AuditReport → ScanResult for report generator ──────
+    result = ScanResult(
+        findings=list(report.findings) if report.findings else [],
+        annotated_paths=list(report.annotated_paths) if report.annotated_paths else [],
+    )
+    # Attach extra fields for the report generator
+    result.hypotheses = report.hypotheses  # type: ignore[attr-defined]
+    result.coverage_audit = report.coverage_audit  # type: ignore[attr-defined]
 
     if not quiet:
-        click.echo(
-            f"   Coverage: {coverage_audit.coverage_pct:.0%} "
-            f"({coverage_audit.covered}/{coverage_audit.total_entries})"
-        )
-        if coverage_audit.high_risk_gaps:
-            click.secho(
-                f"   ⚠ {len(coverage_audit.high_risk_gaps)} high-risk coverage gaps",
-                fg="yellow",
-            )
-            for gap in coverage_audit.high_risk_gaps[:5]:
-                click.echo(f"     - {gap.location}: {gap.reason[:120]}")
-
-    # ══════════════════════════════════════════════════════════════════
-    # Step 5: Completeness Critic (MID-tier LLM, ~$0.02)
-    # ══════════════════════════════════════════════════════════════════
-    if _has_llm_keys(config) and hypotheses:
-        if not quiet:
-            click.echo()
-            click.secho("🔍 Completeness review: what did we miss?...", fg="cyan")
-
-        from hyqagent.models.providers.anthropic_provider import (
-            AnthropicProvider,
-            ProviderConfig,
-        )
-        from hyqagent.scanner.completeness import CompletenessCritic
-
-        mid_provider = AnthropicProvider(
-            ProviderConfig(api_key=config.anthropic_key, base_url=None),
-            max_retries=config.llm_max_retries,
-            timeout_seconds=config.llm_timeout_seconds,
-        )
-
-        critic = CompletenessCritic(mid_provider, config.mid_model)
-        critic_report = await critic.review(
-            project_summary=project_context.get("summary", ""),
-            findings_summary=_format_findings_summary(result),
-            label_breakdown=label_breakdown,
-            coverage={"coverage_pct": coverage_audit.coverage_pct,
-                      "high_risk_gaps": len(coverage_audit.high_risk_gaps)},
-            hypotheses=session.get("hypotheses", []),
-            language=language,
-        )
-        session["completeness_review"] = {
-            "overall": critic_report.overall_assessment[:500],
-            "missed_classes": critic_report.missed_vuln_classes,
-            "assumptions": critic_report.questionable_assumptions,
-            "recommendations": critic_report.recommendations,
-        }
-
-        if not quiet:
-            missed = len(critic_report.missed_vuln_classes)
-            recs = len(critic_report.recommendations)
-            click.echo(f"   Missed classes: {missed}")
-            click.echo(f"   Recommendations: {recs}")
-            for rec in critic_report.recommendations[:3]:
-                click.echo(f"     → {rec[:150]}")
-    elif not quiet:
+        if report.convergence:
+            click.echo(f"   Convergence: {report.convergence.summary}")
+        click.echo(f"   Total LLM cost: ${report.cost_summary.total_cost:.4f}")
         click.echo()
-        click.secho(
-            "⏭  Completeness review skipped — no hypotheses or missing API keys.",
-            fg="yellow",
-        )
-
-    # ── Update result ───────────────────────────────────────────────
-    result.hypotheses = hypotheses  # type: ignore[attr-defined]
-    result.coverage_audit = coverage_audit  # type: ignore[attr-defined]
-    session["status"] = "completed"
-    session["completed_at"] = datetime.now(UTC).isoformat()
-
-    # ── Save session ────────────────────────────────────────────────
-    _save_session(session_id, session)
-
-    if not quiet:
-        click.echo()
-        click.secho(f"📋 Session saved: {session_id}", fg="green")
-        click.echo(f"   Resume with: hyqagent resume {session_id}")
+        click.secho(f"📋 Session saved: {report.session_id}", fg="green")
+        click.echo(f"   Resume with: hyqagent resume {report.session_id}")
 
     return result
 
 
-# ── Phase 0: Project understanding (evidence-based) ─────────────────────────
-
-
-async def _understand_project(
+def _output_report(
+    report: Any,  # AuditReport
     target: Path,
     language: str,
     file_paths: list[str],
-    config: HyqAgentConfig,
-    scan_findings: list[Any] | None = None,
-    label_breakdown: dict[str, int] | None = None,
-    coverage_summary: dict[str, Any] | None = None,
+    elapsed_ms: int,
     quiet: bool = False,
-) -> dict[str, Any]:
-    """Build a high-level project understanding AFTER Phase 2 scan.
+) -> None:
+    """Generate and write the audit report file, and print a summary."""
+    from hyqagent.report.generator import ReportGenerator
 
-    Key design decision (see COVERAGE-GAP-ANALYSIS.md):
-    Understanding comes AFTER the deterministic scan, not before it.
-    This way the LLM works with concrete evidence — Phase 2 findings,
-    annotated path labels, coverage gaps — rather than guessing from
-    directory structure alone.
-
-    The LLM receives:
-    - Project structure + metadata files (what the project IS)
-    - Phase 2 findings + label breakdown (what the scanner FOUND)
-    - Coverage gaps (what the scanner MISSED)
-
-    From this it produces:
-    - Summary of what the project does
-    - Risk assessment based on actual findings
-    - Blind-spot analysis: which modules/vuln-types are under-covered
-    - Prioritised audit plan for Phase 3
-    """
-    context: dict[str, Any] = {
-        "summary": "",
-        "modules": [],
-        "tech_stack": [],
-        "audit_plan": [],
-        "risk_assessment": "",
-    }
-
-    scan_findings = scan_findings or []
-    label_breakdown = label_breakdown or {}
-    coverage_summary = coverage_summary or {}
-
-    # 1. Collect project metadata
-    meta_files = _find_meta_files(target, language)
-    meta_text = ""
-    for name, content in meta_files.items():
-        meta_text += f"\n### {name}\n```\n{content[:3000]}\n```\n"
-
-    # 2. Directory structure
-    dirs: set[str] = set()
-    for fp in file_paths:
-        rel = Path(fp).relative_to(target)
-        if rel.parts:
-            dirs.add(rel.parts[0])
-    top_dirs = sorted(dirs)[:15]
-
-    if not meta_text and not top_dirs and not scan_findings:
-        return context
-
-    # 3. Build evidence-rich prompt
-    structure = "\n".join(f"  {d}/" for d in top_dirs)
-
-    # ── Scan findings summary ──────────────────────────────────────
-    findings_text = ""
-    if scan_findings:
-        n = min(10, len(scan_findings))
-        findings_text = f"\n## Phase 2 Scan Results ({len(scan_findings)} findings)\n"
-        for f in scan_findings[:n]:
-            sev = getattr(f, "severity", "?")
-            loc = getattr(f, "location", "?")
-            rule = getattr(f, "rule_id", getattr(f, "rule", "?"))
-            findings_text += f"- [{sev}] {rule} at {loc}\n"
-        if len(scan_findings) > n:
-            findings_text += f"... and {len(scan_findings) - n} more\n"
-
-    # ── Label breakdown ────────────────────────────────────────────
-    labels_text = ""
-    if label_breakdown:
-        labels_text = "\n## Annotated Path Labels (Phase 2 classifications)\n"
-        for lbl, cnt in sorted(label_breakdown.items()):
-            labels_text += f"- {lbl}: {cnt} paths\n"
-
-    # ── Coverage gaps ──────────────────────────────────────────────
-    coverage_text = ""
-    if coverage_summary:
-        coverage_text = "\n## Coverage Summary\n"
-        for k, v in coverage_summary.items():
-            coverage_text += f"- {k}: {v}\n"
-
-    # ── Assemble prompt ───────────────────────────────────────────
-    prompt = (
-        f"## Project: {target.name}\n"
-        f"**Language**: {language}\n"
-        f"**Top-level directories**:\n{structure}\n"
+    # Build a ScanResult-compatible object from AuditReport
+    result = ScanResult(
+        findings=list(report.findings) if report.findings else [],
+        annotated_paths=list(report.annotated_paths) if report.annotated_paths else [],
     )
-    if meta_text:
-        prompt += f"\n## Key Files\n{meta_text}"
-    prompt += findings_text
-    prompt += labels_text
-    prompt += coverage_text
+    result.hypotheses = report.hypotheses  # type: ignore[attr-defined]
+    result.coverage_audit = report.coverage_audit  # type: ignore[attr-defined]
 
-    prompt += (
-        "\n\n## Your Task\n"
-        "You have just received the results of a **deterministic static analysis scan** "
-        "(Phase 2, zero-LLM, rule-based). Now you need to understand this project "
-        "and plan the next phase of the audit.\n\n"
-        "Provide:\n"
-        "1. **Summary**: What does this project do? "
-        "(Use the code structure and metadata, not guesswork.)\n"
-        "2. **Risk Assessment**: Based on the ACTUAL scan findings above, "
-        "what are the most concerning patterns? Be specific — cite the findings.\n"
-        "3. **Coverage Blind Spots**: The deterministic scanner has known limitations. "
-        "Looking at the label breakdown, what important vulnerability classes might "
-        "have been missed? (e.g. many 'heuristic_sink' labels means the scanner "
-        "couldn't classify dangerous operations; 'exposed_no_source' means endpoints "
-        "accept user input but data flow tracing failed.)\n"
-        "4. **Audit Plan**: Prioritised list of 3-6 areas to investigate in Phase 3 "
-        "(LLM deep analysis). Order by risk: most dangerous first. "
-        "For each, name the module/file and the specific concern.\n"
-        "\nKeep the output concise and actionable — you are briefing a security "
-        "engineer who will execute the deeper analysis."
-    )
-
-    # 4. Use cheap LLM
-    if not _has_llm_keys(config):
-        return context
-
-    try:
-        from hyqagent.models.providers.anthropic_provider import (
-            AnthropicProvider,
-            ProviderConfig,
-        )
-
-        provider = AnthropicProvider(
-            ProviderConfig(
-                api_key=config.deepseek_key,
-                base_url=config.deepseek_base_url,
-            ),
-            max_retries=2,
-            timeout_seconds=60,
-        )
-
-        result = await provider.generate(
-            messages=[{"role": "user", "content": prompt}],
-            model=config.cheap_model,
-            system=(
-                "You are a senior security engineer reviewing the results of an "
-                "automated static analysis scan. Your job is to interpret the "
-                "findings, identify what the scanner likely MISSED, and plan the "
-                "next phase of the audit. "
-                "Be evidence-based — ground every observation in the scan data. "
-                "When the data is ambiguous, say so rather than guessing."
-            ),
-            max_tokens=1536,
-            temperature=0.3,
-        )
-
-        text = ""
-        for block in result.get("content", []):
-            if block.get("type") == "text":
-                text += block.get("text", "")
-        context["summary"] = text
-
-        # Parse out audit plan items (lines starting with numbers or bullets)
-        audit_plan: list[str] = []
-        for line in text.split("\n"):
-            stripped = line.strip()
-            if (
-                stripped.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "- ", "* "))
-                and len(stripped) > 3
-            ):
-                audit_plan.append(stripped.lstrip("0123456789.*- ").strip()[:120])
-        context["audit_plan"] = audit_plan[:8]
-        context["modules"] = top_dirs
-
-        # Track cost
-        usage = result.get("usage", {})
-        if not quiet:
-            input_t = usage.get("input_tokens", 0)
-            output_t = usage.get("output_tokens", 0)
-            cost_est = input_t * 0.00014 / 1000 + output_t * 0.00028 / 1000
-            click.echo(f"   (Project understanding: ~${cost_est:.4f})")
-
-    except Exception:
-        if not quiet:
-            click.secho("   ⚠ Project understanding skipped (LLM unavailable)", fg="yellow")
-
-    return context
-
-
-# ── Phase 3: Hypothesis generation + validation ────────────────────────────
-
-
-async def _run_phase3_hypotheses(
-    annotated_paths: list[Any],
-    language: str,
-    config: HyqAgentConfig,
-    quiet: bool = False,
-) -> list[Any]:
-    """Run LLM hypothesis generation on annotated paths from Phase 2."""
-    from hyqagent.models.providers.anthropic_provider import (
-        AnthropicProvider,
-        ProviderConfig,
-    )
-    from hyqagent.models.router import ModelRouter
-    from hyqagent.scanner.hypothesis import HypothesisGenerator
-
-    cheap = AnthropicProvider(
-        ProviderConfig(
-            api_key=config.deepseek_key,
-            base_url=config.deepseek_base_url,
-        ),
-        max_retries=config.llm_max_retries,
-        timeout_seconds=config.llm_timeout_seconds,
-    )
-    mid = AnthropicProvider(
-        ProviderConfig(api_key=config.anthropic_key, base_url=None),
-        max_retries=config.llm_max_retries,
-        timeout_seconds=config.llm_timeout_seconds,
-    )
-    strong = mid  # Same provider, different model (handled by router)
-
-    router = ModelRouter(
-        providers={"deepseek": cheap, "anthropic": mid},
-        cheap_model=config.cheap_model,
-        mid_model=config.mid_model,
-        strong_model=config.strong_model,
-    )
-
-    # Need a CPGQuery for hypothesis generation
-    from hyqagent.cpg.graph import CPGGraphBuilder
-    from hyqagent.cpg.parser import Parser
-    from hyqagent.cpg.query import CPGQuery
-    from hyqagent.cpg.taint_loader import TaintRuleLoader
-
-    taint_loader = TaintRuleLoader()
-    parser = Parser()
-
-    # Build minimal graph for query access (or reuse — for simplicity, rebuild)
-    builder = CPGGraphBuilder(parser, taint_loader=taint_loader)
-    for fp in annotated_paths[:1]:  # Just one file is enough for query
-        with contextlib.suppress(Exception):
-            builder.add_file(
-                fp.path.nodes[0].location.split(":")[0]
-                if hasattr(fp, "path") and fp.path.nodes
-                else ""
-            )
-    query = CPGQuery(builder.graph)
-
-    gen = HypothesisGenerator(
-        query=query,
-        router=router,
-        cheap_provider=cheap,
-        mid_provider=mid,
-        strong_provider=strong,
+    generator = ReportGenerator()
+    report_text = generator.generate(
+        result=result,
+        fmt="json",
+        scan_duration_ms=elapsed_ms,
+        files_scanned=len(file_paths),
         language=language,
     )
 
-    hypotheses = await gen.generate(annotated_paths)
+    output_path = target / "report.json" if target.is_dir() else target.parent / "report.json"
+    output_path.write_text(report_text, encoding="utf-8")
 
-    if not quiet and hypotheses:
-        click.echo(f"   Generated {len(hypotheses)} hypotheses")
+    n_findings = len(getattr(result, "findings", []))
+    n_hypotheses = len(getattr(result, "hypotheses", []))
 
-        from collections import Counter
+    if not quiet:
+        click.echo()
+        click.secho(f"✓ Scan complete in {elapsed_ms}ms", fg="green")
+        click.echo(f"   Findings:    {n_findings}")
+        if n_hypotheses:
+            click.echo(f"   Hypotheses:  {n_hypotheses} (LLM-generated)")
+        click.echo(f"   Report:      {output_path} (json)")
 
-        sev_counts = Counter(h.severity for h in hypotheses)
-        for sev, count in sev_counts.most_common():
-            click.echo(f"     {sev}: {count}")
+        if n_findings > 0:
+            from collections import Counter
 
-    return hypotheses
-
-
-# ── Session persistence ────────────────────────────────────────────────────
-
-
-def _save_session(session_id: str, session: dict[str, Any]) -> None:
-    """Persist session state to disk for later resume."""
-    sd = _ensure_session_dir()
-    session_file = sd / f"{session_id}.json"
-    session_file.write_text(json.dumps(session, indent=2, default=str, ensure_ascii=False))
+            sev_counts = Counter(getattr(f, "severity", "unknown") for f in result.findings)
+            for sev in ("critical", "high", "medium", "low"):
+                count = sev_counts.get(sev, 0)
+                if count:
+                    sev_colors = {
+                        "critical": "red",
+                        "high": "red",
+                        "medium": "yellow",
+                        "low": "blue",
+                    }
+                    color = sev_colors.get(sev, "white")
+                    click.secho(f"     {sev}: {count}", fg=color)
 
 
 # ── Additional helpers for Phase 3 mitigation strategies ──────────────────

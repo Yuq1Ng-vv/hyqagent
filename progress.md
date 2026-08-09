@@ -208,6 +208,10 @@ Phase 3 全部 8 项任务已全部完成。
 
 ## Phase 4: 长任务能力 — 🔵 进行中
 
+> **Session 1.23 里程碑**: Orchestrator + 收敛检测 + 断点续扫 已完成（2 新文件、~1300 行源码、64 tests）。
+> 新增: `scanner/orchestrator.py`（中央编排器）、`scanner/convergence.py`（五指标收敛检测）。
+> CLI `resume` 命令从 stub 变为真实实现，`_run_deep_audit()` 从 ~250 行内联管道简化为 ~30 行 Orchestrator 委托。
+
 - [x] **memory/context.py** — 三区段上下文模型 (固定/长期/工作)
   - ZoneBudget token 预算 + TurnRecord 对话轮次
   - ContextManager: Prompt Cache breakpoints, sliding window, crystallization 触发
@@ -230,13 +234,13 @@ Phase 3 全部 8 项任务已全部完成。
 | 1 | ~~三区段上下文模型 + Prompt Caching~~ | ✅ 完成 |
 | 2 | ~~上下文结晶协议~~ | ✅ 完成 |
 | 3 | ~~代码检索 (ripgrep + tree-sitter 混合)~~ | ✅ 完成 |
-| 4 | 检查点管理集成 (checkpoint.py 已存在，待接入 scanner) | 🔵 待集成 |
-| 5 | 收敛检测: VDR/EC/RWC/VCC/C_hat | 📋 计划 |
+| 4 | ~~检查点管理集成~~ | ✅ Session 1.23 完成 |
+| 5 | ~~收敛检测: VDR/EC/RWC/VCC/C_hat~~ | ✅ Session 1.23 完成 |
 | 6 | 补充机制: 反向Sink分析 + 盲扫LLM通道 | 📋 计划 |
 | 7 | 对抗性审查 + 饱和扫描 | 📋 计划 |
 | 8 | Observability 完整集成 (OTel + LangFuse + Prometheus) | 🔵 cost_tracker 已有 |
-| 9 | 信号处理 (SIGTERM/SIGUSR1) + Orchestrator | 📋 计划 |
-| 10 | CLI resume 真正实现 (当前是 stub) | 📋 计划 |
+| 9 | ~~信号处理 (SIGTERM/SIGUSR1) + Orchestrator~~ | ✅ Session 1.23 完成 |
+| 10 | ~~CLI resume 真正实现~~ | ✅ Session 1.23 完成 |
 
 | # | 任务 | 状态 | 预计文件 |
 |---|------|------|---------|

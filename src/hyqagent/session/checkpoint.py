@@ -95,6 +95,14 @@ class CheckpointManager:
         import asyncio
         return await asyncio.to_thread(self._list_all_sync, session_id)
 
+    async def delete_old(self, session_id: str, keep_latest: int = 5) -> int:
+        """Delete old checkpoints for *session_id*, keeping the most recent *keep_latest*.
+
+        Returns the number of deleted checkpoints.
+        """
+        import asyncio
+        return await asyncio.to_thread(self._delete_old_sync, session_id, keep_latest)
+
     # ── Sync internals ──────────────────────────────────────────────────
 
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
@@ -145,3 +153,24 @@ class CheckpointManager:
                 (session_id,),
             ).fetchall()
         return [Checkpoint.from_row(r) for r in rows]
+
+    def _delete_old_sync(self, session_id: str, keep_latest: int) -> int:
+        """Delete all but the most recent *keep_latest* checkpoints for *session_id*."""
+        with sqlite3.connect(self._db_path) as conn:
+            self._ensure_schema(conn)
+            # Find IDs to delete — all except the most recent *keep_latest*
+            rows = conn.execute(
+                """SELECT id FROM checkpoints
+                   WHERE session_id = ?
+                   ORDER BY created_at DESC""",
+                (session_id,),
+            ).fetchall()
+            if len(rows) <= keep_latest:
+                return 0
+            to_delete = [r[0] for r in rows[keep_latest:]]
+            conn.executemany(
+                "DELETE FROM checkpoints WHERE id = ?",
+                [(cid,) for cid in to_delete],
+            )
+            conn.commit()
+            return len(to_delete)
