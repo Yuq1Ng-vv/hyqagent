@@ -43,6 +43,7 @@ class ReportGenerator:
         coverage_audit: Any = None,
         phases_completed: list[str] | None = None,
         validations: list[Any] | None = None,
+        dynamic_verification_results: list[Any] | None = None,
     ) -> str:
         """Generate a report in *fmt* format.
 
@@ -74,6 +75,7 @@ class ReportGenerator:
                 "coverage_audit": coverage_audit,
                 "phases_completed": phases_completed or [],
                 "validations": validations or [],
+                "dynamic_verification_results": dynamic_verification_results or [],
             }
 
         if fmt in ("markdown", "md"):
