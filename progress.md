@@ -325,7 +325,24 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
 - [x] **质量门禁** — ruff 零新增, mypy 零新增, 1457 tests passed
 
 ## 当前阻塞
-- 无
+
+### 🔴 收敛循环重复生成问题 (2026-08-09 发现)
+
+**现象**: `--deep` 扫描时，收敛循环每轮重新调用 LLM 生成假设，但 LLM 跨轮给出不一致的结果，导致：
+- VDR 不降反升（13→25→37→34→35），永远无法收敛
+- C_hat = 0（跨轮无一致性）
+- 只能靠 `max_rounds=5` 强制停止，浪费 token（162 次 LLM 调用，$0.0416）
+
+**根因**:
+1. 同一代码路径在每轮被重新生成 hypothesis，产生不同 ID
+2. 新 hypothesis 在下一轮又被视为"new finding"推高 VDR
+3. 上一轮 LLM validation 的结果没有传给下一轮
+
+**修复方向**:
+- 同路径 hypothesis 按 source/sink/type 去重（不按 ID）
+- 上一轮已确认/拒绝的结果传给下一轮的 hypothesis_gen (seed feedback 已有但未用于收敛)
+- 收敛判断前做 finding 稳定性检查（连续 N 轮一致才算稳定）
+- 考虑将 `max_rounds` 从 5 降为 3 作为短期缓解
 
 ## Phase 5: Quality & Release — ✅ 完成
 
