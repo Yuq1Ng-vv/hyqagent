@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.32 完成后 (2026-08-09)
-> 最新: 双模式 LLM 审计策略 (Precision vs Recall) + 代码盲区修复 已完成
+> 上次更新: Session 1.33 完成后 (2026-08-09)
+> 最新: Phase 5 Task 1 — Golden Dataset (28 用例 + eval harness) 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -323,6 +323,26 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
 
 ## 当前阻塞
 - 无
+
+## Phase 5: Quality & Release — 🔵 进行中
+
+- [x] **Session 1.33** — Task 1: Golden Dataset 构建 (commit: `90d1dff`)
+  - 28 个标签化漏洞用例 (14 reuse + 13 gap-fill + 1 negative)
+  - `evals/golden_dataset_v1.json` — 结构化 ground truth (CWE/severity/detection_method/has_finding)
+  - `tests/eval/` — 4 级确定性回归测试 (fixture integrity → CPG build → taint matching → negative validation)
+  - 364 条测试项 (319 pass + 45 skip), 零 LLM/API need, ~0.8s 完成
+  - 14 个新 fixture 文件 (XSS/SSRF/OpenRedirect/Crypto/CSRF/AuthBypass × 3 语言 + 1 negative)
+  - **测试总计: 1835 tests, 0 failures** (+319 golden eval)
+
+### Phase 5 剩余任务
+
+| # | 任务 | 状态 |
+|---|------|------|
+| 1 | Golden Dataset (25-30 labeled cases) | ✅ Session 1.33 完成 |
+| 2 | Scanner-level Golden 测试 (完整扫描流水线回归) | 🔲 待开始 |
+| 3 | LLM-based eval (DeepEval) | 🔲 待开始 |
+| 4 | CI/CD 集成 (GitHub Actions) | 🔲 待开始 |
+| 5 | 文档最终化 + 发布准备 | 🔲 待开始 |
 
 ## 文档索引
 
