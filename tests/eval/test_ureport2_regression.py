@@ -93,22 +93,16 @@ class TestGraphStructure:
 
     def test_graph_is_non_empty(self, graph):
         """Graph must contain nodes (76K expected for ureport2)."""
-        assert graph.node_count > 10000, (
-            f"Expected >10K nodes, got {graph.node_count}"
-        )
+        assert graph.node_count > 10000, f"Expected >10K nodes, got {graph.node_count}"
 
     def test_graph_has_edges(self, graph):
         """Graph must contain edges (240K expected for ureport2)."""
-        assert graph.edge_count > 50000, (
-            f"Expected >50K edges, got {graph.edge_count}"
-        )
+        assert graph.edge_count > 50000, f"Expected >50K edges, got {graph.edge_count}"
 
     def test_function_nodes_exist(self, graph):
         """Key vulnerable functions must be indexed."""
         funcs = graph.nodes_by_type(NODE_FUNCTION)
-        func_names = {
-            graph.graph.nodes[n].get("name", "") for n in funcs
-        }
+        func_names = {graph.graph.nodes[n].get("name", "") for n in funcs}
         # SQL injection entry point
         assert "previewData" in func_names, "previewData() not found"
         # XXE entry point
@@ -119,29 +113,21 @@ class TestGraphStructure:
     def test_call_site_nodes_exist(self, graph):
         """Cross-file call sites should be indexed."""
         call_sites = graph.nodes_by_type(NODE_CALL_SITE)
-        assert len(call_sites) > 50, (
-            f"Expected >50 call sites, got {len(call_sites)}"
-        )
+        assert len(call_sites) > 50, f"Expected >50 call sites, got {len(call_sites)}"
 
     def test_dataflow_edges_exist(self, graph):
         """DATA_FLOW edges must exist for taint tracking."""
         df_count = sum(
-            1 for _u, _v, d in graph.graph.edges(data=True)
-            if d.get("edge_type") == EDGE_DATA_FLOW
+            1 for _u, _v, d in graph.graph.edges(data=True) if d.get("edge_type") == EDGE_DATA_FLOW
         )
-        assert df_count > 1000, (
-            f"Expected >1000 DATA_FLOW edges, got {df_count}"
-        )
+        assert df_count > 1000, f"Expected >1000 DATA_FLOW edges, got {df_count}"
 
     def test_calls_edges_exist(self, graph):
         """CALLS edges must exist for cross-function traversal."""
         calls_count = sum(
-            1 for _u, _v, d in graph.graph.edges(data=True)
-            if d.get("edge_type") == EDGE_CALLS
+            1 for _u, _v, d in graph.graph.edges(data=True) if d.get("edge_type") == EDGE_CALLS
         )
-        assert calls_count > 500, (
-            f"Expected >500 CALLS edges, got {calls_count}"
-        )
+        assert calls_count > 500, f"Expected >500 CALLS edges, got {calls_count}"
 
     def test_cross_file_call_sites_are_resolved(self, graph):
         """Verify cross-file call sites are resolved."""
@@ -150,9 +136,7 @@ class TestGraphStructure:
             if data.get("node_type") == NODE_CALL_SITE:
                 if data.get("cross_file") and data.get("is_resolved"):
                     resolved += 1
-        assert resolved > 10, (
-            f"Expected >10 resolved cross-file calls, got {resolved}"
-        )
+        assert resolved > 10, f"Expected >10 resolved cross-file calls, got {resolved}"
 
 
 # ── Level 2: SQL Injection vulnerability path ─────────────────────────────────
@@ -187,9 +171,7 @@ class TestSQLInjectionPath:
     def test_sql_source_to_jdbc_sink_path(self, query):
         """find_path from getParameter to queryForList should find taint paths."""
         paths = query.find_path("getParameter", "queryForList", max_depth=30)
-        assert len(paths) > 0, (
-            "Expected at least one taint path from getParameter → queryForList"
-        )
+        assert len(paths) > 0, "Expected at least one taint path from getParameter → queryForList"
 
     def test_parse_sql_is_in_call_chain(self, query):
         """parseSql() should be reachable from previewData via CALLS edges."""
@@ -263,9 +245,7 @@ class TestJavaCPGFeatures:
             if data.get("node_type") == NODE_FUNCTION and data.get("name") == "parse":
                 parse_nodes.append((nid, data.get("file_path", "")))
         # parse() should exist in at least ReportParser.java
-        report_parser_parses = [
-            (n, fp) for n, fp in parse_nodes if "ReportParser" in fp
-        ]
+        report_parser_parses = [(n, fp) for n, fp in parse_nodes if "ReportParser" in fp]
         assert len(report_parser_parses) >= 1, (
             "ReportParser.parse() not found among parse() overloads"
         )
@@ -290,9 +270,7 @@ class TestJavaCPGFeatures:
             v_fp = graph.graph.nodes[v].get("file_path", "")
             if u_fp != v_fp and u_fp and v_fp:
                 cross_file_df += 1
-        assert cross_file_df > 0, (
-            "Expected cross-file DATA_FLOW edges in ureport2"
-        )
+        assert cross_file_df > 0, "Expected cross-file DATA_FLOW edges in ureport2"
 
 
 # ── Level 5: Taint-labeled graph ─────────────────────────────────────────────
@@ -325,23 +303,19 @@ class TestTaintLabelingOnUreport2:
         """Taint labeling should find at least some labeled nodes in a
         large Java project (best-effort, may vary with rules coverage)."""
         labeled_count = sum(
-            1 for _n, d in taint_graph.graph.nodes(data=True)
-            if d.get("taint_category")
+            1 for _n, d in taint_graph.graph.nodes(data=True) if d.get("taint_category")
         )
         # ureport2 has many getParameter and JdbcTemplate calls — expect labels
-        assert labeled_count > 0, (
-            "Expected at least some taint-labeled nodes in ureport2"
-        )
+        assert labeled_count > 0, "Expected at least some taint-labeled nodes in ureport2"
 
     def test_sql_injection_category_present(self, taint_graph):
         """Verify sql_injection-labeled nodes exist."""
         sqli_count = sum(
-            1 for _n, d in taint_graph.graph.nodes(data=True)
+            1
+            for _n, d in taint_graph.graph.nodes(data=True)
             if d.get("taint_category") == "sql_injection"
         )
-        assert sqli_count > 0, (
-            "Expected sql_injection-labeled nodes in ureport2"
-        )
+        assert sqli_count > 0, "Expected sql_injection-labeled nodes in ureport2"
 
 
 # ── Level 6: Query stress tests ───────────────────────────────────────────────
@@ -353,31 +327,27 @@ class TestQueryOnLargeGraph:
     def test_find_nodes_terminates_with_limit(self, query):
         """_find_nodes must respect max_results on large graphs."""
         results = query._find_nodes("import", max_results=50)
-        assert 0 < len(results) <= 50, (
-            f"Expected 1-50 results, got {len(results)}"
-        )
+        assert 0 < len(results) <= 50, f"Expected 1-50 results, got {len(results)}"
 
     def test_find_path_returns_quickly(self, query):
         """find_path on a large graph should complete within reason."""
         import time
+
         start = time.perf_counter()
         paths = query.find_path("execute", "getParameter", max_depth=15)
         elapsed = time.perf_counter() - start
         assert isinstance(paths, list)
-        assert elapsed < 30, (
-            f"find_path took {elapsed:.1f}s, expected <30s on cached graph"
-        )
+        assert elapsed < 30, f"find_path took {elapsed:.1f}s, expected <30s on cached graph"
 
     def test_find_sources_returns_quickly(self, query):
         """find_sources on a large graph should complete within reason."""
         import time
+
         start = time.perf_counter()
         sources = query.find_sources("queryForList", max_depth=15)
         elapsed = time.perf_counter() - start
         assert isinstance(sources, list)
-        assert elapsed < 10, (
-            f"find_sources took {elapsed:.1f}s, expected <10s on cached graph"
-        )
+        assert elapsed < 10, f"find_sources took {elapsed:.1f}s, expected <10s on cached graph"
 
     def test_get_call_chain_no_crash_on_missing(self, query):
         """get_call_chain on non-existent functions should return None (not crash)."""

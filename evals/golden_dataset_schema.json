@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/hyqagent/hyqagent/evals/golden_dataset_schema.json",
+  "title": "HyqAgent Golden Dataset Schema",
+  "description": "JSON Schema for HyqAgent's golden dataset — versioned, labeled vulnerability cases for regression testing.",
+  "type": "object",
+  "required": ["version", "description", "cases"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this dataset.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this dataset version."
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "language", "cwe", "vulnerability_type", "severity", "detection_method", "fixture_file", "ground_truth"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^case-\\d{3}$",
+            "description": "Unique case identifier."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable case name."
+          },
+          "language": {
+            "type": "string",
+            "enum": ["python", "javascript", "java"],
+            "description": "Programming language of the fixture."
+          },
+          "cwe": {
+            "type": "string",
+            "description": "CWE identifier (e.g. CWE-89)."
+          },
+          "vulnerability_type": {
+            "type": "string",
+            "description": "Internal category matching taint_rules.yaml / rules YAML."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"],
+            "description": "Vulnerability severity level."
+          },
+          "detection_method": {
+            "type": "string",
+            "enum": ["cpg_taint", "dangerous_call", "secret", "config_issue", "missing_auth", "heuristic"],
+            "description": "Which deterministic scanner method should detect this."
+          },
+          "fixture_file": {
+            "type": "string",
+            "description": "Path relative to repo root to the fixture source file."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the vulnerable code does and why it is vulnerable."
+          },
+          "ground_truth": {
+            "type": "object",
+            "required": ["has_finding", "min_findings", "max_findings"],
+            "properties": {
+              "has_finding": {
+                "type": "boolean",
+                "description": "Whether the scanner SHOULD produce a finding."
+              },
+              "expected_category": {
+                "type": ["string", "null"],
+                "description": "Expected Finding.category value."
+              },
+              "expected_label": {
+                "type": ["string", "null"],
+                "description": "For taint paths: expected PathLabel value."
+              },
+              "min_findings": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Minimum number of findings expected."
+              },
+              "max_findings": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum number of findings expected."
+              },
+              "source_pattern": {
+                "type": ["string", "null"],
+                "description": "Substring that must appear in the source reference."
+              },
+              "sink_pattern": {
+                "type": ["string", "null"],
+                "description": "Substring that must appear in the sink reference."
+              },
+              "confidence_min": {
+                "type": "string",
+                "enum": ["high", "medium", "low"],
+                "description": "Minimum expected confidence level."
+              }
+            }
+          },
+          "detection_matrix_refs": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "References to detection_matrix.json item IDs."
+          },
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Categorization tags."
+          },
+          "negative_test": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, the scanner should NOT produce a finding."
+          }
+        }
+      }
+    }
+  }
+}
