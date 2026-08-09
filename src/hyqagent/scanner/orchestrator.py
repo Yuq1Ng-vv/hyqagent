@@ -233,6 +233,8 @@ class Orchestrator:
         saturation_scanner: Any = None,
         reverse_sink_analyzer: Any = None,
         blind_scan_reviewer: Any = None,
+        # ── Observability (injected) ──
+        observability: Any = None,  # ObservabilityManager
         # ── LLM layer (injected) ──
         cheap_provider: Any = None,
         mid_provider: Any = None,
@@ -247,6 +249,7 @@ class Orchestrator:
         self._session_mgr = session_manager or SessionManager(db)
         self._checkpoint_mgr = checkpoint_manager or CheckpointManager(db)
         self._cost_tracker = cost_tracker or CostTracker()
+        self._obs_manager = observability  # Optional[ObservabilityManager]
 
         # Injected scanner modules
         self._query = query
@@ -349,6 +352,15 @@ class Orchestrator:
         self._report.cost_summary = self._cost_tracker.summary()
         self._report.phases_completed = list(self._state.completed_phases)
 
+        # Update Prometheus budget gauge
+        if self._obs_manager and self._obs_manager._metrics is not None:
+            try:
+                self._obs_manager._metrics.set_budget_spent(
+                    self._cost_tracker.total_cost()
+                )
+            except Exception:
+                pass
+
         # ── Finalise session ─────────────────────────────────────────
         await self._session_mgr.update_session_status(sid, self._report.status)
 
@@ -426,6 +438,15 @@ class Orchestrator:
         self._report.scan_duration_ms = int((time.monotonic() - start) * 1000)
         self._report.cost_summary = self._cost_tracker.summary()
         self._report.phases_completed = list(self._state.completed_phases)
+
+        if self._obs_manager and self._obs_manager._metrics is not None:
+            try:
+                self._obs_manager._metrics.set_budget_spent(
+                    self._cost_tracker.total_cost()
+                )
+            except Exception:
+                pass
+
         await self._session_mgr.update_session_status(session_id, self._report.status)
         return self._report
 
@@ -1330,6 +1351,28 @@ class Orchestrator:
                 provider=self._mid,
                 model=cfg.mid_model,
             )
+
+        # ── Observability ──────────────────────────────────────────────────
+        if self._obs_manager is None:
+            from hyqagent.observability.metrics import PrometheusMetrics
+            from hyqagent.observability.tracer import ObservabilityManager
+
+            self._obs_manager = ObservabilityManager(
+                cost_tracker=self._cost_tracker,
+                metrics=PrometheusMetrics(),
+                audit_trail=None,  # created per-session in run()
+                session_id="",
+            )
+
+        # Wire the on_call_complete callback into each LLM provider so
+        # every generate() call feeds CostTracker + Prometheus.
+        _obs_cb = self._obs_manager.record_llm_call
+        for _prov in (self._cheap, self._mid, self._strong):
+            if _prov is not None and getattr(_prov, "_on_call_complete", None) is None:
+                try:
+                    _prov._on_call_complete = _obs_cb
+                except Exception:
+                    pass
 
     @staticmethod
     def _summarise_findings(findings: list[Any]) -> str:

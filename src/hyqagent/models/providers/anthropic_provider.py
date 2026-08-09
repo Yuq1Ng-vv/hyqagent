@@ -81,6 +81,7 @@ class AnthropicProvider:
         config: ProviderConfig,
         max_retries: int = 3,
         timeout_seconds: int = 120,
+        on_call_complete: Any = None,
     ) -> None:
         self._config = config
         self._max_retries = max_retries
@@ -92,6 +93,7 @@ class AnthropicProvider:
             timeout=timeout_seconds,
         )
         self._call_history: list[dict[str, Any]] = []
+        self._on_call_complete = on_call_complete
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -140,6 +142,20 @@ class AnthropicProvider:
             output_tokens=usage.get("output_tokens", 0),
             latency_ms=round(elapsed_ms, 1),
         )
+
+        # ── Observability callback (CostTracker / Prometheus / AuditTrail) ──
+        if self._on_call_complete is not None:
+            try:
+                self._on_call_complete(
+                    model=model,
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+                    latency_ms=elapsed_ms,
+                )
+            except Exception:
+                pass  # Never let metrics break the audit
+
         return result
 
     async def generate_structured(

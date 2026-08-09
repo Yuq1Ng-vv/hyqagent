@@ -171,3 +171,83 @@ class TestAnthropicProviderCountTokens:
 
         # char/4 = len(msg)/4 ≈ 14, should be in that ballpark
         assert 5 <= count <= 50
+
+
+# ── on_call_complete callback ─────────────────────────────────────────────────
+
+
+class TestProviderOnCallComplete:
+    @pytest.fixture
+    def provider_with_cb(self) -> tuple[AnthropicProvider, MagicMock]:
+        cb = MagicMock()
+        config = ProviderConfig(api_key="sk-test", base_url=None)
+        # Bypass real HTTP: use a mock client that returns a canned response
+        provider = AnthropicProvider(config, on_call_complete=cb)
+        mock_client = MagicMock()
+        mock_msg = MagicMock()
+        mock_msg.content = [MagicMock(type="text", text='{"ok":true}')]
+        mock_msg.usage.input_tokens = 100
+        mock_msg.usage.output_tokens = 50
+        mock_msg.usage.cache_read_input_tokens = 10
+        mock_client.messages.create = MagicMock(return_value=mock_msg)
+        provider._client = mock_client
+        return provider, cb
+
+    def test_callback_called_with_usage(self, provider_with_cb: tuple) -> None:
+        provider, cb = provider_with_cb
+        import asyncio
+
+        async def _run() -> None:
+            await provider.generate(
+                messages=[{"role": "user", "content": "hi"}],
+                model="claude-sonnet-5",
+            )
+
+        asyncio.run(_run())
+
+        cb.assert_called_once()
+        call = cb.call_args
+        assert call.kwargs["model"] == "claude-sonnet-5"
+        assert call.kwargs["input_tokens"] == 100
+        assert call.kwargs["output_tokens"] == 50
+        assert call.kwargs["cache_read_tokens"] == 10
+
+    def test_no_callback_works_fine(self) -> None:
+        config = ProviderConfig(api_key="sk-test", base_url=None)
+        provider = AnthropicProvider(config)  # no callback
+        assert provider._on_call_complete is None
+
+        import asyncio
+
+        async def _run() -> None:
+            mock_client = MagicMock()
+            mock_msg = MagicMock()
+            mock_msg.content = [MagicMock(type="text", text="ok")]
+            mock_msg.usage.input_tokens = 10
+            mock_msg.usage.output_tokens = 5
+            mock_msg.usage.cache_read_input_tokens = 0
+            mock_client.messages.create = MagicMock(return_value=mock_msg)
+            provider._client = mock_client
+            await provider.generate(
+                messages=[{"role": "user", "content": "hi"}],
+                model="claude-sonnet-5",
+            )
+
+        asyncio.run(_run())
+        # Should not raise
+
+    def test_callback_exception_does_not_crash(self, provider_with_cb: tuple) -> None:
+        provider, cb = provider_with_cb
+        cb.side_effect = RuntimeError("metrics down")
+
+        import asyncio
+
+        async def _run() -> None:
+            result = await provider.generate(
+                messages=[{"role": "user", "content": "hi"}],
+                model="claude-sonnet-5",
+            )
+            assert result is not None
+
+        asyncio.run(_run())
+        cb.assert_called_once()
