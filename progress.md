@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.25 完成后 (2026-08-09)
-> 最新: Phase 4 饱和扫描（Saturation Scanner）已完成
+> 上次更新: Session 1.26 完成后 (2026-08-09)
+> 最新: Phase 4 反向 Sink 分析 + 盲扫 LLM 通道 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -192,7 +192,7 @@
 
 | 维度 | 数据 |
 |------|------|
-| 测试 | **1257** tests, 2 skipped, 0 failures (+33 saturation tests) |
+| 测试 | **1340** tests, 2 skipped, 0 failures (+83 new: 35 reverse_sink + 48 blind_scan) |
 | Phase 3 累计新增代码 | **24 文件, +~5,100 行** |
 | Phase 4 memory 代码 | **3 文件, +~900 行** (context + crystallizer + retriever) |
 | 源码总模块 | **45** 个 (+1: saturation.py) |
@@ -211,7 +211,8 @@ Phase 3 全部 8 项任务已全部完成。
 > **Session 1.23 里程碑**: Orchestrator + 收敛检测 + 断点续扫 已完成（2 新文件、~1300 行源码、64 tests）。
 > **Session 1.24 里程碑**: 对抗性审查 AdversarialReviewer 已完成（1 新文件、~365 行源码、41 tests）。
 > **Session 1.25 里程碑**: 饱和扫描 SaturationScanner 已完成（1 新文件、~285 行源码、33 tests）。
-> 新增: `scanner/saturation.py`（零 LLM 攻击面扩张）、Orchestrator 集成（新 Phase + 端点计数收敛联动）。
+> **Session 1.26 里程碑**: 反向 Sink 分析 + 盲扫 LLM 通道 已完成（2 新文件、~590 行源码、83 tests）。
+> 新增: `scanner/reverse_sink.py`（通道3，零 LLM）+ `scanner/blind_scan.py`（通道2，LLM）、Orchestrator 集成（2 新 Phase + 收敛视角联动）。
 > CLI `resume` 命令从 stub 变为真实实现，`_run_deep_audit()` 从 ~250 行内联管道简化为 ~30 行 Orchestrator 委托。
 
 - [x] **memory/context.py** — 三区段上下文模型 (固定/长期/工作)
@@ -238,7 +239,7 @@ Phase 3 全部 8 项任务已全部完成。
 | 3 | ~~代码检索 (ripgrep + tree-sitter 混合)~~ | ✅ 完成 |
 | 4 | ~~检查点管理集成~~ | ✅ Session 1.23 完成 |
 | 5 | ~~收敛检测: VDR/EC/RWC/VCC/C_hat~~ | ✅ Session 1.23 完成 |
-| 6 | 补充机制: 反向Sink分析 + 盲扫LLM通道 | 📋 计划 |
+| 6 | 补充机制: 反向Sink分析 + 盲扫LLM通道 | ✅ Session 1.26 完成 |
 | 7 | 对抗性审查 + 饱和扫描 | ✅ 全部完成 |
 | 8 | Observability 完整集成 (OTel + LangFuse + Prometheus) | 🔵 cost_tracker 已有 |
 | 9 | ~~信号处理 (SIGTERM/SIGUSR1) + Orchestrator~~ | ✅ Session 1.23 完成 |

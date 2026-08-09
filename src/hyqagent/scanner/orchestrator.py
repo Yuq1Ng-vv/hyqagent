@@ -56,6 +56,8 @@ class PhaseName(StrEnum):
     VALIDATION = "validation"
     ADVERSARIAL_REVIEW = "adversarial_review"
     SATURATION_SCAN = "saturation_scan"
+    REVERSE_SINK = "reverse_sink"
+    BLIND_SCAN = "blind_scan"
     COVERAGE_AUDIT = "coverage_audit"
     COMPLETENESS_CRITIC = "completeness_critic"
     CONVERGENCE_CHECK = "convergence_check"
@@ -71,6 +73,8 @@ DEEP_PHASES: list[PhaseName] = [
     PhaseName.VALIDATION,
     PhaseName.ADVERSARIAL_REVIEW,
     PhaseName.SATURATION_SCAN,
+    PhaseName.REVERSE_SINK,
+    PhaseName.BLIND_SCAN,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.COMPLETENESS_CRITIC,
     PhaseName.CONVERGENCE_CHECK,
@@ -82,6 +86,8 @@ _CONVERGE_BODY: list[PhaseName] = [
     PhaseName.VALIDATION,
     PhaseName.ADVERSARIAL_REVIEW,
     PhaseName.SATURATION_SCAN,
+    PhaseName.REVERSE_SINK,
+    PhaseName.BLIND_SCAN,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.CONVERGENCE_CHECK,
 ]
@@ -225,6 +231,8 @@ class Orchestrator:
         completeness_critic: Any = None,
         adversarial_reviewer: Any = None,
         saturation_scanner: Any = None,
+        reverse_sink_analyzer: Any = None,
+        blind_scan_reviewer: Any = None,
         # ── LLM layer (injected) ──
         cheap_provider: Any = None,
         mid_provider: Any = None,
@@ -252,6 +260,8 @@ class Orchestrator:
         self._completeness_critic = completeness_critic
         self._adversarial_reviewer = adversarial_reviewer
         self._saturation_scanner = saturation_scanner
+        self._reverse_sink_analyzer = reverse_sink_analyzer
+        self._blind_scan_reviewer = blind_scan_reviewer
 
         # LLM
         self._cheap = cheap_provider
@@ -715,6 +725,101 @@ class Orchestrator:
         if new_funcs > 0:
             state.endpoint_count += new_funcs
 
+    async def _phase_reverse_sink(self, state: PipelineState) -> None:
+        """Reverse sink analysis (通道3) — trace from sinks to unrecognised sources.
+
+        Zero-LLM, pure CPG graph traversal.
+        """
+        if self._reverse_sink_analyzer is None:
+            return
+
+        mode = state.phase_states.get("mode", "deep")
+        if mode == "quick":
+            return
+
+        annotated = state.phase_states.get("annotated_paths", [])
+        session = await self._session_mgr.get_session(state.session_id)
+        language = session.get("language", "") if session else ""
+
+        self._log(
+            "phase",
+            f"Reverse sink: analysing {len(annotated)} annotated paths (lang={language})",
+        )
+
+        try:
+            result = await self._reverse_sink_analyzer.analyse(
+                annotated_paths=annotated,
+                language=language,
+            )
+        except Exception:
+            logger.warning("Reverse sink analysis failed — skipping.")
+            return
+
+        state.phase_states["reverse_sink_result"] = result
+
+        self._log(
+            "info",
+            f"Reverse sink: {len(result.discoveries)} new discovery/ies "
+            f"({result.total_labeled} labelled, {result.total_unlabeled} unlabelled)",
+        )
+
+        # New discoveries extend the attack surface → increment endpoint count
+        # to push convergence EC metric higher and trigger more rounds.
+        new_discoveries = len(result.discoveries)
+        if new_discoveries > 0:
+            state.endpoint_count += new_discoveries
+
+    async def _phase_blind_scan(self, state: PipelineState) -> None:
+        """Blind-scan LLM channel (通道2).
+
+        Ask an LLM what pattern-based scanners would miss at endpoints
+        without source→sink coverage.
+        """
+        if self._blind_scan_reviewer is None:
+            return
+
+        mode = state.phase_states.get("mode", "deep")
+        if mode == "quick":
+            return
+
+        from hyqagent.scanner.blind_scan import exposed_endpoints_from_state
+
+        exposed = exposed_endpoints_from_state(state)
+        if not exposed:
+            self._log("info", "Blind scan: no exposed endpoints to review.")
+            return
+
+        session = await self._session_mgr.get_session(state.session_id)
+        language = session.get("language", "") if session else ""
+
+        self._log(
+            "phase",
+            f"Blind scan: reviewing {len(exposed)} exposed endpoint(s)",
+        )
+
+        try:
+            result = await self._blind_scan_reviewer.review(
+                endpoints=exposed,
+                language=language,
+            )
+        except Exception:
+            logger.warning("Blind scan LLM call failed — skipping.")
+            return
+
+        state.phase_states["blind_scan_result"] = result
+
+        self._log(
+            "info",
+            f"Blind scan: {len(result.findings)} potential issue(s) found "
+            f"across {result.endpoints_reviewed} endpoint(s)",
+        )
+
+        # Each blind-scan finding may reflect a new vulnerability class →
+        # increment finding count for convergence metrics.
+        new_findings = len(result.findings)
+        if new_findings > 0:
+            state.finding_count += new_findings
+
     async def _phase_coverage_audit(self, state: PipelineState) -> None:
         """Differential coverage audit (zero-LLM)."""
         if self._coverage_auditor_class is None or self._query is None:
@@ -822,6 +927,14 @@ class Orchestrator:
             for ar in adversarial_results
             if getattr(ar, "review_verdict", "") == "overturned"
         }
+        # Merge blind-scan discovered endpoints into perspective B
+        # (they represent findings from an independent "lens")
+        blind_scan = state.phase_states.get("blind_scan_result")
+        if blind_scan is not None:
+            for bf in getattr(blind_scan, "findings", []) or []:
+                ep = getattr(bf, "endpoint", "")
+                if ep:
+                    perspective_b.add(f"blind:{ep}")
 
         snapshot = ConvergenceSnapshot(
             round=state.converge_round,
@@ -1136,6 +1249,26 @@ class Orchestrator:
             self._saturation_scanner = SaturationScanner(
                 cpg_query=self._query,
                 max_rounds=4,
+            )
+
+        # ── Reverse sink analyser (通道3, zero-LLM) ──────────────────────
+        if self._reverse_sink_analyzer is None and self._query is not None:
+            from hyqagent.scanner.reverse_sink import ReverseSinkAnalyzer
+
+            self._reverse_sink_analyzer = ReverseSinkAnalyzer(
+                cpg_query=self._query,
+                max_depth=15,
+            )
+
+        # ── Blind scan reviewer (通道2, LLM-based) ──────────────────────
+        if self._blind_scan_reviewer is None and self._mid is not None:
+            from hyqagent.api.config import HyqAgentConfig
+            from hyqagent.scanner.blind_scan import BlindScanReviewer
+
+            cfg = HyqAgentConfig()
+            self._blind_scan_reviewer = BlindScanReviewer(
+                provider=self._mid,
+                model=cfg.mid_model,
             )
 
     @staticmethod
