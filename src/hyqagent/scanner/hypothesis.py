@@ -290,17 +290,6 @@ class HypothesisGenerator:
 
             label_str = label.value if hasattr(label, "value") else str(label)
 
-            if label_str in (
-                "confirmed_taint",
-                "sanitized_taint",
-                "missing_auth",
-                "config_issue",
-                "unreachable_sink",
-                "trust_boundary_crossing",
-            ):
-                # These either don't need LLM or are handled by Validator
-                continue
-
             generated = await self._generate_one(ap, label_str)
             hypotheses.extend(generated)
 
