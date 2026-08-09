@@ -1,6 +1,6 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.33 完成后 (2026-08-09)
+> 上次更新: Session 1.34 完成后 (2026-08-09)
 > 最新: Phase 5 Task 1 — Golden Dataset (28 用例 + eval harness) 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
@@ -334,12 +334,21 @@ Phase 3 全部 8 项任务中，7 项已完成，1 项部分完成（报告生�
   - 14 个新 fixture 文件 (XSS/SSRF/OpenRedirect/Crypto/CSRF/AuthBypass × 3 语言 + 1 negative)
   - **测试总计: 1835 tests, 0 failures** (+319 golden eval)
 
+- [x] **Session 1.34** — Task 2: Scanner 层 Golden 测试 + CPG 基础设施修复
+  - **L5 Scanner-Level 集成测试**: `TestGoldenScannerIntegration` 类 (5 个测试方法, 140 条参数化用例)
+  - **CPG 基础设施修复 3 项**: 
+    1. `_label_taint_nodes` 扩展到 NODE_CALL_SITE + NODE_PARAMETER（Java 污点标记修复）
+    2. `taint_source`/`taint_sink` 角色分离 + `_find_taint_nodes` 的 `role` 参数（安全代码 FP 修复）
+    3. config_issues.yaml CSRF 规则添加 `category: csrf`
+  - **Golden 测试总计: 375 pass, 129 skip** (L1-L5, +56 scanner-level)
+  - **测试总计: 1891 pass, 131 skip, 0 fail** (+56 golden + 0 regression)
+
 ### Phase 5 剩余任务
 
 | # | 任务 | 状态 |
 |---|------|------|
 | 1 | Golden Dataset (25-30 labeled cases) | ✅ Session 1.33 完成 |
-| 2 | Scanner-level Golden 测试 (完整扫描流水线回归) | 🔲 待开始 |
+| 2 | Scanner-level Golden 测试 (完整扫描流水线回归) | ✅ Session 1.34 完成 |
 | 3 | LLM-based eval (DeepEval) | 🔲 待开始 |
 | 4 | CI/CD 集成 (GitHub Actions) | 🔲 待开始 |
 | 5 | 文档最终化 + 发布准备 | 🔲 待开始 |

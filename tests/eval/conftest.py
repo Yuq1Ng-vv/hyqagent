@@ -84,3 +84,56 @@ def build_graph_for_case(case: GoldenCase, parser: Parser) -> CPGGraphBuilder:
     builder = CPGGraphBuilder(parser)
     builder.add_file(fixture_path)
     return builder
+
+
+def build_labeled_graph_for_case(
+    case: GoldenCase,
+    parser: Parser,
+    taint_loader: TaintRuleLoader,
+) -> CPGGraphBuilder:
+    """Build CPG **with taint node labeling enabled** for a single golden case.
+
+    Unlike :func:`build_graph_for_case`, this passes *taint_loader* to
+    :class:`CPGGraphBuilder` so that source/sink nodes are labeled with
+    ``taint_category`` attributes.  Required for scanner-level tests.
+    """
+    from hyqagent.cpg.graph import CPGGraphBuilder
+
+    fixture_path = str(case.fixture_abs_path)
+    builder = CPGGraphBuilder(parser, taint_loader=taint_loader)
+    builder.add_file(fixture_path)
+    return builder
+
+
+def build_scanner_for_case(
+    case: GoldenCase,
+    parser: Parser,
+    taint_loader: TaintRuleLoader,
+    frameworks: list | None = None,
+) -> "DeterministicScanner":
+    """Build a fully wired :class:`DeterministicScanner` for a single golden case.
+
+    Constructs the full dependency chain:
+    CPG graph (labeled) → CPGQuery → SinkDiscoverer + SourceChecker →
+    PathAnnotator → DeterministicScanner
+
+    *frameworks* is optional; required for ``scan_missing_auth()`` tests.
+    """
+    from hyqagent.cpg.discovery import SinkDiscoverer, SourceCompletenessChecker
+    from hyqagent.cpg.query import CPGQuery
+    from hyqagent.scanner.annotator import PathAnnotator
+    from hyqagent.scanner.deterministic import DeterministicScanner
+
+    builder = build_labeled_graph_for_case(case, parser, taint_loader)
+    graph = builder.graph
+    query = CPGQuery(graph)
+    sink_disc = SinkDiscoverer(graph, taint_loader)
+    src_check = SourceCompletenessChecker(graph, taint_loader)
+    annotator = PathAnnotator(query, taint_loader, sink_disc, src_check)
+    return DeterministicScanner(
+        graph,
+        query,
+        taint_loader,
+        annotator,
+        frameworks=frameworks,
+    )

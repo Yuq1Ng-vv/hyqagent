@@ -60,12 +60,14 @@ rules:
   - id: CONFIG-009
     patterns: ['CSRF_COOKIE_SECURE\s*=\s*False']
     severity: medium
+    category: csrf
     message: "CSRF Cookie Secure=False"
     languages: [python]
 
   - id: CONFIG-010
     patterns: ['SAMESITE\s*=\s*None', 'SameSite\s*=\s*None']
     severity: low
+    category: csrf
     message: "Cookie SameSite=None — 容易受 CSRF 攻击"
     languages: []
 
@@ -109,6 +111,7 @@ rules:
       - 'csrf\.disable\(\)'
       - 'http\.csrf\(\)\.disable\(\)'
     severity: high
+    category: csrf
     message: "Spring Security CSRF 防护已禁用 — 易受跨站请求伪造攻击"
     languages: [java]
     cwe: "CWE-352"
@@ -118,6 +121,7 @@ rules:
       - 'security\.enable-csrf\s*:\s*false'
       - 'security\.enable-csrf\s*=\s*false'
     severity: high
+    category: csrf
     message: "Spring Security CSRF 配置关闭"
     languages: [java]
     cwe: "CWE-352"

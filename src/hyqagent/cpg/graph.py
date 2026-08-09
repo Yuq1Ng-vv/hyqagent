@@ -626,9 +626,7 @@ class CPGGraphBuilder:
 
                 # DATA_FLOW edge: function → entry block (connectivity)
                 if block.block_type == "entry":
-                    self.graph.add_edge(
-                        fid, block.block_id, edge_type=EDGE_DATA_FLOW
-                    )
+                    self.graph.add_edge(fid, block.block_id, edge_type=EDGE_DATA_FLOW)
 
             for edge in edges:
                 self.graph.add_edge(
@@ -712,33 +710,74 @@ class CPGGraphBuilder:
     # ── Taint node labeling ────────────────────────────────────────────────
 
     def _label_taint_nodes(self, file_path: str, language: str) -> None:
-        """Tag ``NODE_ASSIGNMENT`` nodes with taint source / sink categories.
+        """Tag nodes with taint source / sink categories.
+
+        Processes ``NODE_ASSIGNMENT``, ``NODE_CALL_SITE``, and
+        ``NODE_PARAMETER`` nodes.
+
+        Sets three attributes on each labeled node:
+
+        * ``taint_source`` — comma-separated *source* categories
+        * ``taint_sink``   — comma-separated *sink* categories
+        * ``taint_category`` — combined (for backward compatibility)
+
+        Source check takes priority: if a node matches any source
+        pattern its sink patterns are NOT evaluated (a node cannot
+        be both source and sink).
 
         A single node can match patterns from multiple categories
         (e.g. ``getInputStream()`` is both an XXE and SSRF source).
-        The ``taint_category`` attribute is a comma-separated string
-        of all matching categories (e.g. ``"xxe,ssrf,sql_injection"``).
         """
         if self._taint_loader is None:
             return
 
+        # Pre-build function-source lookup so NODE_PARAMETER nodes
+        # can look up their enclosing function's declaration text
+        # (which carries annotation-based source markers like
+        # ``@RequestParam`` in Java / Spring).
+        func_source_by_name: dict[str, str] = {}
+        for _nid, data in self.graph.nodes(data=True):
+            if data.get("file_path") == file_path and data.get("node_type") == NODE_FUNCTION:
+                name = data.get("name", "")
+                src = data.get("source", "")
+                if name and src:
+                    func_source_by_name[name] = src
+
         for _nid, data in self.graph.nodes(data=True):
             if data.get("file_path") != file_path:
                 continue
-            if data.get("node_type") != NODE_ASSIGNMENT:
+
+            node_type = data.get("node_type", "")
+            source_text = ""
+
+            if node_type == NODE_ASSIGNMENT:
+                source_text = data.get("source", "")
+            elif node_type == NODE_CALL_SITE:
+                # Bare function calls (e.g. ``cursor.execute(sql)``) are
+                # expression statements, not assignments.  Use the
+                # ``expression`` attribute which stores the call text.
+                source_text = data.get("expression", "")
+            elif node_type == NODE_PARAMETER:
+                # Java / Spring parameters (``@RequestParam String x``)
+                # carry source annotations on the enclosing function.
+                encl_func = data.get("enclosing_function", "")
+                source_text = func_source_by_name.get(encl_func, "")
+            else:
                 continue
-            source_text = data.get("source", "")
+
             if not source_text:
                 continue
 
-            # Check ALL source and sink matches — multi-label
+            # Source check takes priority — a node is EITHER source OR sink.
             src_cats = self._taint_loader.match_all_sources(language, source_text)
             if src_cats:
+                data["taint_source"] = ",".join(src_cats)
                 data["taint_category"] = ",".join(src_cats)
                 continue
 
             sink_cats = self._taint_loader.match_all_sinks(language, source_text)
             if sink_cats:
+                data["taint_sink"] = ",".join(sink_cats)
                 data["taint_category"] = ",".join(sink_cats)
 
     @property

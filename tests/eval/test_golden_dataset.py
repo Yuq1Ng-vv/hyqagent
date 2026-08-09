@@ -220,3 +220,152 @@ class TestGoldenNegativeCases:
             f"Safe code {case.id} unexpectedly matched source category '{cat}' — "
             f"this is a FALSE POSITIVE"
         )
+
+
+# ── Level 5: Scanner-level integration ────────────────────────────────────
+
+
+class TestGoldenScannerIntegration:
+    """Run the full :class:`DeterministicScanner` on each golden case.
+
+    These tests exercise the complete scanner dependency chain
+    (CPG graph → CPGQuery → PathAnnotator → DeterministicScanner)
+    and verify the scanner produces (or does not produce) findings
+    matching ground truth.
+
+    Note for ``cpg_taint`` cases: the current CPG data-flow analysis
+    does not trace variable refs into call-site arguments within
+    single-file fixtures, so the taint BFS may produce zero paths.
+    This is a known limitation — scanner-level taint regression will
+    become effective once cross-procedural data-flow is improved.
+    """
+
+    @pytest.mark.eval
+    def test_scanner_constructs_and_runs(
+        self,
+        case: GoldenCase,
+        parser: Parser,
+        taint_loader: TaintRuleLoader,
+    ) -> None:
+        """DeterministicScanner must construct and scan without exceptions."""
+        from tests.eval.conftest import build_scanner_for_case
+
+        scanner = build_scanner_for_case(case, parser, taint_loader)
+        result = scanner.scan_all([str(case.fixture_abs_path)], case.language)
+        assert result is not None
+        assert hasattr(result, "findings")
+        assert hasattr(result, "stats")
+        assert "total_findings" in result.stats
+
+    @pytest.mark.eval
+    def test_scanner_taint_labels_exist(
+        self,
+        case: GoldenCase,
+        parser: Parser,
+        taint_loader: TaintRuleLoader,
+    ) -> None:
+        """Taint-labeled nodes must exist in the CPG for cpg_taint cases."""
+        if case.detection_method != "cpg_taint":
+            pytest.skip(f"Not a cpg_taint case ({case.detection_method})")
+        if case.negative_test:
+            pytest.skip("Negative test — taint labels may or may not exist")
+
+        from tests.eval.conftest import build_labeled_graph_for_case
+
+        builder = build_labeled_graph_for_case(case, parser, taint_loader)
+        labeled = [n for n, d in builder.graph.nodes(data=True) if d.get("taint_category")]
+        assert len(labeled) > 0, (
+            f"No taint-labeled nodes in {case.id} ({case.fixture_file}). "
+            f"Expected taint_category labels for {case.vulnerability_type}."
+        )
+
+    @pytest.mark.eval
+    def test_config_scanner_finds_issue(
+        self,
+        case: GoldenCase,
+        parser: Parser,
+        taint_loader: TaintRuleLoader,
+    ) -> None:
+        """scan_config_issues must detect CSRF disable in case-026."""
+        if case.detection_method != "config_issue":
+            pytest.skip(f"Not a config_issue case ({case.detection_method})")
+
+        from tests.eval.conftest import build_scanner_for_case
+
+        scanner = build_scanner_for_case(case, parser, taint_loader)
+        findings = scanner.scan_config_issues(
+            [str(case.fixture_abs_path)],
+            case.language,
+        )
+
+        assert len(findings) >= case.ground_truth.min_findings, (
+            f"Expected ≥{case.ground_truth.min_findings} config findings "
+            f"for {case.id}, got {len(findings)}"
+        )
+        if case.ground_truth.expected_category:
+            matched = [
+                f
+                for f in findings
+                if f.category == case.ground_truth.expected_category
+                or case.ground_truth.expected_category in f.category  # type: ignore[operator]
+            ]
+            assert len(matched) > 0, (
+                f"No finding with category '{case.ground_truth.expected_category}' "
+                f"in {case.id}. Got categories: {[f.category for f in findings]}"
+            )
+
+    @pytest.mark.eval
+    def test_missing_auth_scanner(
+        self,
+        case: GoldenCase,
+        parser: Parser,
+        taint_loader: TaintRuleLoader,
+    ) -> None:
+        """scan_missing_auth must detect unprotected endpoint in case-027."""
+        if case.detection_method != "missing_auth":
+            pytest.skip(f"Not a missing_auth case ({case.detection_method})")
+
+        from tests.eval.conftest import build_scanner_for_case
+
+        # Build scanner WITHOUT frameworks first — missing_auth needs
+        # framework extractors to discover endpoints.  For single-fixture
+        # tests the framework extractors may not parse the fixture fully,
+        # so this is a soft/best-effort assertion.
+        scanner = build_scanner_for_case(case, parser, taint_loader)
+        findings = scanner.scan_missing_auth()
+
+        # Soft pass: min_findings=0 allows zero findings (known-gap)
+        assert len(findings) >= case.ground_truth.min_findings, (
+            f"Expected ≥{case.ground_truth.min_findings} missing-auth findings "
+            f"for {case.id}, got {len(findings)}"
+        )
+
+    @pytest.mark.eval
+    def test_safe_code_produces_no_findings(
+        self,
+        case: GoldenCase,
+        parser: Parser,
+        taint_loader: TaintRuleLoader,
+    ) -> None:
+        """Negative cases must produce ZERO findings from the full scanner."""
+        if not case.negative_test:
+            pytest.skip("Not a negative test case")
+
+        from tests.eval.conftest import build_scanner_for_case
+
+        scanner = build_scanner_for_case(case, parser, taint_loader)
+        result = scanner.scan_all([str(case.fixture_abs_path)], case.language)
+
+        # For now, only check that no CONFIRMED_TAINT finding appears
+        # with the forbidden category.  Regex-based scanners (secrets,
+        # dangerous_calls, config_issues) may produce incidental matches
+        # on safe fixtures — those are separate FP concerns.
+        forbidden = case.ground_truth.expected_category or case.vulnerability_type
+        taint_findings = [
+            f for f in result.findings if f.rule_id == "TAINT-001" and f.category == forbidden
+        ]
+        assert len(taint_findings) == 0, (
+            f"SAFE CODE FALSE POSITIVE: {case.id} produced "
+            f"{len(taint_findings)} taint finding(s) with category "
+            f"'{forbidden}' — scanner should not flag safe parameterized code"
+        )

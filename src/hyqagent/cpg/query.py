@@ -98,11 +98,19 @@ class CPGQuery:
         # parameter name `req` in `HttpServletRequest req`), but function
         # nodes are not the actual taint entry points — assignments are.
         sources = self._find_taint_nodes(
-            source_pattern, taint_loader, language, exclude_types={NODE_FUNCTION},
+            source_pattern,
+            taint_loader,
+            language,
+            exclude_types={NODE_FUNCTION},
+            role="source",
         )
         sinks = set(
             self._find_taint_nodes(
-                sink_pattern, taint_loader, language, exclude_types={NODE_FUNCTION},
+                sink_pattern,
+                taint_loader,
+                language,
+                exclude_types={NODE_FUNCTION},
+                role="sink",
             )
         )
         if not sources or not sinks:
@@ -318,6 +326,7 @@ class CPGQuery:
         language: str,
         max_results: int = 200,
         exclude_types: set[str] | None = None,
+        role: str | None = None,
     ) -> list[str]:
         """Find nodes by taint_category label (preferred) or substring fallback.
 
@@ -326,6 +335,13 @@ class CPGQuery:
         resolved from *pattern*.  Falls back to plain ``_find_nodes``
         substring matching when the loader is unavailable or no labeled
         nodes match.
+
+        When *role* is ``"source"``, only nodes with a ``taint_source``
+        attribute matching *pattern* are returned (sink-labeled nodes are
+        excluded).  When *role* is ``"sink"``, the ``taint_sink``
+        attribute is used instead.  When *role* is ``None`` (the default),
+        the combined ``taint_category`` attribute is used for backward
+        compatibility.
         """
         if taint_loader is not None and language:
             # Resolve which taint category the pattern matches.
@@ -350,21 +366,37 @@ class CPGQuery:
                 cat = taint_loader.match_sink(language, pattern)
 
             if cat is not None:
-                # Search for nodes already labeled with this category.
-                # taint_category is comma-separated (multi-label support).
+                # Determine which attribute(s) to search based on role.
+                if role == "source":
+                    search_attrs = ["taint_source"]
+                elif role == "sink":
+                    search_attrs = ["taint_sink"]
+                else:
+                    # Backward-compat: search combined taint_category
+                    search_attrs = ["taint_category"]
+
                 matches: list[str] = []
                 for nid, data in self._graph.nodes(data=True):
                     if len(matches) >= max_results:
                         break
                     if exclude_types and data.get("node_type") in exclude_types:
                         continue
-                    node_cats = data.get("taint_category", "")
-                    if cat in node_cats.split(","):
-                        matches.append(nid)
+                    for attr in search_attrs:
+                        node_cats = data.get(attr, "")
+                        if cat in node_cats.split(","):
+                            matches.append(nid)
+                            break
                 if matches:
                     return matches
 
-        # Fall back to plain substring matching
+                # When role is specified we must NOT fall back to substring
+                # matching — that would defeat source/sink separation.
+                # An empty result for "source" means there are genuinely no
+                # source-labeled nodes, and the path search should stop.
+                if role is not None:
+                    return []
+
+        # Fall back to plain substring matching (role=None only)
         return self._find_nodes(pattern, max_results, exclude_types)
 
     def _bfs_paths(
@@ -426,9 +458,7 @@ class CPGQuery:
 
     # ── CFG queries ──────────────────────────────────────────────────────
 
-    def get_cfg_for_function(
-        self, func_name: str, file_path: str | None = None
-    ) -> list[str]:
+    def get_cfg_for_function(self, func_name: str, file_path: str | None = None) -> list[str]:
         """Return block IDs for *func_name*, sorted by ``start_line``."""
         blocks: list[tuple[int, str]] = []
         for nid, data in self._graph.nodes(data=True):
@@ -440,9 +470,7 @@ class CPGQuery:
         blocks.sort(key=lambda x: x[0])
         return [bid for _line, bid in blocks]
 
-    def get_entry_block(
-        self, func_name: str, file_path: str | None = None
-    ) -> str | None:
+    def get_entry_block(self, func_name: str, file_path: str | None = None) -> str | None:
         """Return the entry block ID for *func_name*, or ``None``."""
         for nid, data in self._graph.nodes(data=True):
             if (
@@ -453,9 +481,7 @@ class CPGQuery:
                 return nid
         return None
 
-    def is_reachable(
-        self, from_block_id: str, to_block_id: str, max_depth: int = 200
-    ) -> bool:
+    def is_reachable(self, from_block_id: str, to_block_id: str, max_depth: int = 200) -> bool:
         """Return ``True`` if *to_block_id* is reachable from *from_block_id*
         via ``EDGE_CTRL_FLOW`` edges.
         """
@@ -478,9 +504,7 @@ class CPGQuery:
                         break
         return False
 
-    def get_reachable_blocks(
-        self, from_block_id: str, max_depth: int = 200
-    ) -> list[str]:
+    def get_reachable_blocks(self, from_block_id: str, max_depth: int = 200) -> list[str]:
         """Return all block IDs reachable from *from_block_id* via
         ``EDGE_CTRL_FLOW`` edges.
         """
@@ -501,9 +525,7 @@ class CPGQuery:
                         break
         return list(visited)
 
-    def dominates(
-        self, block_a_id: str, block_b_id: str, entry_block_id: str
-    ) -> bool:
+    def dominates(self, block_a_id: str, block_b_id: str, entry_block_id: str) -> bool:
         """Return ``True`` if *block_a_id* dominates *block_b_id*.
 
         Uses the classic iterative data-flow algorithm: a block **X**
@@ -533,8 +555,10 @@ class CPGQuery:
         dom: dict[str, set[str]] = {}
         for b in all_blocks:
             dom[b] = set(all_blocks)
-        entry = entry_block_id if entry_block_id in dom else (
-            all_blocks[0] if all_blocks else entry_block_id
+        entry = (
+            entry_block_id
+            if entry_block_id in dom
+            else (all_blocks[0] if all_blocks else entry_block_id)
         )
         if entry in dom:
             dom[entry] = {entry}
@@ -567,8 +591,7 @@ class CPGQuery:
 
     def _collect_cfg_data_for_function(
         self, func_name: str, file_path: str | None = None
-    ) -> tuple[set[str], dict[str, set[str]], dict[str, set[str]],
-               str | None, set[str]]:
+    ) -> tuple[set[str], dict[str, set[str]], dict[str, set[str]], str | None, set[str]]:
         """Collect CFG block data from the graph for dominance analysis.
 
         Returns ``(block_ids, preds, succs, entry_id, exit_ids)``.
@@ -608,8 +631,11 @@ class CPGQuery:
         return block_ids, preds, succs, entry_id, exit_ids
 
     def post_dominates(
-        self, block_a_id: str, block_b_id: str,
-        func_name: str, file_path: str | None = None,
+        self,
+        block_a_id: str,
+        block_b_id: str,
+        func_name: str,
+        file_path: str | None = None,
     ) -> bool:
         """Return ``True`` if *block_a_id* post-dominates *block_b_id*.
 
@@ -617,8 +643,8 @@ class CPGQuery:
         must go through P.  This is the reverse-path analogue of
         :meth:`dominates`.
         """
-        block_ids, _preds, succs, entry_id, exit_ids = (
-            self._collect_cfg_data_for_function(func_name, file_path)
+        block_ids, _preds, succs, entry_id, exit_ids = self._collect_cfg_data_for_function(
+            func_name, file_path
         )
         if not block_ids or not exit_ids:
             return block_a_id == block_b_id
@@ -631,8 +657,10 @@ class CPGQuery:
         return block_a_id in pd[block_b_id]
 
     def get_control_dependents(
-        self, from_block_id: str,
-        func_name: str, file_path: str | None = None,
+        self,
+        from_block_id: str,
+        func_name: str,
+        file_path: str | None = None,
     ) -> list[str]:
         """Return block IDs that are **control-dependent** on *from_block_id*.
 
@@ -645,8 +673,8 @@ class CPGQuery:
         Returns the list of block IDs that are control-dependent on
         *from_block_id*.
         """
-        block_ids, _preds, succs, entry_id, exit_ids = (
-            self._collect_cfg_data_for_function(func_name, file_path)
+        block_ids, _preds, succs, entry_id, exit_ids = self._collect_cfg_data_for_function(
+            func_name, file_path
         )
         if not block_ids or not exit_ids:
             return []
@@ -661,14 +689,14 @@ class CPGQuery:
 
         # cd[L] = {B | L is control-dependent on B}
         # We want: which L are control-dependent on from_block_id?
-        return sorted(
-            lid for lid, controllers in cd.items()
-            if from_block_id in controllers
-        )
+        return sorted(lid for lid, controllers in cd.items() if from_block_id in controllers)
 
     def is_control_dependent_on(
-        self, block_a_id: str, block_b_id: str,
-        func_name: str, file_path: str | None = None,
+        self,
+        block_a_id: str,
+        block_b_id: str,
+        func_name: str,
+        file_path: str | None = None,
     ) -> bool:
         """Return ``True`` if *block_a_id* is control-dependent on *block_b_id*.
 
@@ -676,14 +704,14 @@ class CPGQuery:
         *block_a_id* executes?  (Block A depends on block B.)
         """
         return block_a_id in self.get_control_dependents(
-            block_b_id, func_name, file_path,
+            block_b_id,
+            func_name,
+            file_path,
         )
 
     # ── Coverage / discovery queries ────────────────────────────────────
 
-    def get_nodes_by_type_in_file(
-        self, node_type: str, file_path: str
-    ) -> list[GraphNode]:
+    def get_nodes_by_type_in_file(self, node_type: str, file_path: str) -> list[GraphNode]:
         """Return all nodes of *node_type* in *file_path*.
 
         Useful for discovering which assignments / call-sites / basic-blocks
@@ -709,11 +737,25 @@ class CPGQuery:
         includes known route markers (``@app.route``, ``@GetMapping``, ``app.get(``, etc.).
         """
         route_markers = [
-            "@app.route", "@app.get", "@app.post", "@app.put", "@app.delete",
-            "@app.patch", "@blueprint.route", "@router.get", "@router.post",
-            "app.get(", "app.post(", "app.put(", "app.delete(",
-            "router.get(", "router.post(",
-            "@GetMapping", "@PostMapping", "@PutMapping", "@DeleteMapping",
+            "@app.route",
+            "@app.get",
+            "@app.post",
+            "@app.put",
+            "@app.delete",
+            "@app.patch",
+            "@blueprint.route",
+            "@router.get",
+            "@router.post",
+            "app.get(",
+            "app.post(",
+            "app.put(",
+            "app.delete(",
+            "router.get(",
+            "router.post(",
+            "@GetMapping",
+            "@PostMapping",
+            "@PutMapping",
+            "@DeleteMapping",
             "@RequestMapping",
         ]
 
@@ -744,12 +786,14 @@ class CPGQuery:
                     break
 
             if not has_source:
-                result.append({
-                    "node_id": nid,
-                    "function": name,
-                    "file_path": file_path,
-                    "line": data.get("start_line", 0),
-                })
+                result.append(
+                    {
+                        "node_id": nid,
+                        "function": name,
+                        "file_path": file_path,
+                        "line": data.get("start_line", 0),
+                    }
+                )
 
         return result
 
@@ -767,21 +811,25 @@ class CPGQuery:
             src = data.get("source", "")
             if not src or "(" not in src:
                 continue
-            candidates.append({
-                "node_id": nid,
-                "file_path": data.get("file_path", ""),
-                "start_line": data.get("start_line", 0),
-                "enclosing_function": data.get("enclosing_function", ""),
-                "source": src[:120],
-                "taint_category": data.get("taint_category", ""),
-            })
+            candidates.append(
+                {
+                    "node_id": nid,
+                    "file_path": data.get("file_path", ""),
+                    "start_line": data.get("start_line", 0),
+                    "enclosing_function": data.get("enclosing_function", ""),
+                    "source": src[:120],
+                    "taint_category": data.get("taint_category", ""),
+                }
+            )
 
         # Sort by category first (unlabelled last), then by file+line
-        candidates.sort(key=lambda c: (
-            0 if c["taint_category"] else 1,
-            c["file_path"],
-            c["start_line"],
-        ))
+        candidates.sort(
+            key=lambda c: (
+                0 if c["taint_category"] else 1,
+                c["file_path"],
+                c["start_line"],
+            )
+        )
         return candidates
 
     def get_labeled_sinks(self) -> list[str]:
@@ -793,13 +841,10 @@ class CPGQuery:
         return [
             nid
             for nid, data in self._graph.nodes(data=True)
-            if data.get("node_type") == NODE_ASSIGNMENT
-            and data.get("taint_category")
+            if data.get("node_type") == NODE_ASSIGNMENT and data.get("taint_category")
         ]
 
-    def get_unlabeled_but_dangerous(
-        self, language: str = ""
-    ) -> list[dict]:
+    def get_unlabeled_but_dangerous(self, language: str = "") -> list[dict]:
         """Return ``NODE_ASSIGNMENT`` nodes that are **not** taint-labelled
         but whose expression looks like a potentially dangerous call.
 
@@ -808,9 +853,23 @@ class CPGQuery:
         full heuristic scoring in :class:`SinkDiscoverer`.
         """
         danger_markers = [
-            "execute", "query", "eval", "exec", "system", "popen",
-            "read", "write", "open(", "process", "send", "load", "dump",
-            "parse", "redirect", "render", "run(",
+            "execute",
+            "query",
+            "eval",
+            "exec",
+            "system",
+            "popen",
+            "read",
+            "write",
+            "open(",
+            "process",
+            "send",
+            "load",
+            "dump",
+            "parse",
+            "redirect",
+            "render",
+            "run(",
         ]
         candidates: list[dict] = []
         for nid, data in self._graph.nodes(data=True):
@@ -822,20 +881,25 @@ class CPGQuery:
             if not src or "(" not in src:
                 continue
             if any(m in src for m in danger_markers):
-                candidates.append({
-                    "node_id": nid,
-                    "file_path": data.get("file_path", ""),
-                    "start_line": data.get("start_line", 0),
-                    "enclosing_function": data.get("enclosing_function", ""),
-                    "source": data.get("source", "")[:120],
-                })
+                candidates.append(
+                    {
+                        "node_id": nid,
+                        "file_path": data.get("file_path", ""),
+                        "start_line": data.get("start_line", 0),
+                        "enclosing_function": data.get("enclosing_function", ""),
+                        "source": data.get("source", "")[:120],
+                    }
+                )
 
         candidates.sort(key=lambda c: (c["file_path"], c["start_line"]))
         return candidates
 
     def get_taint_paths_for_endpoint(
-        self, endpoint_func: str, taint_loader: object | None = None,
-        language: str = "", max_depth: int = 20,
+        self,
+        endpoint_func: str,
+        taint_loader: object | None = None,
+        language: str = "",
+        max_depth: int = 20,
     ) -> list[GraphPath]:
         """Find all taint paths that involve sources/sinks in *endpoint_func*.
 
@@ -862,9 +926,13 @@ class CPGQuery:
             if src:
                 # Determine if it's a source or sink by matching YAML patterns
                 if taint_loader and language:
-                    if hasattr(taint_loader, "match_source") and taint_loader.match_source(language, src):
+                    if hasattr(taint_loader, "match_source") and taint_loader.match_source(
+                        language, src
+                    ):
                         source_texts.append(cat)
-                    if hasattr(taint_loader, "match_sink") and taint_loader.match_sink(language, src):
+                    if hasattr(taint_loader, "match_sink") and taint_loader.match_sink(
+                        language, src
+                    ):
                         sink_texts.append(cat)
 
         # For each detected category, find paths
