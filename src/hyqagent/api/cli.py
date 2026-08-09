@@ -108,6 +108,16 @@ def main(ctx: click.Context) -> None:
     help="Enable Phase 3 LLM-augmented deep audit (requires API keys). "
     "Default: --quick (deterministic-only, zero-LLM).",
 )
+@click.option(
+    "--mode",
+    "-m",
+    "audit_mode",
+    type=click.Choice(["precision", "recall"]),
+    default="precision",
+    help="Audit strategy: precision (reduce false positives, default) "
+    "or recall (reduce false negatives — LLM gets full code access + tools). "
+    "Recall mode implies --deep.",
+)
 @click.pass_context
 def scan(
     ctx: click.Context,
@@ -118,6 +128,7 @@ def scan(
     report_format: str,
     quiet: bool,
     deep: bool,
+    audit_mode: str,
 ) -> None:
     r"""Audit PATH for security vulnerabilities.
 
@@ -185,7 +196,9 @@ def scan(
         click.echo(f"   Files:     {len(file_paths)} source file(s)")
 
     # ── Run scan ────────────────────────────────────────────────────
-    if deep:
+    # Recall mode implies deep audit (requires LLM)
+    use_deep = deep or audit_mode == "recall"
+    if use_deep:
         try:
             result = asyncio.run(
                 _run_deep_audit(
@@ -194,6 +207,7 @@ def scan(
                     target,
                     config,
                     quiet=quiet,
+                    audit_mode=audit_mode,
                 )
             )
         except Exception as exc:
@@ -447,6 +461,7 @@ async def _run_deep_audit(
     target: Path,
     config: HyqAgentConfig,
     quiet: bool = False,
+    audit_mode: str = "precision",
 ) -> ScanResult:
     """Phase 3+ deep audit powered by :class:`Orchestrator`.
 
@@ -457,10 +472,19 @@ async def _run_deep_audit(
     """
     from pathlib import Path as _Path
 
-    db_path = _Path.home() / ".hyqagent" / "sessions.db"
+    from hyqagent.core.state import AuditMode
     from hyqagent.scanner.orchestrator import Orchestrator
 
-    orch = Orchestrator(db_path=db_path, quiet=quiet)
+    db_path = _Path.home() / ".hyqagent" / "sessions.db"
+    mode = AuditMode(audit_mode)
+
+    orch = Orchestrator(
+        db_path=db_path,
+        quiet=quiet,
+        mode=mode,
+        max_agent_turns=config.max_agent_turns,
+        tool_result_max_chars=config.tool_result_max_chars,
+    )
 
     report = await orch.run(
         project_path=target,

@@ -266,6 +266,9 @@ class HypothesisGenerator:
         self._mid = mid_provider
         self._strong = strong_provider
         self._nudge_loop = nudge_loop
+        # Recall-mode optional dependencies (set by orchestrator)
+        self._code_retriever: Any = None
+        self._agent_loop: Any = None
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -518,6 +521,29 @@ class HypothesisGenerator:
 
         # 4. Call LLM (with nudge protection if configured)
         try:
+            # ── Recall mode: agentic exploration ──────────────────────
+            if self._agent_loop is not None and self._code_retriever is not None:
+                enriched = self._build_recall_prompt(
+                    annotated, label_str, slice_text, path
+                )
+                loop_result = await self._agent_loop.run(
+                    messages=[{"role": "user", "content": enriched}],
+                    output_schema=HYPOTHESIS_SCHEMA,
+                    system=SYSTEM_PROMPT,
+                    model=model_id,
+                    max_tokens=4096,
+                    temperature=0.2,
+                )
+                if loop_result is not None and loop_result.output:
+                    return self._parse_response(loop_result.output)
+                logger.warning(
+                    "agent_loop_no_result",
+                    label=label_str,
+                    turns=loop_result.turns if loop_result else 0,
+                )
+                return []
+
+            # ── Precision mode: single-shot ──────────────────────────
             if self._nudge_loop is not None:
                 from hyqagent.scanner.nudge import stop_on_empty, stop_on_low_confidence
 
@@ -585,6 +611,92 @@ class HypothesisGenerator:
                 )
             )
         return hypotheses
+
+    # ── Recall mode helpers ────────────────────────────────────────────
+
+    def set_recall_deps(
+        self,
+        code_retriever: Any,
+        agent_loop: Any,
+    ) -> None:
+        """Wire recall-mode dependencies (called by orchestrator)."""
+        self._code_retriever = code_retriever
+        self._agent_loop = agent_loop
+
+    def _build_recall_prompt(
+        self,
+        annotated: Any,
+        label_str: str,
+        slice_text: str,
+        path: Any,
+    ) -> str:
+        """Build an enriched prompt for recall-mode agentic exploration.
+
+        Includes the CPG slice as a map plus the full sink function source
+        from CodeRetriever so the LLM has both the trail and the terrain.
+        """
+        parts: list[str] = [
+            "## Code Audit Task\n",
+            f"**Label**: {label_str}",
+        ]
+
+        # CPG data-flow slice (the "trail")
+        if slice_text:
+            lang = self._language or ""
+            parts.append(
+                f"\n### CPG Data-Flow Slice (pre-computed path)\n"
+                f"```{lang}\n{slice_text}\n```"
+            )
+
+        # Full sink function source from CodeRetriever (the "terrain")
+        if self._code_retriever is not None and path is not None:
+            sink_node = None
+            for node in path.nodes:
+                ntype = getattr(node, "node_type", "")
+                if ntype in ("call_site", "sink", "function_call"):
+                    sink_node = node
+                    break
+
+            if sink_node is not None:
+                loc = getattr(sink_node, "location", "")
+                func_name = getattr(sink_node, "name", "")
+                file_path = ""
+                if ":" in loc:
+                    file_path = loc.rsplit(":", 1)[0]
+
+                if file_path and func_name:
+                    chunks = self._code_retriever.get_chunks_for_file(file_path)
+                    for chunk in chunks:
+                        if chunk.function_name == func_name:
+                            parts.append(
+                                f"\n### Full Sink Function: {func_name}\n"
+                                f"```\n{chunk.code[:2000]}\n```"
+                            )
+                            break
+
+        # Tool guidance
+        parts.append(
+            "\n## Instructions\n"
+            "You have code-exploration tools available (read_file, grep_code, "
+            "get_function, list_functions, get_related). Use them to:\n"
+            "1. Verify the data-flow path shown above\n"
+            "2. Check for sanitizers or guards the scanner may have missed\n"
+            "3. Look for related sink functions in the same file\n"
+            "4. Determine if the vulnerability is exploitable in context\n\n"
+            "When done, call the output tool with your hypotheses."
+        )
+
+        # Metadata
+        metadata = getattr(annotated, "metadata", {}) or {}
+        if label_str == "heuristic_sink":
+            score = metadata.get("score", 0)
+            keywords = metadata.get("keywords", [])
+            parts.append(
+                f"\n**Heuristic score**: {score}/100. "
+                f"**Matched keywords**: {', '.join(keywords)}"
+            )
+
+        return "\n".join(parts)
 
     @staticmethod
     def _count_files(path: GraphPath) -> int:

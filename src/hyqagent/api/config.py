@@ -49,6 +49,11 @@ class HyqAgentConfig(BaseSettings):
     llm_max_retries: int = 3
     llm_timeout_seconds: int = 120
 
+    # ── Audit strategy ─────────────────────────────────────────────────
+    audit_mode: str = "precision"  # "precision" | "recall"
+    max_agent_turns: int = 10  # AgentLoop max turns (recall mode only)
+    tool_result_max_chars: int = 8_000  # Cumulative tool result budget (recall only)
+
     # ── Scanner config ─────────────────────────────────────────────────
     default_language: str = ""
     default_framework: str = ""

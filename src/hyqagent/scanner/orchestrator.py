@@ -243,8 +243,20 @@ class Orchestrator:
         # ── Config ──
         quiet: bool = False,
         db_path: str | Path | None = None,
+        mode: Any = None,  # AuditMode — lazy-imported to avoid circular deps
+        max_agent_turns: int = 10,
+        tool_result_max_chars: int = 8_000,
     ) -> None:
         db = str(db_path or self._DEFAULT_DB)
+
+        # Audit mode (set after import to avoid circular dep)
+        if mode is None:
+            from hyqagent.core.state import AuditMode
+
+            mode = AuditMode.PRECISION
+        self._audit_mode = mode
+        self._max_agent_turns = max_agent_turns
+        self._tool_result_max_chars = tool_result_max_chars
 
         self._session_mgr = session_manager or SessionManager(db)
         self._checkpoint_mgr = checkpoint_manager or CheckpointManager(db)
@@ -274,6 +286,9 @@ class Orchestrator:
 
         # Convergence
         self._convergence = ConvergenceMonitor(convergence_thresholds)
+
+        # Recall-mode (set in _ensure_scanner_modules)
+        self._code_retriever: Any = None
 
         # State
         self._quiet = quiet
@@ -728,8 +743,40 @@ class Orchestrator:
             f"Adversarial review: {len(rejected)} rejected hypotheses to review",
         )
 
+        # Recall mode: build code_contexts from hypothesis source/sink locations
+        _adv_code_contexts: dict[str, str] = {}
+        if self._code_retriever is not None:
+            for h, _v in rejected:
+                hid = getattr(h, "id", "")
+                if not hid:
+                    continue
+                parts: list[str] = []
+                for loc_attr in ("source_location", "sink_location"):
+                    loc = getattr(h, loc_attr, "")
+                    if not loc or ":" not in loc:
+                        continue
+                    try:
+                        fp, line_str = loc.rsplit(":", 1)
+                        line_num = int(line_str)
+                    except (ValueError, TypeError):
+                        continue
+                    chunks = self._code_retriever.get_chunks_for_file(fp)
+                    for chunk in chunks:
+                        if chunk.start_line <= line_num <= chunk.end_line:
+                            parts.append(
+                                f"## {chunk.function_name or '<module>'} "
+                                f"({fp}:{chunk.start_line}-{chunk.end_line})\n"
+                                f"```\n{chunk.code[:2000]}\n```"
+                            )
+                            break
+                if parts:
+                    _adv_code_contexts[hid] = "\n\n".join(parts)
+
         try:
-            results = await self._adversarial_reviewer.review(rejected)
+            results = await self._adversarial_reviewer.review(
+                rejected,
+                code_contexts=_adv_code_contexts if _adv_code_contexts else None,
+            )
         except Exception:
             logger.warning("Adversarial review failed — skipping.")
             return
@@ -878,9 +925,31 @@ class Orchestrator:
             f"Blind scan: reviewing {len(exposed)} exposed endpoint(s)",
         )
 
+        # Recall mode: build code_contexts from endpoint handler sources
+        _bs_code_contexts: dict[str, str] = {}
+        if self._code_retriever is not None:
+            for ep in exposed:
+                handler = ep.get("handler_func", "") or ep.get("handler", "")
+                fp = ep.get("file_path", "") or ep.get("location", "")
+                if not handler or not fp:
+                    continue
+                chunks = self._code_retriever.get_chunks_for_file(fp)
+                for chunk in chunks:
+                    if chunk.function_name == handler:
+                        _bs_code_contexts[handler] = chunk.code[:1500]
+                        break
+                # If not found by name, try by line
+                if handler not in _bs_code_contexts:
+                    line = ep.get("line", 0)
+                    for chunk in chunks:
+                        if chunk.start_line <= line <= chunk.end_line:
+                            _bs_code_contexts[handler] = chunk.code[:1500]
+                            break
+
         try:
             result = await self._blind_scan_reviewer.review(
                 endpoints=exposed,
+                code_contexts=_bs_code_contexts if _bs_code_contexts else None,
                 language=language,
             )
         except Exception:
@@ -933,9 +1002,25 @@ class Orchestrator:
         if session:
             language = session.get("language", "")
 
+        # Recall mode: generate project_summary from CodeRetriever stats
+        _proj_summary = ""
+        if self._code_retriever is not None:
+            total_functions = self._code_retriever.chunk_count
+            files = set()
+            for fp in getattr(
+                self._code_retriever, "_file_paths", []
+            ):
+                files.add(fp)
+            _proj_summary = (
+                f"Project has {len(files)} file(s) across "
+                f"~{total_functions} function(s). "
+                f"Language: {language}. "
+                f"Endpoints analyzed: {state.endpoint_count or 'unknown'}."
+            )
+
         try:
             critic_report = await self._completeness_critic.review(
-                project_summary="",
+                project_summary=_proj_summary,
                 findings_summary=self._summarise_findings(findings),
                 hypotheses=[
                     {
@@ -1267,6 +1352,56 @@ class Orchestrator:
                     strong_model=cfg.strong_model,
                 )
 
+        # ── Recall-mode infrastructure ────────────────────────────────────
+        _code_retriever: Any = None
+        _tool_registry: Any = None
+        _agent_loop: Any = None
+
+        if self._audit_mode is not None and str(self._audit_mode) == "recall":
+            from hyqagent.memory.retriever import CodeRetriever
+            from hyqagent.scanner.agent_loop import AgentLoop, AgentLoopConfig
+            from hyqagent.scanner.tools import (
+                GetFunctionTool,
+                GetRelatedTool,
+                GrepCodeTool,
+                ListFunctionsTool,
+                ReadFileTool,
+                ToolRegistry,
+            )
+
+            _code_retriever = CodeRetriever(
+                file_paths=file_paths,
+                language=language,
+            )
+            _code_retriever.build_index()
+            self._code_retriever = _code_retriever
+
+            _tool_registry = ToolRegistry()
+            _tool_registry.register(ReadFileTool(_code_retriever))
+            _tool_registry.register(GrepCodeTool(_code_retriever))
+            _tool_registry.register(GetFunctionTool(_code_retriever))
+            _tool_registry.register(ListFunctionsTool(_code_retriever))
+            _tool_registry.register(GetRelatedTool(_code_retriever))
+
+            _agent_loop = AgentLoop(
+                provider=self._mid if self._mid is not None else self._cheap,
+                tool_registry=_tool_registry,
+                config=AgentLoopConfig(
+                    max_turns=self._max_agent_turns,
+                    tool_result_max_chars=self._tool_result_max_chars,
+                ),
+            )
+
+            if not self._quiet:
+                import structlog
+
+                _log = structlog.get_logger()
+                _log.info(
+                    "recall_mode_ready",
+                    chunks=_code_retriever.chunk_count,
+                    files=len(file_paths),
+                )
+
         # ── Hypothesis generator ───────────────────────────────────────
         if self._hypothesis_gen is None and self._router is not None:
             from hyqagent.scanner.hypothesis import HypothesisGenerator
@@ -1282,6 +1417,9 @@ class Orchestrator:
                 language=language,
                 nudge_loop=nudge,
             )
+            # Wire recall-mode deps
+            if _code_retriever is not None and _agent_loop is not None:
+                self._hypothesis_gen.set_recall_deps(_code_retriever, _agent_loop)
 
         # ── Validator ──────────────────────────────────────────────────
         if self._validator is None and self._router is not None:
@@ -1298,6 +1436,9 @@ class Orchestrator:
                 language=language,
                 nudge_loop=nudge,
             )
+            # Wire recall-mode deps
+            if _code_retriever is not None:
+                self._validator.set_recall_deps(_code_retriever)
 
         # ── Completeness critic ────────────────────────────────────────
         if self._completeness_critic is None and self._mid is not None:

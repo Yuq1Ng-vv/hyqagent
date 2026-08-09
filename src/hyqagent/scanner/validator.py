@@ -175,6 +175,8 @@ class Validator:
         self._strong = strong_provider
         self._language = language
         self._nudge_loop = nudge_loop
+        # Recall-mode optional dependency (set by orchestrator)
+        self._code_retriever: Any = None
 
     # ── L1: Deterministic validation ────────────────────────────────────
 
@@ -373,6 +375,50 @@ class Validator:
                 model=model_id,
             )
 
+    # ── Recall mode helpers ────────────────────────────────────────────
+
+    def set_recall_deps(self, code_retriever: Any) -> None:
+        """Wire recall-mode code retriever (called by orchestrator)."""
+        self._code_retriever = code_retriever
+
+    def _read_code_for_hypothesis(self, hypothesis: Hypothesis) -> str:
+        """Read source code surrounding the hypothesis source/sink locations.
+
+        Uses CodeRetriever chunk index to find the enclosing function.
+        Returns combined source_context for L2 validation.
+        """
+        parts: list[str] = []
+        locations = [
+            getattr(hypothesis, "source_location", ""),
+            getattr(hypothesis, "sink_location", ""),
+        ]
+
+        for loc in locations:
+            if not loc or ":" not in loc:
+                continue
+            try:
+                file_path, line_str = loc.rsplit(":", 1)
+                line_num = int(line_str)
+            except (ValueError, TypeError):
+                continue
+
+            # Try chunks in the file
+            chunks = self._code_retriever.get_chunks_for_file(file_path)
+            for chunk in chunks:
+                if chunk.start_line <= line_num <= chunk.end_line:
+                    heading = (
+                        f"Function: {chunk.function_name or '<module>'}"
+                        if chunk.function_name
+                        else "Module-level code"
+                    )
+                    parts.append(
+                        f"## {heading} ({file_path}:{chunk.start_line}-{chunk.end_line})\n"
+                        f"```\n{chunk.code[:2000]}\n```"
+                    )
+                    break
+
+        return "\n\n".join(parts)
+
     # ── Convenience: full validation ────────────────────────────────────
 
     async def validate(
@@ -395,6 +441,10 @@ class Validator:
                 reasoning=l1.reasoning,
             )
             return l1, None
+
+        # Recall mode: auto-read code context from hypothesis locations
+        if not code_context and self._code_retriever is not None:
+            code_context = self._read_code_for_hypothesis(hypothesis)
 
         l2 = await self.validate_l2(hypothesis, code_context, sanitizer_info)
         logger.info(

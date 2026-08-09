@@ -1,4 +1,4 @@
-"""core/state.py — Agent 状态类型定义
+"""core/state.py — Agent 状态类型定义.
 
 定义审计过程中流转的状态结构。
 LangGraph 的 StateGraph 使用此 TypedDict 作为节点间的状态载体。
@@ -6,15 +6,23 @@ LangGraph 的 StateGraph 使用此 TypedDict 作为节点间的状态载体。
 
 from __future__ import annotations
 
+from enum import StrEnum
 from operator import add
 from typing import Annotated, Any, TypedDict
+
+
+class AuditMode(StrEnum):
+    """Audit strategy mode — controls the false-positive / false-negative trade-off."""
+
+    PRECISION = "precision"  # Default: reduce false positives (current behavior)
+    RECALL = "recall"  # Reduce false negatives (LLM gets full code access + tools)
 
 # Fields that MUST be present for a valid initial state (BUG 25)
 _REQUIRED_FIELDS = ("session_id", "target_path", "language", "mode")
 
 
 class AuditState(TypedDict, total=False):
-    """LangGraph 审计流程的状态载体
+    """LangGraph 审计流程的状态载体.
 
     字段按照"谁写入、谁读取"分组。
 
@@ -62,6 +70,7 @@ def validate_audit_state(state: dict[str, Any], partial: bool = False) -> list[s
 
     Returns:
         A list of missing-field names (empty if valid).
+
     """
     if partial:
         return []

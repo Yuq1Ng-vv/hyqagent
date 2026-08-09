@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.31 完成后 (2026-08-09)
-> 最新: 报告 CLI 接入 + 漏洞覆盖盲区分析 已完成
+> 上次更新: Session 1.32 完成后 (2026-08-09)
+> 最新: 双模式 LLM 审计策略 (Precision vs Recall) + 代码盲区修复 已完成
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -222,6 +222,8 @@ Phase 3 全部 8 项任务已全部完成。
 > CLI `resume` 命令从 stub 变为真实实现，`_run_deep_audit()` 从 ~250 行内联管道简化为 ~30 行 Orchestrator 委托。
 > **Session 1.31 里程碑**: 报告 CLI 接入 + 漏洞覆盖盲区分析 已完成（2 文件修改 + 1 测试文件、+475 行源码、28 tests）。
 > 新增: `generate()` 8 个 deep-audit 参数、JSON 5 个 deep 段（hypotheses/validations/convergence/cost/deep_audit）、Markdown 4 个 deep 章节（LLM假设/收敛/成本/执行阶段）。`resume` 命令新增 `--format`/`--output` 选项。覆盖分析: 200 项矩阵, 最大盲区 AUTH(17)/BUSINESS(12)/SESSION(11)。
+> **Session 1.32 里程碑**: 双模式 LLM 审计策略 已完成（8 新文件 + 7 修改、~1650 行源码 + 17 tests）。
+> 新增: `--mode recall` CLI 选项、5 个 BaseTool 代码探索工具(read_file/grep_code/get_function/list_functions/get_related)、ToolRegistry 注册/执行/格式化、AgentLoop ReAct 多轮循环、`generate_with_tools()` Provider 方法。Recall 模式下 Validator 自动读取代码上下文、HypothesisGenerator 使用 AgentLoop 探索代码。修复了 3 个 LLM 通道收到空 code_context 的系统性代码盲区。
 
 - [x] **memory/context.py** — 三区段上下文模型 (固定/长期/工作)
   - ZoneBudget token 预算 + TurnRecord 对话轮次

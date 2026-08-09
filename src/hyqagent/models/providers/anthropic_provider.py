@@ -12,6 +12,7 @@ Key features:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from dataclasses import dataclass
@@ -145,7 +146,7 @@ class AnthropicProvider:
 
         # ── Observability callback (CostTracker / Prometheus / AuditTrail) ──
         if self._on_call_complete is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._on_call_complete(
                     model=model,
                     input_tokens=usage.get("input_tokens", 0),
@@ -153,8 +154,6 @@ class AnthropicProvider:
                     cache_read_tokens=usage.get("cache_read_input_tokens", 0),
                     latency_ms=elapsed_ms,
                 )
-            except Exception:
-                pass  # Never let metrics break the audit
 
         return result
 
@@ -234,6 +233,78 @@ class AnthropicProvider:
             content_types=[b.get("type") for b in content],
         )
         return {}
+
+    async def generate_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        output_schema: dict[str, Any],
+        audit_tools: list[dict[str, Any]],
+        system: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Generate a response that may include intermediate tool calls.
+
+        Unlike :meth:`generate_structured`, this does NOT force the output
+        tool.  The model is free to call audit tools, the output tool, or
+        both, in any order.  The caller is responsible for inspecting
+        ``content`` and deciding whether to continue the loop.
+
+        Args:
+            messages: Conversation history (may include prior tool results).
+            model: Model ID to use.
+            output_schema: Schema for the final structured-output tool
+                (same format as :meth:`generate_structured`).
+            audit_tools: Additional tools the model may use to explore code
+                (e.g. ``read_file``, ``grep_code``).
+            system: System prompt.
+            max_tokens: Max tokens for this turn.
+            temperature: Sampling temperature.
+            **kwargs: Forwarded to :meth:`generate` unchanged.
+
+        Returns:
+            A dict with ``content`` (list of block dicts), ``model``,
+            and ``usage`` — the raw :meth:`generate` result.
+
+        """
+        output_tool_name = output_schema.get("name", "output")
+        output_tool = {
+            "name": output_tool_name,
+            "description": output_schema.get("description", "Structured output"),
+            "input_schema": output_schema.get("input_schema", output_schema),
+        }
+
+        # Combine: audit tools first so the model explores before reporting
+        tools = [*list(audit_tools), output_tool]
+
+        _is_deepseek = self._config.base_url and "deepseek" in self._config.base_url
+        _extra_kwargs: dict[str, Any] = dict(kwargs)
+        if _is_deepseek:
+            _extra_kwargs.setdefault("thinking", {"type": "disabled"})
+
+        system_prompt = system
+        if system_prompt:
+            system_prompt += "\n\n"
+        system_prompt += (
+            "You have access to code-exploration tools. Use them to gather "
+            "information before making your final assessment. When you are "
+            "ready to report your findings, call the `"
+            + output_tool_name
+            + "` tool."
+        )
+
+        return await self.generate(
+            messages=messages,
+            model=model,
+            system=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            tools=tools,
+            tool_choice={"type": "auto"},
+            **_extra_kwargs,
+        )
 
     def count_tokens(
         self,
