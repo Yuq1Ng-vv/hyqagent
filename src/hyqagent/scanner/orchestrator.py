@@ -54,6 +54,7 @@ class PhaseName(StrEnum):
     ATTACK_SURFACE_MAP = "attack_surface_map"
     HYPOTHESIS_GEN = "hypothesis_gen"
     VALIDATION = "validation"
+    ADVERSARIAL_REVIEW = "adversarial_review"
     COVERAGE_AUDIT = "coverage_audit"
     COMPLETENESS_CRITIC = "completeness_critic"
     CONVERGENCE_CHECK = "convergence_check"
@@ -67,6 +68,7 @@ DEEP_PHASES: list[PhaseName] = [
     PhaseName.ATTACK_SURFACE_MAP,
     PhaseName.HYPOTHESIS_GEN,
     PhaseName.VALIDATION,
+    PhaseName.ADVERSARIAL_REVIEW,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.COMPLETENESS_CRITIC,
     PhaseName.CONVERGENCE_CHECK,
@@ -76,6 +78,7 @@ DEEP_PHASES: list[PhaseName] = [
 _CONVERGE_BODY: list[PhaseName] = [
     PhaseName.HYPOTHESIS_GEN,
     PhaseName.VALIDATION,
+    PhaseName.ADVERSARIAL_REVIEW,
     PhaseName.COVERAGE_AUDIT,
     PhaseName.CONVERGENCE_CHECK,
 ]
@@ -217,6 +220,7 @@ class Orchestrator:
         mapper: Any = None,
         coverage_auditor_class: Any = None,
         completeness_critic: Any = None,
+        adversarial_reviewer: Any = None,
         # ── LLM layer (injected) ──
         cheap_provider: Any = None,
         mid_provider: Any = None,
@@ -242,6 +246,7 @@ class Orchestrator:
         self._mapper = mapper
         self._coverage_auditor_class = coverage_auditor_class
         self._completeness_critic = completeness_critic
+        self._adversarial_reviewer = adversarial_reviewer
 
         # LLM
         self._cheap = cheap_provider
@@ -581,6 +586,83 @@ class Orchestrator:
         if self._report:
             self._report.validations = validations
 
+    async def _phase_adversarial_review(self, state: PipelineState) -> None:
+        """Adversarial review of rejected hypotheses — attacker's lens.
+
+        An independent model re-examines hypotheses the validator rejected,
+        systematically probing for bypasses.  Implements "提出者 ≠ 裁决者".
+        """
+        if self._adversarial_reviewer is None:
+            return
+
+        hypotheses = state.phase_states.get("hypotheses", [])
+        validations = state.phase_states.get("validations", [])
+        mode = state.phase_states.get("mode", "deep")
+
+        if mode == "quick":
+            return
+
+        # Build hypothesis lookup
+        hyp_map: dict[str, Any] = {}
+        for h in hypotheses:
+            hid = getattr(h, "id", "")
+            if hid:
+                hyp_map[hid] = h
+
+        # Filter: only REJECTED validations with matching hypotheses
+        rejected: list[tuple[Any, Any]] = []
+        for v in validations:
+            vid = getattr(v, "hypothesis_id", "")
+            if getattr(v, "verdict", "") == "rejected" and vid in hyp_map:
+                # Mode filter: standard mode only reviews HIGH+ severity
+                if mode == "standard":
+                    h = hyp_map[vid]
+                    sev = getattr(h, "severity", "")
+                    conf = getattr(h, "confidence", 0.0)
+                    if sev not in ("critical", "high") or conf <= 0.4:
+                        continue
+                rejected.append((hyp_map[vid], v))
+
+        if not rejected:
+            self._log("info", f"Adversarial review: no eligible rejections (mode={mode})")
+            return
+
+        self._log(
+            "phase",
+            f"Adversarial review: {len(rejected)} rejected hypotheses to review",
+        )
+
+        try:
+            results = await self._adversarial_reviewer.review(rejected)
+        except Exception:
+            logger.warning("Adversarial review failed — skipping.")
+            return
+
+        state.phase_states["adversarial_reviews"] = results
+
+        # Track overturned rejections as new confirmed validations
+        overturned = 0
+        for r in results:
+            if r.review_verdict == "overturned":
+                from hyqagent.scanner.validator import ValidationResult
+
+                state.phase_states.setdefault("validations", []).append(
+                    ValidationResult(
+                        hypothesis_id=r.hypothesis_id,
+                        verdict="confirmed",
+                        confidence=r.confidence,
+                        validation_type="adversarial_review",
+                        reasoning=r.reasoning,
+                        model=r.model,
+                    )
+                )
+                overturned += 1
+
+        self._log(
+            "info",
+            f"Adversarial review: {len(results)} reviewed, {overturned} overturned",
+        )
+
     async def _phase_coverage_audit(self, state: PipelineState) -> None:
         """Differential coverage audit (zero-LLM)."""
         if self._coverage_auditor_class is None or self._query is None:
@@ -676,6 +758,19 @@ class Orchestrator:
                 if cwe:
                     target_cwe.add(cwe)
 
+        # ── Dual-perspective findings for Chao2 estimator ────────
+        # Perspective A: hypothesis IDs from the generator (validator-confirmed)
+        perspective_a: set[str] = {
+            getattr(h, "id", "") for h in hypotheses if getattr(h, "id", "")
+        }
+        # Perspective B: hypothesis IDs overturned by adversarial review
+        adversarial_results = state.phase_states.get("adversarial_reviews", [])
+        perspective_b: set[str] = {
+            getattr(ar, "hypothesis_id", "")
+            for ar in adversarial_results
+            if getattr(ar, "review_verdict", "") == "overturned"
+        }
+
         snapshot = ConvergenceSnapshot(
             round=state.converge_round,
             new_high_findings=new_high,
@@ -685,6 +780,8 @@ class Orchestrator:
             risk_score_total=risk_total,
             cwe_classes_covered=cwe_covered,
             total_cwe_classes=target_cwe,
+            perspective_a_findings=perspective_a,
+            perspective_b_findings=perspective_b,
         )
         report = self._convergence.update(snapshot)
         state.converge_history.append(
@@ -964,6 +1061,20 @@ class Orchestrator:
             self._completeness_critic = CompletenessCritic(
                 self._mid,
                 cfg.mid_model,
+            )
+
+        # ── Adversarial reviewer ─────────────────────────────────────────
+        if self._adversarial_reviewer is None and self._strong is not None:
+            from hyqagent.api.config import HyqAgentConfig
+            from hyqagent.scanner.adversarial import AdversarialReviewer
+            from hyqagent.scanner.nudge import NudgeConfig, NudgeLoop
+
+            cfg = HyqAgentConfig()
+            nudge = NudgeLoop(NudgeConfig(max_turns=3))
+            self._adversarial_reviewer = AdversarialReviewer(
+                provider=self._strong,
+                model=cfg.strong_model,
+                nudge_loop=nudge,
             )
 
     @staticmethod
