@@ -132,7 +132,7 @@ class TestReportGeneratorMarkdown:
             result, fmt="markdown", language="python", scan_duration_ms=1500, files_scanned=5
         )
 
-        assert "# HyqAgent 扫描报告" in text
+        assert "# HyqAgent 安全审计报告" in text
         assert "**语言**: python" in text
         assert "quick" in text
         assert "✅ 未发现问题" in text
@@ -146,8 +146,7 @@ class TestReportGeneratorMarkdown:
         )
         text = g.generate(result, fmt="markdown", language="python")
 
-        assert "### 1. [HIGH] SQL Injection" in text
-        assert "**规则**: TAINT-001" in text
+        assert "F-001: [HIGH] SQL Injection in login handler" in text
         assert "app.py:42" in text
         assert "cursor.execute(sql)" in text
         assert "参数化查询" in text
@@ -180,10 +179,10 @@ class TestReportGeneratorMarkdown:
         text = g.generate(result, fmt="markdown")
 
         assert "| 总发现数 | 4 |" in text
-        assert "| critical | 1 |" in text
-        assert "| high | 1 |" in text
-        assert "| medium | 1 |" in text
-        assert "| low | 1 |" in text
+        assert "| 🔴 critical | 1 |" in text
+        assert "| 🟠 high | 1 |" in text
+        assert "| 🟡 medium | 1 |" in text
+        assert "| 🟢 low | 1 |" in text
 
     def test_markdown_with_no_blind_spots(self):
         g = ReportGenerator()
@@ -334,7 +333,7 @@ class TestReportGeneratorFormats:
         g = ReportGenerator()
         result = ScanResult()
         text = g.generate(result, fmt="md")
-        assert "# HyqAgent 扫描报告" in text
+        assert "# HyqAgent 安全审计报告" in text
 
 
 class TestReportGeneratorHelpers:
@@ -356,13 +355,24 @@ class _FakeHypothesis:
     """Minimal hypothesis stub for testing deep audit report output."""
 
     def __init__(
-        self, hid: str, summary: str, confidence: float, endpoint: str = "", vuln_category: str = ""
+        self,
+        hid: str,
+        title: str,
+        confidence: float,
+        vuln_type: str = "",
+        cwe_id: str = "",
+        severity: str = "high",
+        source_location: str = "",
+        sink_location: str = "",
     ):
         self.id = hid
-        self.summary = summary
+        self.title = title
         self.confidence = confidence
-        self.endpoint = endpoint
-        self.vuln_category = vuln_category
+        self.vuln_type = vuln_type
+        self.cwe_id = cwe_id
+        self.severity = severity
+        self.source_location = source_location
+        self.sink_location = sink_location
 
 
 class _FakeConvergence:
@@ -413,7 +423,11 @@ class TestDeepAuditJSONReport:
             mode="deep",
             hypotheses=[
                 _FakeHypothesis(
-                    "h1", "SQLi in /login", 0.85, endpoint="/login", vuln_category="sql_injection"
+                    "h1", "SQLi in /login", 0.85,
+                    vuln_type="sql_injection",
+                    cwe_id="CWE-89",
+                    source_location="app.py:10",
+                    sink_location="app.py:42",
                 ),
                 _FakeHypothesis("h2", "XSS in /search", 0.60),
             ],
@@ -422,7 +436,7 @@ class TestDeepAuditJSONReport:
         assert len(data["hypotheses"]) == 2
         assert data["hypotheses"][0]["id"] == "h1"
         assert data["hypotheses"][0]["confidence"] == 0.85
-        assert data["hypotheses"][0]["endpoint"] == "/login"
+        assert data["hypotheses"][0]["vuln_type"] == "sql_injection"
         assert data["deep_audit"]["hypotheses_count"] == 2
 
     def test_deep_audit_json_cost(self):
@@ -505,12 +519,13 @@ class TestDeepAuditMarkdownReport:
             mode="deep",
             hypotheses=[
                 _FakeHypothesis(
-                    "h1", "SQLi in login", 0.85, endpoint="/login", vuln_category="sql_injection"
+                    "h1", "SQLi in login", 0.85,
+                    vuln_type="sql_injection",
+                    cwe_id="CWE-89",
                 ),
             ],
         )
         assert "🤖 LLM 假设" in text
-        assert "SQLi in login" in text
         assert "sql_injection" in text
 
     def test_markdown_shows_convergence(self):

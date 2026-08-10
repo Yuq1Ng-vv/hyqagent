@@ -504,6 +504,7 @@ class Orchestrator:
                 "confirmed_keys": set(),
                 "rejected_keys": set(),
                 "prev_confirmed": set(),
+                "covered_fingerprints": set(),
             }
 
         # ── Convergence loop ──────────────────────────────────────────
@@ -665,7 +666,30 @@ class Orchestrator:
 
         # ── Primary: hypotheses from annotated paths ────────────────────
         if annotated:
-            hypotheses = await self._hypothesis_gen.generate(annotated)
+            # ── Pre-LLM path skip: filter out paths whose source/sink ──
+            # pair already produced confirmed findings in prior rounds.
+            cross_state = state.phase_states.setdefault("_cross_round_state", {})
+            covered_fingerprints: set[str] = cross_state.get("covered_fingerprints", set())
+            if covered_fingerprints and state.converge_round > 1:
+                uncovered: list[Any] = []
+                skipped = 0
+                for ap in annotated:
+                    fingerprint = self._path_fingerprint(ap)
+                    if fingerprint and fingerprint in covered_fingerprints:
+                        skipped += 1
+                        continue
+                    uncovered.append(ap)
+                if skipped:
+                    self._log(
+                        "info",
+                        f"Path skip: {skipped}/{len(annotated)} annotated paths "
+                        f"already covered by confirmed findings, "
+                        f"{len(uncovered)} remaining for LLM",
+                    )
+                annotated = uncovered
+
+            if annotated:
+                hypotheses = await self._hypothesis_gen.generate(annotated)
 
         # ── Seed feedback: saturation seeds + reverse sink discoveries ──
         seeds: list[str] = state.phase_states.get("saturation_seeds", []) or []
@@ -780,6 +804,11 @@ class Orchestrator:
                 conf = getattr(v, "confidence", 0.0)
                 if verdict == "confirmed" and conf >= 0.5:
                     confirmed_keys.add(key)
+                    # Extract path fingerprint from stable_key
+                    # stable_key = "source|sink|vuln_type"
+                    parts = key.rsplit("|", 1)
+                    if len(parts) == 2:
+                        cross_state.setdefault("covered_fingerprints", set()).add(parts[0])
                 elif verdict == "rejected" and conf >= 0.7:
                     rejected_keys.add(key)
             cross_state["confirmed_keys"] = confirmed_keys
@@ -1464,6 +1493,24 @@ class Orchestrator:
     def _make_session_id() -> str:
         ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         return f"audit-{ts}-{uuid.uuid4().hex[:6]}"
+
+    @staticmethod
+    def _path_fingerprint(annotated_path: Any) -> str:
+        """Compute a deterministic fingerprint for an annotated path.
+
+        Based on the first and last node locations in the CPG data-flow path.
+        Used for pre-LLM path skipping — if a path's source/sink pair already
+        produced confirmed findings, we skip re-running the LLM on it.
+
+        Returns empty string if the path has no nodes with locations.
+        """
+        path = getattr(annotated_path, "path", None)
+        if path is None or not path.nodes:
+            return ""
+        nodes = path.nodes
+        src = nodes[0].location or nodes[0].node_id
+        sink = nodes[-1].location or nodes[-1].node_id
+        return f"{src}|{sink}" if src and sink else ""
 
     @staticmethod
     def _discover_files(target: Path, language: str) -> list[str]:

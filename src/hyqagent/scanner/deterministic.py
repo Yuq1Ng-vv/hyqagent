@@ -35,7 +35,11 @@ if TYPE_CHECKING:
 
 @dataclass
 class Finding:
-    """A single deterministic finding (no LLM involvement)."""
+    """A single deterministic finding (no LLM involvement).
+
+    Enriched during deep-mode audit orchestration with LLM hypothesis
+    data (CWE, source/sink locations) and dynamic verification output (PoC).
+    """
 
     id: str
     rule_id: str
@@ -49,6 +53,18 @@ class Finding:
     confidence: str = "high"
     remediation: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    # ── Enriched fields (populated by orchestrator during deep audit) ──
+    cwe_id: str = ""  # CWE-89, CWE-79, etc.
+    cvss_score: float = 0.0  # CVSS 3.1 base score
+    cvss_vector: str = ""  # CVSS vector string
+    endpoint: str = ""  # e.g. GET /api/users
+    http_method: str = ""  # GET, POST, PUT, DELETE
+    http_params: str = ""  # id, name, etc.
+    impact: str = ""  # business impact description
+    poc: str = ""  # curl command or PoC exploit code
+    source_location: str = ""  # where taint enters (file.py:line)
+    sink_location: str = ""  # where taint reaches sink (file.py:line)
 
 
 @dataclass
