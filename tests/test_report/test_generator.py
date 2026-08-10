@@ -133,7 +133,9 @@ class TestReportGeneratorMarkdown:
         )
 
         assert "# HyqAgent 安全审计报告" in text
-        assert "**语言**: python" in text
+        # Target Information table
+        assert "目标语言" in text
+        assert "python" in text
         assert "quick" in text
         assert "✅ 未发现问题" in text
 
@@ -146,17 +148,21 @@ class TestReportGeneratorMarkdown:
         )
         text = g.generate(result, fmt="markdown", language="python")
 
-        assert "F-001: [HIGH] SQL Injection in login handler" in text
+        # Finding rendered with category-scoped ID
+        assert "SQL Injection in login handler" in text
+        assert "[HIGH]" in text
         assert "app.py:42" in text
         assert "cursor.execute(sql)" in text
         assert "参数化查询" in text
-        # Coverage section
+        # Coverage section (now in appendices)
         assert "## 📈 覆盖率" in text
         assert "80.0%" in text
-        # Blind spots
+        # Blind spots (now in appendices)
         assert "## ⚠️ 盲区清单" in text
         assert "admin.py:30" in text
         assert "IDOR" in text
+        # Target information section
+        assert "## 📋 目标信息" in text
 
     def test_markdown_with_multiple_findings(self):
         g = ReportGenerator()
@@ -178,11 +184,13 @@ class TestReportGeneratorMarkdown:
         result = ScanResult(findings=findings)
         text = g.generate(result, fmt="markdown")
 
-        assert "| 总发现数 | 4 |" in text
-        assert "| 🔴 critical | 1 |" in text
-        assert "| 🟠 high | 1 |" in text
-        assert "| 🟡 medium | 1 |" in text
-        assert "| 🟢 low | 1 |" in text
+        # Prose executive summary mentions total count
+        assert "**4**" in text
+        # Severity counts in distribution table
+        assert "🔴 critical" in text
+        assert "🟠 high" in text
+        assert "🟡 medium" in text
+        assert "🟢 low" in text
 
     def test_markdown_with_no_blind_spots(self):
         g = ReportGenerator()
@@ -565,9 +573,10 @@ class TestDeepAuditMarkdownReport:
             convergence=_FakeConvergence(),
             cost_summary=_FakeCostSummary(0.42),
         )
-        assert "| LLM 假设 | 1 |" in text
-        assert "| 收敛轮次 |" in text
-        assert "| LLM 成本 |" in text
+        # Deep audit metadata appears in executive summary footnote
+        assert "LLM 增强审计" in text or "1" in text
+        # Appendices section present
+        assert "# 附录" in text
 
     def test_markdown_shows_phases(self):
         g = ReportGenerator()

@@ -351,7 +351,310 @@ CWE_NAMES: dict[str, str] = {
 }
 
 
+# ── Vuln Type → CWE Mapping ────────────────────────────────────────────────────
+# Used by the deterministic scanner to attach CWE IDs to findings at creation
+# time, before any LLM involvement.
+
+VULN_TYPE_TO_CWE: dict[str, str] = {
+    "sql_injection": "CWE-89",
+    "command_injection": "CWE-78",
+    "code_injection": "CWE-94",
+    "xss": "CWE-79",
+    "ssrf": "CWE-918",
+    "ssti": "CWE-1336",
+    "path_traversal": "CWE-22",
+    "file_inclusion": "CWE-98",
+    "open_redirect": "CWE-601",
+    "deserialization": "CWE-502",
+    "xxe": "CWE-611",
+    "auth_bypass": "CWE-287",
+    "idor": "CWE-639",
+    "csrf": "CWE-352",
+    "crypto_weakness": "CWE-327",
+    "info_disclosure": "CWE-200",
+    "header_injection": "CWE-113",
+    "injection_general": "CWE-74",
+    "format_string": "CWE-134",
+    "log_injection": "CWE-117",
+    "nosql_injection": "CWE-943",
+    "jndi_injection": "CWE-917",
+    "ldap_injection": "CWE-90",
+    "xpath_injection": "CWE-643",
+    "cleartext_transmission": "CWE-319",
+    "config_issue": "CWE-16",
+    "missing_auth": "CWE-306",
+    "dangerous_call": "CWE-676",
+    "business_logic": "CWE-840",
+    "secret": "CWE-798",
+}
+
+
+# ── OWASP Category Grouping ─────────────────────────────────────────────────────
+# Maps vuln_type → (section_name, prefix, display_name)
+# Used by the report generator to group findings by vulnerability class and
+# generate category-scoped vulnerability IDs (e.g. INJ-001, XSS-001).
+
+VULN_TYPE_TO_OWASP_CATEGORY: dict[str, tuple[str, str, str]] = {
+    # ── Injection ──
+    "sql_injection":     ("Injection Vulnerabilities", "INJ", "SQL Injection"),
+    "command_injection":  ("Injection Vulnerabilities", "INJ", "Command Injection"),
+    "code_injection":     ("Injection Vulnerabilities", "INJ", "Code Injection"),
+    "ssti":               ("Injection Vulnerabilities", "INJ", "Server-Side Template Injection"),
+    "nosql_injection":    ("Injection Vulnerabilities", "INJ", "NoSQL Injection"),
+    "jndi_injection":     ("Injection Vulnerabilities", "INJ", "JNDI Injection"),
+    "ldap_injection":     ("Injection Vulnerabilities", "INJ", "LDAP Injection"),
+    "xpath_injection":    ("Injection Vulnerabilities", "INJ", "XPath Injection"),
+    "injection_general":  ("Injection Vulnerabilities", "INJ", "General Injection"),
+    "format_string":      ("Injection Vulnerabilities", "INJ", "Format String"),
+    "log_injection":      ("Injection Vulnerabilities", "INJ", "Log Injection"),
+    "header_injection":   ("Injection Vulnerabilities", "INJ", "Header Injection"),
+    # ── Cross-Site Scripting ──
+    "xss": ("Cross-Site Scripting (XSS)", "XSS", "Cross-Site Scripting"),
+    # ── SSRF ──
+    "ssrf": ("Server-Side Request Forgery (SSRF)", "SSRF", "Server-Side Request Forgery"),
+    # ── Authentication & Access Control ──
+    "auth_bypass": ("Broken Authentication & Access Control", "AUTH", "Authentication Bypass"),
+    "missing_auth": ("Broken Authentication & Access Control", "AUTH", "Missing Authentication"),
+    "idor": ("Broken Authentication & Access Control", "AUTH",
+             "Insecure Direct Object Reference"),
+    "csrf": ("Broken Authentication & Access Control", "AUTH",
+             "Cross-Site Request Forgery"),
+    # ── Path Traversal ──
+    "path_traversal":  ("Path Traversal", "PATH", "Path Traversal"),
+    "file_inclusion":  ("Path Traversal", "PATH", "File Inclusion"),
+    # ── Deserialization ──
+    "deserialization": ("Insecure Deserialization", "DESER", "Insecure Deserialization"),
+    # ── XXE ──
+    "xxe": ("XML External Entity (XXE)", "XXE", "XML External Entity"),
+    # ── Security Misconfiguration ──
+    "config_issue":         ("Security Misconfiguration", "CONFIG", "Configuration Issue"),
+    "crypto_weakness":      ("Security Misconfiguration", "CONFIG", "Cryptographic Weakness"),
+    "cleartext_transmission": ("Security Misconfiguration", "CONFIG", "Cleartext Transmission"),
+    "dangerous_call":       ("Security Misconfiguration", "CONFIG", "Dangerous Function Call"),
+    "secret":               ("Security Misconfiguration", "CONFIG", "Hardcoded Secret"),
+    "info_disclosure":      ("Security Misconfiguration", "CONFIG", "Information Disclosure"),
+    # ── Business Logic ──
+    "business_logic": ("Business Logic Errors", "BIZ", "Business Logic Error"),
+    # ── Open Redirect ──
+    "open_redirect":  ("Open Redirect", "REDIR", "Open Redirect"),
+}
+
+# Category ordering for report generation (deterministic section order).
+OWASP_CATEGORY_ORDER: list[str] = [
+    "Injection Vulnerabilities",
+    "Cross-Site Scripting (XSS)",
+    "Server-Side Request Forgery (SSRF)",
+    "Broken Authentication & Access Control",
+    "Path Traversal",
+    "Insecure Deserialization",
+    "XML External Entity (XXE)",
+    "Security Misconfiguration",
+    "Business Logic Errors",
+    "Open Redirect",
+    "Other",
+]
+
+# ── Prerequisites Templates ─────────────────────────────────────────────────────
+# Auto-generated per vulnerability type.  Each entry describes the conditions
+# that must be met for the vulnerability to be exploitable.
+
+PREREQUISITES_TEMPLATES: dict[str, str] = {
+    "sql_injection": (
+        "- 应用程序使用字符串拼接或模板方式构建 SQL 查询\n"
+        "- 用户可控的输入未经过滤或参数化即被传入 SQL 语句\n"
+        "- 攻击者能够访问受影响的功能端点"
+    ),
+    "command_injection": (
+        "- 应用程序调用系统命令或外部程序时使用了用户可控的参数\n"
+        "- 输入未经过滤或转义，允许注入命令分隔符（`;`、`|`、`&&`）\n"
+        "- 应用进程有足够的系统权限执行注入的命令"
+    ),
+    "code_injection": (
+        "- 应用程序动态执行代码（如 eval、exec）时使用了用户可控的输入\n"
+        "- 输入未经过滤或沙箱隔离\n"
+        "- 攻击者能够访问受影响的功能端点"
+    ),
+    "xss": (
+        "- 应用程序将用户输入直接嵌入到 HTML 页面中，未做输出编码\n"
+        "- 受害者需要访问包含恶意输入的页面或点击恶意链接\n"
+        "- 应用未设置有效的 Content-Security-Policy (CSP) 头"
+    ),
+    "ssrf": (
+        "- 应用程序接受用户提供的 URL 并发起服务器端请求\n"
+        "- 未对目标地址进行有效的白名单验证或 DNS 解析限制\n"
+        "- 应用服务器能够访问内部网络或云元数据服务"
+    ),
+    "ssti": (
+        "- 应用程序使用模板引擎渲染用户可控的输入\n"
+        "- 模板引擎未启用沙箱模式或输入未经过滤\n"
+        "- 攻击者能够访问受影响的功能端点"
+    ),
+    "path_traversal": (
+        "- 应用程序使用用户输入构造文件系统路径\n"
+        "- 未对路径进行规范化或限制在允许的目录范围内\n"
+        "- 应用进程有权限读取目标文件"
+    ),
+    "file_inclusion": (
+        "- 应用程序动态包含文件时使用了用户可控的路径\n"
+        "- 未限制可包含的文件范围（如白名单）\n"
+        "- 攻击者能够上传或控制远程文件内容"
+    ),
+    "open_redirect": (
+        "- 应用程序使用用户提供的 URL 进行重定向\n"
+        "- 未对重定向目标进行白名单验证\n"
+        "- 受害者需要点击包含恶意重定向的链接"
+    ),
+    "deserialization": (
+        "- 应用程序反序列化来自不可信来源的数据\n"
+        "- classpath 中存在可利用的 gadget chain\n"
+        "- 攻击者能够向反序列化入口提交恶意数据"
+    ),
+    "xxe": (
+        "- 应用程序解析用户提供的 XML 文档\n"
+        "- XML 解析器未禁用外部实体（DTD）处理\n"
+        "- 攻击者能够向 XML 解析端点提交恶意 XML"
+    ),
+    "auth_bypass": (
+        "- 应用程序的身份验证逻辑存在缺陷\n"
+        "- 认证检查可以被参数篡改或请求头操作绕过\n"
+        "- 攻击者能够访问受保护的功能端点"
+    ),
+    "idor": (
+        "- 应用程序使用可预测的资源标识符（如数字 ID）\n"
+        "- 未验证当前用户是否有权访问请求的资源\n"
+        "- 攻击者拥有有效的用户会话"
+    ),
+    "csrf": (
+        "- 应用程序的关键操作（修改密码、转账等）未要求 CSRF Token\n"
+        "- Cookie 未设置 SameSite 属性或设置为 None\n"
+        "- 受害者需要访问攻击者控制的恶意页面"
+    ),
+    "crypto_weakness": (
+        "- 应用程序使用已知不安全的加密算法（MD5/SHA1/DES/RC4）\n"
+        "- 攻击者能够获取到加密或哈希处理的数据\n"
+        "- 密钥空间不足以抵抗暴力破解"
+    ),
+    "info_disclosure": (
+        "- 应用程序在错误消息或响应中暴露内部实现细节\n"
+        "- 调试模式、堆栈跟踪或配置信息对外可见\n"
+        "- 攻击者能够访问触发错误的端点"
+    ),
+    "business_logic": (
+        "- 应用程序的业务流程设计存在逻辑缺陷\n"
+        "- 缺少服务端的状态验证或事务控制\n"
+        "- 攻击者能够通过正常的功能交互利用流程缺陷"
+    ),
+}
+
+# Default fallback prerequisites
+_DEFAULT_PREREQUISITES = (
+    "- 攻击者可以访问受影响的功能端点\n"
+    "- 应用未对用户输入进行充分的验证和过滤\n"
+    "- 相关安全控制机制缺失或配置不当"
+)
+
+
+# ── Proof of Impact Templates ───────────────────────────────────────────────────
+# Scenario-based impact statements that describe what an attacker actually achieves.
+
+PROOF_OF_IMPACT_TEMPLATES: dict[str, str] = {
+    "sql_injection": (
+        "成功利用此漏洞后，攻击者无需任何身份验证即可读取数据库中所有用户的"
+        "密码哈希、邮箱地址和个人信息。通过 UNION 注入技术，攻击者能够跨表"
+        "提取敏感数据。如果数据库用户拥有 FILE 权限，攻击者还可以写入 webshell"
+        "获得服务器完全控制权。"
+    ),
+    "command_injection": (
+        "成功利用此漏洞后，攻击者可以在服务器上以应用进程身份执行任意系统命令。"
+        "攻击者可以读取 `/etc/passwd`、下载恶意程序、建立反向 shell，并横向"
+        "移动至内网其他主机。此漏洞可导致服务器完全沦陷。"
+    ),
+    "code_injection": (
+        "成功利用此漏洞后，攻击者可以在应用服务器上执行任意代码。攻击者可以"
+        "读取配置文件中的数据库凭据和 API 密钥、修改或删除业务数据、植入"
+        "持久化后门。最严重的情况下，攻击者可获取服务器的完全控制权。"
+    ),
+    "xss": (
+        "成功利用此漏洞后，攻击者可以窃取已登录用户的会话 Cookie，从而以受害者"
+        "身份执行任意操作。攻击者还可以重定向用户到钓鱼页面窃取凭据，或篡改页面"
+        "内容进行社会工程攻击。在配合其他漏洞的情况下，XSS 可导致账户完全接管。"
+    ),
+    "ssrf": (
+        "成功利用此漏洞后，攻击者可以让服务器向 AWS 元数据服务（169.254.169.254）"
+        "发起请求，获取 IAM 临时凭据。攻击者还可以扫描内网拓扑、攻击未加固的内部"
+        "服务、绕过防火墙和 ACL 限制。如果获取到云凭据，攻击者可进一步控制云资源。"
+    ),
+    "ssti": (
+        "成功利用此漏洞后，攻击者可以在服务器端模板上下文中执行任意代码，进而"
+        "读取服务器上的任意文件、获取环境变量中的敏感凭据、建立反向 shell。"
+        "此漏洞通常可导致应用服务器完全沦陷。"
+    ),
+    "path_traversal": (
+        "成功利用此漏洞后，攻击者可以读取服务器上的任意文件，包括 `/etc/passwd`、"
+        "应用配置文件中的数据库凭据、源代码中的硬编码密钥等。在特定条件下（如"
+        "日志投毒），路径遍历可升级为远程代码执行。"
+    ),
+    "deserialization": (
+        "成功利用此漏洞后，攻击者可以通过构造恶意序列化数据触发 gadget chain，"
+        "在服务器上实现远程代码执行。攻击者可以完全控制应用服务器，包括读取、"
+        "修改和删除任意数据，以及建立持久化后门。"
+    ),
+    "xxe": (
+        "成功利用此漏洞后，攻击者可以读取服务器上的敏感文件（如 `/etc/passwd`、"
+        "配置文件），发起 SSRF 攻击访问内部服务，或通过 Billion Laughs 攻击导致"
+        "服务拒绝。此漏洞可导致严重的数据泄露和服务器沦陷。"
+    ),
+    "auth_bypass": (
+        "成功利用此漏洞后，攻击者无需任何身份验证即可访问管理后台接口。攻击者"
+        "可以查看所有用户数据、修改系统配置、删除业务数据，以管理员权限执行任意"
+        "操作。此漏洞可导致整个应用的数据完整性和机密性完全丧失。"
+    ),
+    "idor": (
+        "成功利用此漏洞后，攻击者可以通过遍历资源 ID（如 user_id=1,2,3...）"
+        "批量获取所有用户的个人信息、订单记录和私密数据。攻击者还可以修改或删除"
+        "其他用户的资源，造成严重的数据泄露和业务损失。"
+    ),
+    "open_redirect": (
+        "成功利用此漏洞后，攻击者可以构造看似指向合法域名的链接，实际将用户"
+        "重定向到精心准备的钓鱼页面。在 OAuth 流程中，开放重定向可被用于窃取"
+        "授权码和访问令牌，进而接管用户账户。"
+    ),
+    "crypto_weakness": (
+        "成功利用此漏洞后，攻击者可以通过彩虹表或 GPU 暴力破解在秒级内恢复弱哈希"
+        "算法的原始输入。如果加密密钥被派生，攻击者可以解密所有历史加密通信数据。"
+        "敏感凭据和用户数据的机密性完全丧失。"
+    ),
+    "info_disclosure": (
+        "成功利用此漏洞后，攻击者可以获取应用的技术栈信息、内部路径结构、框架"
+        "版本号等情报。虽然此漏洞本身风险较低，但这些信息可被用于策划更精确的"
+        "攻击，大幅降低其他严重漏洞的利用门槛。"
+    ),
+    "csrf": (
+        "成功利用此漏洞后，攻击者可以诱导已登录用户执行非预期操作（如修改密码、"
+        "转账、更改邮箱）。CSRF 攻击可以在受害者完全不知情的情况下以受害者身份"
+        "执行任意应用功能，导致账户接管和资金损失。"
+    ),
+    "business_logic": (
+        "成功利用此漏洞后，攻击者可以绕过正常的业务流程限制，例如重复使用优惠券、"
+        "以负价格下单、绕过支付验证等。此类漏洞直接损害业务收入和数据完整性，"
+        "且传统安全工具难以检测。"
+    ),
+}
+
+_DEFAULT_PROOF_OF_IMPACT = (
+    "成功利用此漏洞后，攻击者可以绕过安全控制机制，对应用系统的机密性、完整性"
+    "或可用性造成不同程度的损害。具体影响取决于漏洞所处上下文和攻击者的利用能力。"
+)
+
 # ── Public API ────────────────────────────────────────────────────────────────
+
+
+def lookup_cwe_from_vuln_type(vuln_type: str) -> str:
+    """Map a vulnerability type string to its primary CWE ID.
+
+    Returns the empty string if *vuln_type* is not recognised.
+    """
+    return VULN_TYPE_TO_CWE.get(vuln_type, "")
 
 
 def lookup_cvss(vuln_type: str, severity: str) -> tuple[float, str]:
@@ -436,3 +739,51 @@ def cvss_severity_emoji(score: float) -> str:
     if score >= 4.0:
         return "🟡"
     return "🟢"
+
+
+def lookup_owasp_category(vuln_type: str) -> tuple[str, str, str]:
+    """Map a vuln_type to its OWASP category info.
+
+    Args:
+        vuln_type: e.g. ``"sql_injection"``.
+
+    Returns:
+        ``(section_name, prefix, display_name)``.  Falls back to
+        ``("Other", "OTHER", vuln_type)`` when unrecognised.
+
+    """
+    return VULN_TYPE_TO_OWASP_CATEGORY.get(
+        vuln_type,
+        ("Other", "OTHER", vuln_type.replace("_", " ").title()),
+    )
+
+
+def lookup_prerequisites(vuln_type: str) -> str:
+    """Look up exploitability prerequisites for a vulnerability type.
+
+    Args:
+        vuln_type: e.g. ``"sql_injection"``.
+
+    Returns:
+        Human-readable prerequisites description, or a default fallback.
+
+    """
+    return PREREQUISITES_TEMPLATES.get(vuln_type, _DEFAULT_PREREQUISITES)
+
+
+def lookup_proof_of_impact(vuln_type: str) -> str:
+    """Look up a scenario-based proof of impact for a vulnerability type.
+
+    Args:
+        vuln_type: e.g. ``"sql_injection"``.
+
+    Returns:
+        Human-readable proof-of-impact narrative, or a default fallback.
+
+    """
+    return PROOF_OF_IMPACT_TEMPLATES.get(vuln_type, _DEFAULT_PROOF_OF_IMPACT)
+
+
+def get_category_order() -> list[str]:
+    """Return the canonical OWASP category display order for report sections."""
+    return list(OWASP_CATEGORY_ORDER)

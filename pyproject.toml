@@ -95,6 +95,8 @@ known-first-party = ["hyqagent"]
 "tests/test_cpg/fixtures/*.py" = ["D100", "D101", "D102", "D103", "D104", "D400", "D401", "D415", "F401", "F403", "F821", "I001", "S101", "S108", "UP045"]
 "tests/test_cpg/fixtures/microblog/*.py" = ["D100", "D101", "D102", "D103", "D104", "D400", "D401", "D415", "F401", "F403", "F821", "I001", "S101", "S108", "S201", "S605", "S608", "UP045"]  # Deliberately vulnerable app — security rules intentionally violated
 "src/hyqagent/cpg/languages/*.py" = ["D102"]  # ABC overrides — docstrings on base class
+"src/hyqagent/report/generator.py" = ["RUF001", "S101"]  # Chinese fullwidth chars in report output; assert for mypy narrowing
+"src/hyqagent/report/templates.py" = ["RUF001"]  # Chinese fullwidth chars in template strings
 
 [tool.ruff.format]
 quote-style = "double"
