@@ -496,6 +496,16 @@ class Orchestrator:
                 continue
             await self._run_phase(phase)
 
+        # ── Cross-round state: stable-key tracking for dedup ─────────
+        # Persisted in phase_states so it survives checkpoint serialisation.
+        if "_cross_round_state" not in state.phase_states:
+            state.phase_states["_cross_round_state"] = {
+                "seen_keys": set(),
+                "confirmed_keys": set(),
+                "rejected_keys": set(),
+                "prev_confirmed": set(),
+            }
+
         # ── Convergence loop ──────────────────────────────────────────
         max_rounds = self._convergence._thresholds.max_rounds
         for round_num in range(1, max_rounds + 1):
@@ -693,6 +703,44 @@ class Orchestrator:
             except Exception:
                 logger.warning("Seed feedback hypothesis generation failed — skipping.")
 
+        # ── Cross-round dedup: filter out already-seen hypotheses ─────
+        cross_state: dict[str, Any] = state.phase_states.setdefault("_cross_round_state", {})
+        seen_keys: set[str] = cross_state.get("seen_keys", set())
+        confirmed_keys: set[str] = cross_state.get("confirmed_keys", set())
+        rejected_keys: set[str] = cross_state.get("rejected_keys", set())
+        round_keys: set[str] = set()
+
+        deduped: list[Any] = []
+        skipped_confirmed = 0
+        skipped_rejected = 0
+        for h in hypotheses:
+            key = getattr(h, "stable_key", "")
+            if not key:
+                deduped.append(h)  # no stable_key → keep
+                continue
+            if key in rejected_keys:
+                skipped_rejected += 1
+                continue
+            if key in confirmed_keys:
+                skipped_confirmed += 1
+                continue
+            if key in seen_keys and key not in confirmed_keys and key not in rejected_keys:
+                # Seen before but inconclusive — let through, mark as revisit
+                h.metadata["revisit"] = True
+            deduped.append(h)
+            seen_keys.add(key)
+            round_keys.add(key)
+
+        if skipped_confirmed or skipped_rejected:
+            self._log(
+                "info",
+                f"Dedup: skipped {skipped_confirmed} confirmed, "
+                f"{skipped_rejected} rejected hypotheses",
+            )
+        cross_state["seen_keys"] = seen_keys
+        cross_state["round_keys"] = round_keys
+
+        hypotheses = deduped
         state.phase_states["hypotheses"] = hypotheses
         if self._report:
             self._report.hypotheses = hypotheses
@@ -712,6 +760,30 @@ class Orchestrator:
                     validations.append(l2)
             except Exception:
                 logger.warning("Validation failed for hypothesis", id=getattr(h, "id", "?"))
+
+        # ── Track confirmed/rejected stable keys for next round ─────────
+        cross_state: dict[str, Any] = state.phase_states.get("_cross_round_state", {})
+        if cross_state:
+            confirmed_keys: set[str] = cross_state.get("confirmed_keys", set())
+            rejected_keys: set[str] = cross_state.get("rejected_keys", set())
+            # Build hypothesis lookup by id
+            hyp_by_id: dict[str, Any] = {getattr(h, "id", ""): h for h in hypotheses}
+            for v in validations:
+                hid = getattr(v, "hypothesis_id", "")
+                h = hyp_by_id.get(hid)
+                if h is None:
+                    continue
+                key = getattr(h, "stable_key", "")
+                if not key:
+                    continue
+                verdict = getattr(v, "verdict", "")
+                conf = getattr(v, "confidence", 0.0)
+                if verdict == "confirmed" and conf >= 0.5:
+                    confirmed_keys.add(key)
+                elif verdict == "rejected" and conf >= 0.7:
+                    rejected_keys.add(key)
+            cross_state["confirmed_keys"] = confirmed_keys
+            cross_state["rejected_keys"] = rejected_keys
 
         state.phase_states["validations"] = validations
         if self._report:
@@ -1208,12 +1280,32 @@ class Orchestrator:
         hypotheses = state.phase_states.get("hypotheses", [])
         attack_surface = state.phase_states.get("attack_surface")
 
-        # Count new HIGH+ confirmed findings this round
-        new_high = sum(
-            1
-            for v in validations
-            if getattr(v, "verdict", "") == "confirmed" and self._is_high_severity(v, hypotheses)
-        )
+        # ── Cross-round state: track which stable keys are new ───────
+        cross_state: dict[str, Any] = state.phase_states.get("_cross_round_state", {})
+        prev_confirmed: set[str] = cross_state.get("prev_confirmed", set())
+        # Track first-seen round per stable key
+        sk_first_seen: dict[str, int] = cross_state.setdefault("sk_first_seen", {})
+
+        # ── Build hypothesis lookup by id ────────────────────────────
+        hyp_by_id: dict[str, Any] = {getattr(h, "id", ""): h for h in hypotheses}
+
+        # Count truly new HIGH+ confirmed findings (stable_key not seen before)
+        new_high = 0
+        for v in validations:
+            if getattr(v, "verdict", "") != "confirmed":
+                continue
+            if not self._is_high_severity(v, hypotheses):
+                continue
+            h = hyp_by_id.get(getattr(v, "hypothesis_id", ""))
+            if h is None:
+                continue
+            sk = getattr(h, "stable_key", "")
+            if not sk:
+                continue
+            if sk not in sk_first_seen:
+                sk_first_seen[sk] = state.converge_round
+            if sk_first_seen[sk] == state.converge_round and sk not in prev_confirmed:
+                new_high += 1
 
         # Endpoint coverage
         endpoints_analyzed = state.endpoint_count
@@ -1242,23 +1334,39 @@ class Orchestrator:
                     target_cwe.add(cwe)
 
         # ── Dual-perspective findings for Chao2 estimator ────────
-        # Perspective A: hypothesis IDs from the generator (validator-confirmed)
-        perspective_a: set[str] = {getattr(h, "id", "") for h in hypotheses if getattr(h, "id", "")}
-        # Perspective B: hypothesis IDs overturned by adversarial review
+        # Perspective A: stable_keys from the generator (validator-confirmed only)
+        perspective_a: set[str] = set()
+        for h in hypotheses:
+            sk = getattr(h, "stable_key", "")
+            if not sk:
+                continue
+            for v in validations:
+                if (
+                    getattr(v, "hypothesis_id", "") == h.id
+                    and getattr(v, "verdict", "") == "confirmed"
+                ):
+                    perspective_a.add(sk)
+                    break
+
+        # Perspective B: stable_keys overturned by adversarial review + blind scan
         adversarial_results = state.phase_states.get("adversarial_reviews", [])
-        perspective_b: set[str] = {
-            getattr(ar, "hypothesis_id", "")
-            for ar in adversarial_results
-            if getattr(ar, "review_verdict", "") == "overturned"
-        }
+        perspective_b: set[str] = set()
+        for ar in adversarial_results:
+            if getattr(ar, "review_verdict", "") == "overturned":
+                ar_hid = getattr(ar, "hypothesis_id", "")
+                h = hyp_by_id.get(ar_hid)
+                if h is not None:
+                    sk = getattr(h, "stable_key", "")
+                    if sk:
+                        perspective_b.add(sk)
         # Merge blind-scan discovered endpoints into perspective B
-        # (they represent findings from an independent "lens")
         blind_scan = state.phase_states.get("blind_scan_result")
         if blind_scan is not None:
             for bf in getattr(blind_scan, "findings", []) or []:
                 ep = getattr(bf, "endpoint", "")
+                vt = getattr(bf, "vuln_type", "")
                 if ep:
-                    perspective_b.add(f"blind:{ep}")
+                    perspective_b.add(f"blind:{ep}::{vt}" if vt else f"blind:{ep}")
 
         snapshot = ConvergenceSnapshot(
             round=state.converge_round,
@@ -1273,6 +1381,22 @@ class Orchestrator:
             perspective_b_findings=perspective_b,
         )
         report = self._convergence.update(snapshot)
+
+        # ── Update prev_confirmed for next round ──────────────────
+        this_round_confirmed: set[str] = set()
+        for h in hypotheses:
+            sk = getattr(h, "stable_key", "")
+            if not sk:
+                continue
+            for v in validations:
+                if (
+                    getattr(v, "hypothesis_id", "") == h.id
+                    and getattr(v, "verdict", "") == "confirmed"
+                ):
+                    this_round_confirmed.add(sk)
+                    break
+        cross_state["prev_confirmed"] = prev_confirmed | this_round_confirmed
+
         state.converge_history.append(
             {
                 "round": snapshot.round,

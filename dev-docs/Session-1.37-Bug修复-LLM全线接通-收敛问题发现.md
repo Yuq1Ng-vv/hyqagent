@@ -58,8 +58,12 @@ CLI 层传了 `dynamic_verification_results` 但 `ReportGenerator.generate()` �
 **Before** (hypothesis.py):
 ```python
 if label_str in (
-    "confirmed_taint", "sanitized_taint", "missing_auth",
-    "config_issue", "unreachable_sink", "trust_boundary_crossing",
+    "confirmed_taint",
+    "sanitized_taint",
+    "missing_auth",
+    "config_issue",
+    "unreachable_sink",
+    "trust_boundary_crossing",
 ):
     continue  # skip LLM
 ```

@@ -50,7 +50,7 @@ class TestConvergenceThresholds:
         assert t.rwc_min == 0.98
         assert t.vcc_min == 0.90
         assert t.c_hat_min == 0.85
-        assert t.max_rounds == 5
+        assert t.max_rounds == 3
 
     def test_custom_thresholds(self) -> None:
         t = ConvergenceThresholds(

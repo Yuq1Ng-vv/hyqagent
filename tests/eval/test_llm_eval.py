@@ -284,13 +284,17 @@ class TestMockHypothesisGeneration:
         assert hypotheses == []
 
     @pytest.mark.eval
-    def test_skips_non_llm_labels(
+    def test_confirmed_taint_still_goes_to_llm(
         self,
         case: Any,
         parser: Any,
         taint_loader: Any,
     ) -> None:
-        """Paths with confirmed_taint/sanitized_taint labels are skipped."""
+        """Paths with confirmed_taint label ARE sent to LLM (no label skip list).
+
+        Since Session 1.37, ALL annotated paths go through LLM for CWE
+        classification and confidence assessment — even confirmed_taint.
+        """
         if case.detection_method != "cpg_taint":
             pytest.skip(f"Not a cpg_taint case ({case.detection_method})")
         if case.negative_test:
@@ -301,7 +305,8 @@ class TestMockHypothesisGeneration:
         builder = build_labeled_graph_for_case(case, parser, taint_loader)
         query = CPGQuery(builder.graph)
 
-        provider = FakeProvider()
+        # Enqueue a valid response — LLM WILL be called
+        provider = FakeProvider([SQLLI_TRUE_POSITIVE])
         router = _build_router(provider)
 
         gen = HypothesisGenerator(
@@ -316,9 +321,9 @@ class TestMockHypothesisGeneration:
         annotated = _build_mock_annotated_path(PathLabel.CONFIRMED_TAINT)
         hypotheses = asyncio.run(gen.generate([annotated]))
 
-        # Should be skipped — no LLM call needed for CONFIRMED_TAINT
-        assert hypotheses == []
-        assert provider.call_count == 0
+        # LLM IS called (no label skip list since Session 1.37)
+        assert provider.call_count == 1
+        assert len(hypotheses) >= 1
 
 
 # ── Test: Mock validation ────────────────────────────────────────────────

@@ -32,7 +32,7 @@ class ConvergenceThresholds:
     rwc_min: float = 0.98  # minimum risk-weighted coverage ratio
     vcc_min: float = 0.90  # minimum vuln-class coverage ratio
     c_hat_min: float = 0.85  # minimum Chao2 completeness estimate
-    max_rounds: int = 5  # hard cap — escalate to human if not converged
+    max_rounds: int = 3  # hard cap — escalate to human if not converged
 
 
 # ── Snapshots ────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ class ConvergenceMonitor:
                 break
     """
 
-    MAX_ROUNDS = 5
+    MAX_ROUNDS = 3
 
     def __init__(self, thresholds: ConvergenceThresholds | None = None) -> None:
         self._thresholds = thresholds or ConvergenceThresholds()

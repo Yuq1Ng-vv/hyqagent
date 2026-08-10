@@ -515,3 +515,128 @@ class TestPhaseHypothesisGenSeedFeedback:
 
         # Annotated hypotheses should still be present (from gen.generate)
         assert "hypotheses" in state.phase_states
+
+
+# ── stable_key tests ──────────────────────────────────────────────────────
+
+
+class TestStableKey:
+    """Tests for Hypothesis.stable_key — cross-round dedup identity."""
+
+    def test_stable_key_is_deterministic(self) -> None:
+        """Same source+sink+vuln_type produces same stable_key."""
+        from hyqagent.scanner.hypothesis import Hypothesis
+
+        h1 = Hypothesis(
+            id="hyp-aaa",
+            vuln_type="sql_injection",
+            cwe_id="CWE-89",
+            severity="high",
+            confidence=0.9,
+            title="Test",
+            description="desc",
+            source_location="app.py:10",
+            sink_location="app.py:42",
+            evidence="",
+            reasoning="...",
+        )
+        h2 = Hypothesis(
+            id="hyp-bbb",  # different random id
+            vuln_type="sql_injection",
+            cwe_id="CWE-89",
+            severity="high",
+            confidence=0.9,
+            title="Test",
+            description="desc",
+            source_location="app.py:10",
+            sink_location="app.py:42",
+            evidence="",
+            reasoning="...",
+        )
+        assert h1.stable_key == h2.stable_key
+        assert h1.stable_key == "app.py:10|app.py:42|sql_injection"
+
+    def test_different_vuln_type_different_key(self) -> None:
+        """Different vuln_type → different stable_key."""
+        from hyqagent.scanner.hypothesis import Hypothesis
+
+        h1 = Hypothesis(
+            id="a",
+            vuln_type="xss",
+            cwe_id="CWE-79",
+            severity="medium",
+            confidence=0.5,
+            title="X",
+            description="d",
+            source_location="a.py:1",
+            sink_location="a.py:2",
+            evidence="",
+            reasoning="",
+        )
+        h2 = Hypothesis(
+            id="b",
+            vuln_type="sql_injection",
+            cwe_id="CWE-89",
+            severity="high",
+            confidence=0.5,
+            title="Y",
+            description="d",
+            source_location="a.py:1",
+            sink_location="a.py:2",
+            evidence="",
+            reasoning="",
+        )
+        assert h1.stable_key != h2.stable_key
+
+    def test_different_source_different_key(self) -> None:
+        """Different source_location → different stable_key."""
+        from hyqagent.scanner.hypothesis import Hypothesis
+
+        h1 = Hypothesis(
+            id="a",
+            vuln_type="sqli",
+            cwe_id="CWE-89",
+            severity="high",
+            confidence=0.5,
+            title="X",
+            description="d",
+            source_location="a.py:1",
+            sink_location="a.py:5",
+            evidence="",
+            reasoning="",
+        )
+        h2 = Hypothesis(
+            id="b",
+            vuln_type="sqli",
+            cwe_id="CWE-89",
+            severity="high",
+            confidence=0.5,
+            title="Y",
+            description="d",
+            source_location="a.py:2",  # different line
+            sink_location="a.py:5",
+            evidence="",
+            reasoning="",
+        )
+        assert h1.stable_key != h2.stable_key
+
+    def test_stable_key_is_property_not_field(self) -> None:
+        """stable_key is computed, not stored — not in __init__."""
+        from hyqagent.scanner.hypothesis import Hypothesis
+
+        h = Hypothesis(
+            id="test",
+            vuln_type="sqli",
+            cwe_id="CWE-89",
+            severity="medium",
+            confidence=0.5,
+            title="T",
+            description="d",
+            source_location="f.py:1",
+            sink_location="f.py:2",
+            evidence="",
+            reasoning="",
+        )
+        # stable_key should be accessible but not a field
+        assert hasattr(h, "stable_key")
+        assert "stable_key" not in h.__dataclass_fields__

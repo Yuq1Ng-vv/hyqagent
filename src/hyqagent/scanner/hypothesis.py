@@ -64,6 +64,16 @@ class Hypothesis:
     remediation: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def stable_key(self) -> str:
+        """Deterministic identity for cross-round deduplication.
+
+        Based on source_location + sink_location + vuln_type —
+        the same vulnerability found in different rounds will have
+        the same stable_key regardless of random ``id``.
+        """
+        return f"{self.source_location}|{self.sink_location}|{self.vuln_type}"
+
 
 # ── Structured output schema (passed to Anthropic tool_use) ───────────────────
 
