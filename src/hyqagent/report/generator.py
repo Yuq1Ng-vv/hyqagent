@@ -516,6 +516,29 @@ class ReportGenerator:
         lines.append(" ".join(header_parts))
         lines.append("")
 
+        # ── LLM Verification badge (added by _phase_finding_verification) ──
+        val_verdict = getattr(f, "validation_verdict", "")
+        if val_verdict:
+            val_conf = getattr(f, "validation_confidence", 0.0)
+            val_reasoning = getattr(f, "validation_reasoning", "")
+            verdict_emoji = {
+                "confirmed": "✅",
+                "rejected": "❌",
+                "inconclusive": "❓",
+            }.get(val_verdict, "❓")
+            verdict_label = {
+                "confirmed": "LLM Verified — Confirmed",
+                "rejected": "LLM Verified — REJECTED (Likely False Positive)",
+                "inconclusive": "LLM Verified — Inconclusive",
+            }.get(val_verdict, val_verdict)
+            lines.append(
+                f"> {verdict_emoji} **{verdict_label}** "
+                f"(confidence: {val_conf:.0%})"
+            )
+            if val_reasoning:
+                lines.append(f"> _{val_reasoning[:200]}_")
+            lines.append("")
+
         # ── Summary ──
         lines.append("#### Summary")
         lines.append("")
@@ -983,6 +1006,15 @@ class ReportGenerator:
         ):
             val = getattr(f, key, "")
             if val:  # skip empty/zero for lean output
+                d[key] = val
+        # LLM verification fields (added by _phase_finding_verification)
+        for key in (
+            "validation_verdict",
+            "validation_confidence",
+            "validation_reasoning",
+        ):
+            val = getattr(f, key, "")
+            if val:
                 d[key] = val
         return d
 

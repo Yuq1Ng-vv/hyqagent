@@ -60,6 +60,7 @@ class PhaseName(StrEnum):
     BLIND_SCAN = "blind_scan"
     COVERAGE_AUDIT = "coverage_audit"
     COMPLETENESS_CRITIC = "completeness_critic"
+    FINDING_VERIFICATION = "finding_verification"
     DYNAMIC_VERIFICATION = "dynamic_verification"
     CONVERGENCE_CHECK = "convergence_check"
 
@@ -69,6 +70,7 @@ class PhaseName(StrEnum):
 DEEP_PHASES: list[PhaseName] = [
     PhaseName.CPG_BUILD,
     PhaseName.DETERMINISTIC_SCAN,
+    PhaseName.FINDING_VERIFICATION,
     PhaseName.ATTACK_SURFACE_MAP,
     PhaseName.HYPOTHESIS_GEN,
     PhaseName.VALIDATION,
@@ -185,6 +187,164 @@ class AuditReport:
     scan_duration_ms: int = 0
     phases_completed: list[str] = field(default_factory=list)
     status: str = "completed"  # completed | paused | failed
+
+
+# ── Finding verification prompt & schema ──────────────────────────────────────
+
+FINDING_VERIFICATION_SYSTEM = (
+    "You are a senior security engineer verifying static analysis findings.\n"
+    "\n"
+    "For each finding from a deterministic scanner, determine whether it is a "
+    "real, exploitable vulnerability or a false positive.\n"
+    "\n"
+    "Consider these factors:\n"
+    "1. **Code Path Validity**: Does data actually flow from source to sink?\n"
+    "2. **Exploitability**: Can an attacker trigger this? Are there auth "
+    "checks, input validation, or other runtime guards?\n"
+    "3. **Framework Protection**: Does the framework provide implicit "
+    "protection? (e.g., Django ORM auto-parameterizes SQL, React auto-escapes "
+    "JSX)\n"
+    "4. **Context Assessment**: Is this a genuine security issue or a benign "
+    "pattern (e.g., test code, dead code, internal admin tool)?\n"
+    "\n"
+    "Output your verdict as structured JSON via the verify_finding tool."
+)
+
+FINDING_VERIFICATION_SCHEMA: dict[str, Any] = {
+    "name": "verify_finding",
+    "description": "Verification verdict for a deterministic scanner finding",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "verdict": {
+                "type": "string",
+                "enum": ["confirmed", "rejected", "inconclusive"],
+                "description": "Is this a real, exploitable vulnerability?",
+            },
+            "confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Confidence in the verdict (0.0-1.0)",
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "Brief reasoning for the verdict (2-5 sentences)",
+            },
+        },
+        "required": ["verdict", "confidence", "reasoning"],
+    },
+}
+
+
+def _build_finding_verification_prompt(finding: Any) -> str:
+    """Build the LLM prompt for verifying a single deterministic finding."""
+    parts: list[str] = [
+        "## Deterministic Scanner Finding",
+        f"**Rule ID**: {getattr(finding, 'rule_id', '?')}",
+        f"**Severity**: {getattr(finding, 'severity', '?')}",
+        f"**Title**: {getattr(finding, 'title', '?')}",
+        f"**Category**: {getattr(finding, 'category', '?')}",
+    ]
+
+    cwe = getattr(finding, "cwe_id", "")
+    if cwe:
+        parts.append(f"**CWE**: {cwe}")
+
+    cvss = getattr(finding, "cvss_score", 0.0)
+    if cvss:
+        parts.append(f"**CVSS**: {cvss}")
+
+    desc = getattr(finding, "description", "")
+    if desc:
+        parts.append(f"\n**Description**: {desc}")
+
+    src = getattr(finding, "source_location", "")
+    if src:
+        parts.append(f"**Source** (user input): `{src}`")
+
+    sink = getattr(finding, "sink_location", "")
+    if sink:
+        parts.append(f"**Sink** (dangerous call): `{sink}`")
+
+    snippet = getattr(finding, "code_snippet", "")
+    if snippet:
+        parts.append(f"\n**Sink code snippet**:\n```\n{snippet}\n```")
+
+    remediation = getattr(finding, "remediation", "")
+    if remediation:
+        parts.append(f"\n**Suggested remediation**: {remediation}")
+
+    parts.append(
+        "\n## Code Context\n"
+        "The code around the source and sink locations is shown below.\n"
+        "Analyse the finding and code context. Is this a real, exploitable "
+        "vulnerability? Respond using the verify_finding tool."
+    )
+    return "\n".join(parts)
+
+
+def _read_code_around_locations(
+    file_path: str,
+    sink_line: int,
+    source_location: str = "",
+    sink_location: str = "",
+    context_lines: int = 15,
+) -> str:
+    """Read code around source and sink locations from a file.
+
+    Returns formatted code blocks showing context around each location.
+    Falls back to reading around *sink_line* if location strings can't be parsed.
+    """
+    try:
+        source = Path(file_path).read_text(encoding="utf-8", errors="replace")
+    except (OSError, FileNotFoundError):
+        return "*(source file not readable)*"
+
+    all_lines = source.splitlines()
+    total = len(all_lines)
+
+    # Parse line numbers from location strings
+    locations: list[tuple[int, str]] = []
+
+    def _add_loc(loc_str: str, label: str) -> None:
+        if not loc_str or ":" not in loc_str:
+            return
+        try:
+            line_num = int(loc_str.rsplit(":", 1)[-1])
+            locations.append((line_num, label))
+        except (ValueError, IndexError):
+            pass
+
+    _add_loc(source_location, "Source")
+    _add_loc(sink_location, "Sink")
+
+    # Fall back to sink_line if no locations were parsed
+    if not locations and sink_line > 0:
+        locations.append((sink_line, "Sink"))
+
+    if not locations:
+        return "*(no source/sink location data)*"
+
+    # Deduplicate by line number while preserving order
+    seen: set[int] = set()
+    parts: list[str] = []
+    for line_num, label in locations:
+        if line_num in seen or line_num < 1:
+            continue
+        seen.add(line_num)
+        start = max(0, line_num - context_lines - 1)
+        end = min(total, line_num + context_lines)
+        snippet_lines: list[str] = []
+        for i in range(start, end):
+            prefix = ">>> " if i == line_num - 1 else "    "
+            snippet_lines.append(f"{prefix}{i + 1:4d} | {all_lines[i]}")
+        parts.append(
+            f"### {label} location (line {line_num})\n"
+            f"```\n{chr(10).join(snippet_lines)}\n```"
+        )
+
+    return "\n\n".join(parts)
 
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
@@ -488,6 +648,7 @@ class Orchestrator:
         pre_loop = [
             PhaseName.CPG_BUILD,
             PhaseName.DETERMINISTIC_SCAN,
+            PhaseName.FINDING_VERIFICATION,
             PhaseName.ATTACK_SURFACE_MAP,
         ]
 
@@ -506,6 +667,20 @@ class Orchestrator:
                 "prev_confirmed": set(),
                 "covered_fingerprints": set(),
             }
+        else:
+            # Normalize set-valued fields after checkpoint restore:
+            # JSON serialises sets as lists, so convert them back.
+            cs = state.phase_states["_cross_round_state"]
+            for set_key in (
+                "seen_keys",
+                "confirmed_keys",
+                "rejected_keys",
+                "prev_confirmed",
+                "covered_fingerprints",
+            ):
+                val = cs.get(set_key)
+                if isinstance(val, list):
+                    cs[set_key] = set(val)
 
         # ── Convergence loop ──────────────────────────────────────────
         max_rounds = self._convergence._thresholds.max_rounds
@@ -630,6 +805,114 @@ class Orchestrator:
         if self._report:
             self._report.findings = result.findings
             self._report.annotated_paths = result.annotated_paths
+
+    async def _phase_finding_verification(self, state: PipelineState) -> None:
+        """Verify deterministic findings with LLM to reduce false positives.
+
+        Each finding is sent to an LLM for binary verification
+        (confirmed / rejected / inconclusive).  Uses the cheap provider
+        (DeepSeek) for cost efficiency — this is a simple classification
+        task on pre-filtered findings.
+
+        Verified findings have ``validation_verdict``, ``validation_confidence``,
+        and ``validation_reasoning`` populated in-place.  Skipped in quick mode.
+        """
+        findings: list[Any] = state.phase_states.get("findings", [])
+        if not findings:
+            return
+
+        # Only meaningful in deep mode
+        mode = state.phase_states.get("mode", "deep")
+        if mode == "quick":
+            self._log("info", "Finding verification: skipped (quick mode)")
+            return
+
+        if self._cheap is None or self._router is None:
+            self._log("warn", "Finding verification: no LLM provider available — skipping")
+            return
+
+        from hyqagent.models.router import Task, TaskType
+
+        # Count findings that still need verification
+        unverified = sum(
+            1 for f in findings if not getattr(f, "validation_verdict", "")
+        )
+        if unverified == 0:
+            self._log("info", "Finding verification: all findings already verified")
+            return
+
+        self._log(
+            "phase",
+            f"Verifying {unverified}/{len(findings)} deterministic findings with LLM...",
+        )
+
+        verified = 0
+        confirmed = 0
+        rejected = 0
+
+        for finding in findings:
+            if getattr(finding, "validation_verdict", ""):
+                continue  # Already verified in a prior run or checkpoint restore
+
+            try:
+                code_ctx = _read_code_around_locations(
+                    getattr(finding, "file_path", ""),
+                    getattr(finding, "line", 0),
+                    getattr(finding, "source_location", ""),
+                    getattr(finding, "sink_location", ""),
+                )
+                prompt = _build_finding_verification_prompt(finding)
+
+                task = Task(
+                    task_type=TaskType.FINDING_VERIFICATION,
+                    complexity=3,
+                    estimated_prompt_tokens=(len(prompt) + len(code_ctx)) // 3,
+                )
+                provider, model_id = self._router.route(task)
+
+                result = await provider.generate_structured(
+                    messages=[{"role": "user", "content": prompt + "\n\n" + code_ctx}],
+                    model=model_id,
+                    output_schema=FINDING_VERIFICATION_SCHEMA,
+                    system=FINDING_VERIFICATION_SYSTEM,
+                    max_tokens=2048,
+                    temperature=0.1,
+                )
+
+                finding.validation_verdict = result.get("verdict", "inconclusive")
+                finding.validation_confidence = float(
+                    result.get("confidence", 0.5)
+                )
+                finding.validation_reasoning = result.get("reasoning", "")
+
+                if finding.validation_verdict == "confirmed":
+                    confirmed += 1
+                elif finding.validation_verdict == "rejected":
+                    rejected += 1
+
+            except Exception:
+                logger.warning(
+                    "finding_verification_failed",
+                    finding_id=getattr(finding, "id", "?"),
+                )
+                finding.validation_verdict = "inconclusive"
+                finding.validation_confidence = 0.5
+                finding.validation_reasoning = "LLM verification call failed"
+
+            verified += 1
+
+        inconclusive = verified - confirmed - rejected
+        self._log(
+            "info",
+            f"Finding verification complete: {verified} verified "
+            f"({confirmed} confirmed, {rejected} rejected, "
+            f"{inconclusive} inconclusive)",
+        )
+
+        # Persist back to state and report
+        state.phase_states["findings"] = findings
+        if self._report:
+            self._report.findings = findings
 
     async def _phase_attack_surface_map(self, state: PipelineState) -> None:
         """Map attack surface from framework-extracted endpoints."""

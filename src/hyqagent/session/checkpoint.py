@@ -25,6 +25,8 @@ class _CheckpointEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)
+        if isinstance(o, (set, frozenset)):
+            return list(o)
         if hasattr(o, "__dict__"):
             return {k: v for k, v in o.__dict__.items() if not k.startswith("_")}
         return super().default(o)

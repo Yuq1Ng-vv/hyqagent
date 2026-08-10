@@ -66,6 +66,11 @@ class Finding:
     source_location: str = ""  # where taint enters (file.py:line)
     sink_location: str = ""  # where taint reaches sink (file.py:line)
 
+    # ── LLM verification fields (populated by _phase_finding_verification) ──
+    validation_verdict: str = ""  # confirmed | rejected | inconclusive
+    validation_confidence: float = 0.0
+    validation_reasoning: str = ""
+
 
 @dataclass
 class ScanResult:
@@ -411,6 +416,21 @@ class DeterministicScanner:
             if ap.label == PathLabel.CONDITIONAL_SANITIZED:
                 title = "条件性消毒漏洞路径（需人工或 LLM 验证）"
 
+            # ── Enriched fields from deterministic data ──
+            # Lazy-import templates to avoid circular dependency at module level
+            from hyqagent.report.templates import (
+                lookup_cvss,
+                lookup_cwe_from_vuln_type,
+                lookup_impact,
+            )
+
+            src_loc = src_node.location
+            sink_loc = sink_node.location
+            primary_vuln = vuln_category.split(",")[0].strip() if vuln_category else ""
+            cwe = lookup_cwe_from_vuln_type(primary_vuln)
+            cvss_score, cvss_vector = lookup_cvss(primary_vuln, severity)
+            impact_text = lookup_impact(primary_vuln)
+
             findings.append(
                 Finding(
                     id=f"taint-{uuid.uuid4().hex[:8]}",
@@ -428,6 +448,13 @@ class DeterministicScanner:
                     code_snippet=sink_node.source[:200],
                     category=vuln_category,
                     confidence="high" if ap.label == PathLabel.CONFIRMED_TAINT else "medium",
+                    # ── Enriched fields ──
+                    source_location=src_loc,
+                    sink_location=sink_loc,
+                    cwe_id=cwe,
+                    cvss_score=cvss_score,
+                    cvss_vector=cvss_vector,
+                    impact=impact_text,
                     metadata={
                         "path_length": len(path.nodes),
                         "label": ap.label.value,

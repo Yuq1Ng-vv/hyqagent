@@ -38,6 +38,7 @@ class TaskType(StrEnum):
     HYPOTHESIS_GENERATION = "hypothesis_generation"
     L2_VALIDATION = "l2_validation"
     BLIND_SCAN = "blind_scan"
+    FINDING_VERIFICATION = "finding_verification"
 
 
 # ── Dataclasses ──────────────────────────────────────────────────────────────
