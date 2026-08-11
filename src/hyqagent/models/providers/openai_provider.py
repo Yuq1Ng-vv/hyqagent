@@ -211,15 +211,38 @@ class OpenAIProvider(LlmProvider):
         max_retries: int = 3,
         timeout_seconds: int = 120,
         on_call_complete: Any = None,
+        trust_env: bool = True,
     ) -> None:
+        """Create an OpenAI-compatible provider.
+
+        Args:
+            config: API key + base URL.
+            max_retries: Tenacity retry attempts per call.
+            timeout_seconds: HTTP timeout.
+            on_call_complete: Observability callback.
+            trust_env: If False, the HTTP client ignores system proxy
+                settings (``HTTP_PROXY`` / ``HTTPS_PROXY``).  Set to
+                ``False`` when corporate proxies intercept API traffic.
+
+        """
+        import httpx
+
         self._config = config
         self._max_retries = max_retries
         self._timeout = timeout_seconds
+
+        # Build a custom httpx client so we can control proxy behaviour.
+        # The default (trust_env=True) reads HTTP_PROXY/HTTPS_PROXY which
+        # some corporate / regional proxies intercept and block.
+        http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout_seconds),
+            trust_env=trust_env,
+        )
         self._client = AsyncOpenAI(
             api_key=config.api_key,
             base_url=config.base_url,
             max_retries=0,  # we handle retries ourselves via tenacity
-            timeout=timeout_seconds,
+            http_client=http_client,
         )
         self._call_history: list[dict[str, Any]] = []
         self._on_call_complete = on_call_complete

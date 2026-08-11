@@ -54,6 +54,7 @@ class HyqAgentConfig(BaseSettings):
     # OpenAI / OpenAI-compatible
     openai_api_key: SecretStr = SecretStr("")
     openai_base_url: str = ""  # empty = OpenAI default, or e.g. "https://api.deepseek.com/v1"
+    openai_trust_env: bool = False  # False = ignore HTTP_PROXY (avoid proxy interception)
 
     # ── Budget (Phase 3+) ──────────────────────────────────────────────
     max_llm_budget: float = 1.39  # ≈ ¥10 (DeepSeek Flash: ~0.14/百万tokens)

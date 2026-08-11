@@ -1944,6 +1944,7 @@ class Orchestrator:
                         OpenAIConfig(api_key=api_key, base_url=base_url),
                         max_retries=cfg.llm_max_retries,
                         timeout_seconds=cfg.llm_timeout_seconds,
+                        trust_env=cfg.openai_trust_env,
                     )
                 else:
                     # "anthropic" (default) — includes DeepSeek via
