@@ -248,7 +248,7 @@ class JavaConfigScanner:
     def _parse_properties(self, path: Path, meta: JavaProjectMeta) -> None:
         """Extract key-value pairs from Spring Boot config files."""
         try:
-            content = path.read_text()
+            content = path.read_text(encoding="utf-8")
         except (FileNotFoundError, OSError, UnicodeDecodeError):
             return
 

@@ -128,7 +128,7 @@ class SessionManager(AuditRepository):
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
         schema_path = Path(__file__).parent / "schema.sql"
         if schema_path.exists():
-            conn.executescript(schema_path.read_text())
+            conn.executescript(schema_path.read_text(encoding="utf-8"))
         conn.commit()
 
     def _save_session_sync(self, session: dict[str, Any]) -> str:
