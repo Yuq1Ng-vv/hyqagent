@@ -690,6 +690,11 @@ def _has_llm_keys(config: HyqAgentConfig) -> bool:
         return True
     except ValueError:
         pass
+    try:
+        _ = config.openai_key
+        return True
+    except ValueError:
+        pass
     return False
 
 

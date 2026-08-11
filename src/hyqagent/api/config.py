@@ -39,10 +39,20 @@ class HyqAgentConfig(BaseSettings):
     mid_model: str = "deepseek-v4-flash"
     strong_model: str = "deepseek-v4-flash"
 
+    # ── Provider selection per tier ─────────────────────────────────────
+    # Each tier can use a different provider: "anthropic" | "openai"
+    cheap_provider: str = "anthropic"  # DeepSeek via Anthropic-compatible endpoint
+    mid_provider: str = "anthropic"
+    strong_provider: str = "anthropic"
+
     # ── API Keys (Phase 3+) ────────────────────────────────────────────
     anthropic_api_key: SecretStr = SecretStr("")
     deepseek_api_key: SecretStr = SecretStr("")
     deepseek_base_url: str = "https://api.deepseek.com/anthropic"
+
+    # OpenAI / OpenAI-compatible
+    openai_api_key: SecretStr = SecretStr("")
+    openai_base_url: str = ""  # empty = OpenAI default, or e.g. "https://api.deepseek.com/v1"
 
     # ── Budget (Phase 3+) ──────────────────────────────────────────────
     max_llm_budget: float = 1.39  # ≈ ¥10 (DeepSeek Flash: ~0.14/百万tokens)
@@ -107,5 +117,20 @@ class HyqAgentConfig(BaseSettings):
             raise ValueError(
                 "DeepSeek API key not configured. Set HYQAGENT_DEEPSEEK_API_KEY "
                 "or DEEPSEEK_API_KEY in the environment."
+            )
+        return key
+
+    @property
+    def openai_key(self) -> str:
+        """Reveal the OpenAI API key, falling back to env var."""
+        key = self.openai_api_key.get_secret_value()
+        if not key:
+            import os
+
+            key = os.environ.get("OPENAI_API_KEY", "")
+        if not key:
+            raise ValueError(
+                "OpenAI API key not configured. Set HYQAGENT_OPENAI_API_KEY "
+                "or OPENAI_API_KEY in the environment."
             )
         return key

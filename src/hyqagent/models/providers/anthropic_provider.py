@@ -1,12 +1,14 @@
-"""models/providers/anthropic_provider.py — Anthropic SDK wrapper for Phase 3 LLM.
+"""models/providers/anthropic_provider.py — Anthropic SDK wrapper implementing LlmProvider.
 
-Implements the :class:`LlmProvider` protocol from :mod:`hyqagent.core.protocols`.
-Works with both Anthropic (Claude) and DeepSeek (Anthropic-format API) by
-accepting a configurable ``base_url``.
+Works with:
+- Claude (Anthropic native) — ``base_url=None``
+- DeepSeek (Anthropic-compatible endpoint) — ``base_url="https://api.deepseek.com/anthropic"``
+- Any other Anthropic Messages API-compatible service.
 
 Key features:
 - ``generate()`` — raw Messages API call with tenacity retry + circuit breaker
 - ``generate_structured()`` — tool_use-based structured JSON output
+- ``generate_with_tools()`` — ReAct-style multi-tool generation (agent loop)
 - ``count_tokens()`` — token counting with fallback estimation
 """
 
@@ -15,7 +17,7 @@ from __future__ import annotations
 import contextlib
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
@@ -27,6 +29,8 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential_jitter,
 )
+
+from hyqagent.core.protocols import LlmProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -42,16 +46,40 @@ class ProviderConfig:
 
         ProviderConfig(api_key="sk-ant-...", base_url=None)
 
-    For DeepSeek::
+    For DeepSeek (Anthropic-compatible endpoint)::
 
         ProviderConfig(
             api_key="sk-...",
             base_url="https://api.deepseek.com/anthropic",
+            disable_thinking=True,   # DeepSeek defaults to thinking mode
+            force_auto_tool_choice=True,  # DeepSeek needs auto tool_choice
         )
     """
 
     api_key: str
     base_url: str | None = None
+
+    # ── Quirk flags — for providers that deviate from Anthropic behaviour ──
+    disable_thinking: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                'Set thinking={"type":"disabled"} on every request. '
+                "Needed for DeepSeek which defaults to thinking mode that "
+                "wraps output in thinking blocks, burying tool_use payloads."
+            )
+        },
+    )
+    force_auto_tool_choice: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                'Use tool_choice={"type":"auto"} instead of forcing a '
+                "specific tool.  DeepSeek and some compatible endpoints don't "
+                'support {"type":"tool","name":"..."}.'
+            )
+        },
+    )
 
 
 # ── Circuit breaker ─────────────────────────────────────────────────────────
@@ -66,15 +94,17 @@ _breaker = CircuitBreaker(
 # ── AnthropicProvider ───────────────────────────────────────────────────────
 
 
-class AnthropicProvider:
+class AnthropicProvider(LlmProvider):
     """Anthropic-compatible LLM provider with retry and circuit-breaking.
 
     Usage::
 
         config = ProviderConfig(api_key="sk-...", base_url=None)
         provider = AnthropicProvider(config)
-        resp = await provider.generate([{"role":"user","content":"Hello"}],
-                                        model="claude-sonnet-5")
+        resp = await provider.generate(
+            [{"role":"user","content":"Hello"}],
+            model="claude-sonnet-5",
+        )
     """
 
     def __init__(
@@ -101,6 +131,7 @@ class AnthropicProvider:
     async def generate(
         self,
         messages: list[dict[str, Any]],
+        *,
         model: str,
         system: str = "",
         max_tokens: int = 4096,
@@ -113,6 +144,11 @@ class AnthropicProvider:
         Returns a dict with keys: ``content`` (list of content blocks),
         ``model``, ``usage`` (input/output tokens), ``stop_reason``.
         """
+        # Apply quirk flags as default kwargs (caller can override)
+        merged_kwargs: dict[str, Any] = dict(kwargs)
+        if self._config.disable_thinking:
+            merged_kwargs.setdefault("thinking", {"type": "disabled"})
+
         call_start = time.monotonic()
         result = await self._call_with_retry(
             messages=messages,
@@ -121,7 +157,7 @@ class AnthropicProvider:
             max_tokens=max_tokens,
             temperature=temperature,
             tools=tools,
-            **kwargs,
+            **merged_kwargs,
         )
         elapsed_ms = (time.monotonic() - call_start) * 1000
 
@@ -163,14 +199,15 @@ class AnthropicProvider:
     async def generate_structured(
         self,
         messages: list[dict[str, Any]],
-        model: str,
         output_schema: dict[str, Any],
+        *,
+        model: str,
         system: str = "",
         max_tokens: int = 4096,
         temperature: float = 0.0,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Generate structured JSON output via Anthropic tool_use.
+        """Generate structured JSON output via tool_use.
 
         Defines a single tool with *output_schema* as its ``input_schema``
         and forces the model to call it via ``tool_choice``.
@@ -186,15 +223,11 @@ class AnthropicProvider:
             }
         ]
 
-        # Detect DeepSeek endpoint: requiring workarounds for tool_choice and
-        # thinking mode (DeepSeek 默认开启思考模式, which wraps output in
-        # `thinking` blocks that bury the tool_use payload).
-        _is_deepseek = self._config.base_url and "deepseek" in self._config.base_url
-
-        # DeepSeek: disable thinking so tool_use comes back cleanly.
-        _extra_kwargs: dict[str, Any] = dict(kwargs)
-        if _is_deepseek:
-            _extra_kwargs.setdefault("thinking", {"type": "disabled"})
+        tool_choice: dict[str, Any]
+        if self._config.force_auto_tool_choice:
+            tool_choice = {"type": "auto"}
+        else:
+            tool_choice = {"type": "tool", "name": tool_name}
 
         response = await self.generate(
             messages=messages,
@@ -208,18 +241,17 @@ class AnthropicProvider:
             max_tokens=max_tokens,
             temperature=temperature,
             tools=tools,
-            tool_choice=({"type": "auto"} if _is_deepseek else {"type": "tool", "name": tool_name}),
-            **_extra_kwargs,
+            tool_choice=tool_choice,
+            **kwargs,
         )
 
-        # Extract tool_use block (skip thinking / redacted_thinking blocks
-        # that DeepSeek may emit even with thinking disabled).
+        # Extract tool_use block (skip thinking / redacted_thinking blocks).
         content = response.get("content", [])
         for block in content:
             if block.get("type") == "tool_use":
                 return block.get("input", {})  # type: ignore[no-any-return]
 
-        # Fallback: parse text blocks as JSON (skip non-structured blocks).
+        # Fallback: parse text blocks as JSON.
         for block in content:
             if block.get("type") == "text":
                 text = block.get("text", "")
@@ -241,6 +273,7 @@ class AnthropicProvider:
         model: str,
         output_schema: dict[str, Any],
         audit_tools: list[dict[str, Any]],
+        *,
         system: str = "",
         max_tokens: int = 4096,
         temperature: float = 0.0,
@@ -256,10 +289,8 @@ class AnthropicProvider:
         Args:
             messages: Conversation history (may include prior tool results).
             model: Model ID to use.
-            output_schema: Schema for the final structured-output tool
-                (same format as :meth:`generate_structured`).
-            audit_tools: Additional tools the model may use to explore code
-                (e.g. ``read_file``, ``grep_code``).
+            output_schema: Schema for the final structured-output tool.
+            audit_tools: Additional tools the model may use to explore code.
             system: System prompt.
             max_tokens: Max tokens for this turn.
             temperature: Sampling temperature.
@@ -268,7 +299,6 @@ class AnthropicProvider:
         Returns:
             A dict with ``content`` (list of block dicts), ``model``,
             and ``usage`` — the raw :meth:`generate` result.
-
         """
         output_tool_name = output_schema.get("name", "output")
         output_tool = {
@@ -279,11 +309,6 @@ class AnthropicProvider:
 
         # Combine: audit tools first so the model explores before reporting
         tools = [*list(audit_tools), output_tool]
-
-        _is_deepseek = self._config.base_url and "deepseek" in self._config.base_url
-        _extra_kwargs: dict[str, Any] = dict(kwargs)
-        if _is_deepseek:
-            _extra_kwargs.setdefault("thinking", {"type": "disabled"})
 
         system_prompt = system
         if system_prompt:
@@ -302,13 +327,14 @@ class AnthropicProvider:
             temperature=temperature,
             tools=tools,
             tool_choice={"type": "auto"},
-            **_extra_kwargs,
+            **kwargs,
         )
 
     def count_tokens(
         self,
         messages: list[dict[str, Any]],
         model: str,
+        *,
         system: str = "",
         tools: list[dict[str, Any]] | None = None,
     ) -> int:

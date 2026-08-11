@@ -58,7 +58,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 import structlog
 
 if TYPE_CHECKING:
-    from hyqagent.models.providers.anthropic_provider import AnthropicProvider
+    from hyqagent.core.protocols import LlmProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -301,7 +301,7 @@ class NudgeResult:
 class NudgeLoop:
     """Multi-turn LLM wrapper that prevents premature termination.
 
-    Wraps :meth:`AnthropicProvider.generate_structured` in a loop that:
+    Wraps :meth:`LlmProvider.generate_structured` in a loop that:
 
     1. Calls the model.
     2. Checks whether a structured tool call was actually produced
@@ -322,7 +322,7 @@ class NudgeLoop:
 
     async def run(
         self,
-        provider: AnthropicProvider,
+        provider: LlmProvider,
         model: str,
         messages: list[dict[str, Any]],
         output_schema: dict[str, Any],
@@ -398,7 +398,7 @@ class NudgeLoop:
 
             # ── Detect text-only response ─────────────────────────────────
             # generate_structured returns {} when no tool_use block is found
-            # (see AnthropicProvider.generate_structured fallback).
+            # (see LlmProvider.generate_structured fallback).
             if result == {} or not result:
                 # Try to extract text from the last assistant response
                 # to check for continue-intent language.

@@ -17,6 +17,7 @@ dependencies = [
     "networkx>=3.4",
     "langgraph>=0.3",
     "anthropic>=0.45",
+    "openai>=1.0",
     "structlog>=24.0",
     "tenacity>=9.0",
     "circuitbreaker>=2.1",

@@ -15,10 +15,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from hyqagent.models.providers.anthropic_provider import (
-        AnthropicProvider,
-    )
+from hyqagent.core.protocols import LlmProvider
 
 
 # ── Enums ────────────────────────────────────────────────────────────────────
@@ -104,16 +101,17 @@ class ModelRouter:
 
     def __init__(
         self,
-        providers: dict[str, AnthropicProvider],
+        providers: dict[str, LlmProvider],
         cheap_model: str = "",
         mid_model: str = "",
         strong_model: str = "",
     ) -> None:
-        """Store provider-key → AnthropicProvider mappings.
+        """Store provider-key → LlmProvider mappings.
 
-        *providers* maps provider_key to AnthropicProvider instance.
-        Use ``"deepseek"`` and ``"anthropic"`` as keys. If only one provider
-        is configured, it will be used for all tiers (with different models).
+        *providers* maps provider_key to LlmProvider instance.
+        Use ``"deepseek"``, ``"anthropic"``, ``"openai"``, etc. as keys.
+        If only one provider is configured, it will be used for all tiers
+        (with different models).
         """
         self._providers = providers
         # Create instance-level copies so customisation doesn't leak across tests
@@ -141,11 +139,11 @@ class ModelRouter:
 
     # ── Public API ──────────────────────────────────────────────────────
 
-    def route(self, task: Task) -> tuple[AnthropicProvider, str]:
+    def route(self, task: Task) -> tuple[LlmProvider, str]:
         """Route *task* to the right (provider, model_id) pair.
 
-        Budget-aware: if the task's complexity warrants MID but MID
-        provider is unavailable, falls back to CHEAP.
+        If the tier's configured provider is unavailable, falls back
+        to any available provider.
         """
         spec = self._spec_for_complexity(task.complexity)
         provider = self._providers.get(spec.provider_key)
@@ -158,7 +156,7 @@ class ModelRouter:
         self,
         task: Task,
         remaining_budget: float,
-    ) -> tuple[AnthropicProvider, str] | None:
+    ) -> tuple[LlmProvider, str] | None:
         """Route with budget awareness. Returns ``None`` if budget exhausted."""
         spec = self._spec_for_complexity(task.complexity)
 

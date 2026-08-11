@@ -439,7 +439,7 @@ class PocGenerator:
         """Create a PoC generator backed by an LLM provider.
 
         Args:
-            provider: AnthropicProvider (or compatible).
+            provider: LlmProvider (or compatible).
             model: Model ID string — should be a strong reasoning model.
 
         """

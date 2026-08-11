@@ -1925,30 +1925,56 @@ class Orchestrator:
             from hyqagent.api.config import HyqAgentConfig
             from hyqagent.models.providers.anthropic_provider import (
                 AnthropicProvider,
-                ProviderConfig,
+                ProviderConfig as AnthropicConfig,
+            )
+            from hyqagent.models.providers.openai_provider import (
+                OpenAIProvider,
+                ProviderConfig as OpenAIConfig,
             )
             from hyqagent.models.router import ModelRouter
 
             cfg = HyqAgentConfig()
-            if self._cheap is None:
-                try:
-                    self._cheap = AnthropicProvider(
-                        ProviderConfig(
-                            api_key=cfg.deepseek_key,
-                            base_url=cfg.deepseek_base_url,
+
+            # Helper to create a provider based on type string
+            def _create_provider(
+                provider_type: str, api_key: str, base_url: str | None
+            ) -> Any:
+                if provider_type == "openai":
+                    return OpenAIProvider(
+                        OpenAIConfig(api_key=api_key, base_url=base_url),
+                        max_retries=cfg.llm_max_retries,
+                        timeout_seconds=cfg.llm_timeout_seconds,
+                    )
+                else:
+                    # "anthropic" (default) — includes DeepSeek via
+                    # Anthropic-compatible endpoint
+                    return AnthropicProvider(
+                        AnthropicConfig(
+                            api_key=api_key,
+                            base_url=base_url,
+                            disable_thinking=("deepseek" in (base_url or "")),
+                            force_auto_tool_choice=("deepseek" in (base_url or "")),
                         ),
                         max_retries=cfg.llm_max_retries,
                         timeout_seconds=cfg.llm_timeout_seconds,
+                    )
+
+            if self._cheap is None:
+                try:
+                    self._cheap = _create_provider(
+                        cfg.cheap_provider,
+                        cfg.openai_key if cfg.cheap_provider == "openai" else cfg.deepseek_key,
+                        cfg.openai_base_url if cfg.cheap_provider == "openai" else cfg.deepseek_base_url,
                     )
                 except Exception:
                     self._cheap = None
 
             if self._mid is None:
                 try:
-                    self._mid = AnthropicProvider(
-                        ProviderConfig(api_key=cfg.anthropic_key, base_url=None),
-                        max_retries=cfg.llm_max_retries,
-                        timeout_seconds=cfg.llm_timeout_seconds,
+                    self._mid = _create_provider(
+                        cfg.mid_provider,
+                        cfg.openai_key if cfg.mid_provider == "openai" else cfg.anthropic_key,
+                        cfg.openai_base_url if cfg.mid_provider == "openai" else None,
                     )
                 except Exception:
                     self._mid = self._cheap  # Fallback
@@ -1958,7 +1984,11 @@ class Orchestrator:
 
             if self._router is None and self._cheap is not None:
                 self._router = ModelRouter(
-                    providers={"deepseek": self._cheap, "anthropic": self._mid},
+                    providers={
+                        "deepseek": self._cheap,
+                        "anthropic": self._mid,
+                        "openai": self._mid,
+                    },
                     cheap_model=cfg.cheap_model,
                     mid_model=cfg.mid_model,
                     strong_model=cfg.strong_model,

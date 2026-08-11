@@ -194,27 +194,114 @@ class AuditRepository(ABC):
 
 
 class LlmProvider(ABC):
-    """LLM Provider抽象 — Anthropic/OpenAI/Kimi实现此接口"""
+    """LLM Provider — Anthropic/OpenAI 或任何兼容 API 实现此接口。
 
-    @property
-    @abstractmethod
-    def model_name(self) -> str: ...
+    每个方法返回规范化的内部格式（content blocks / usage / stop_reason），
+    与具体 SDK 无关。调用方不感知底层走的是 Anthropic 还是 OpenAI 协议。
+
+    工具定义统一使用 OpenAI function-calling 格式
+    ``{"type":"function","function":{"name":...,"description":...,"parameters":...}}``
+    — Anthropic SDK 也接受此格式，无需转换。
+    """
+
+    # ── 核心生成接口 ─────────────────────────────────────────────────
 
     @abstractmethod
     async def generate(
         self,
         messages: list[dict[str, Any]],
+        *,
+        model: str,
+        system: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
         tools: list[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """单轮 LLM 调用。
+
+        Returns:
+            dict with keys:
+            - ``content``: list of content-block dicts.
+              每个 block 至少包含 ``type``（``"text"`` / ``"tool_use"``）,
+              ``text``, ``input``, ``name``.
+            - ``model``: 实际使用的模型 ID.
+            - ``usage``: ``{"input_tokens": N, "output_tokens": N,
+              "cache_read_input_tokens": N}``.
+            - ``stop_reason``: 停止原因字符串.
+        """
+        ...
 
     @abstractmethod
     async def generate_structured(
         self,
         messages: list[dict[str, Any]],
-        output_schema: type,
+        output_schema: dict[str, Any],
+        *,
+        model: str,
+        system: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
         **kwargs: Any,
-    ) -> Any: ...
+    ) -> dict[str, Any]:
+        """生成结构化 JSON 输出（通过 tool_use / function-calling）。
+
+        *output_schema* 格式::
+
+            {
+                "name": "output_tool_name",
+                "description": "...",
+                "input_schema": { ... JSON Schema ... }
+            }
+
+        Returns:
+            解析后的 JSON dict（tool_use 的 input / function-call 的 arguments）。
+            如果解析失败返回 ``{}``。
+        """
+        ...
+
+    @abstractmethod
+    async def generate_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        output_schema: dict[str, Any],
+        audit_tools: list[dict[str, Any]],
+        *,
+        system: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """带审计工具的 ReAct 风格生成。
+
+        模型可以调用审计工具（代码检索等）之后再用 output tool 输出。
+        调用方负责检查返回的 ``content`` 并决定是否继续循环。
+
+        Returns:
+            同 :meth:`generate` — 规范化的 content / model / usage / stop_reason dict.
+        """
+        ...
+
+    # ── 工具方法 ─────────────────────────────────────────────────────
+
+    @abstractmethod
+    def count_tokens(
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        *,
+        system: str = "",
+        tools: list[dict[str, Any]] | None = None,
+    ) -> int:
+        """估算 *messages* 的 token 数。提供商 API 不可用时降级为字符估算。"""
+        ...
+
+    @property
+    @abstractmethod
+    def call_history(self) -> list[dict[str, Any]]:
+        """返回 LLM 调用历史的只读副本（用于成本追踪和审计）。"""
+        ...
 
 
 # ─── 可观测性协议 ───

@@ -214,7 +214,7 @@ class BlindScanReviewer:
 
     def __init__(
         self,
-        provider: Any,  # AnthropicProvider
+        provider: Any,  # LlmProvider
         model: str,
         nudge_loop: Any | None = None,  # NudgeLoop
     ) -> None:

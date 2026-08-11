@@ -32,7 +32,7 @@ import structlog
 if TYPE_CHECKING:
     from hyqagent.cpg.query import CPGQuery, GraphPath
     from hyqagent.cpg.types import BlindSpot
-    from hyqagent.models.providers.anthropic_provider import AnthropicProvider
+    from hyqagent.core.protocols import LlmProvider
     from hyqagent.models.router import ModelRouter
     from hyqagent.scanner.nudge import NudgeLoop
 
@@ -258,9 +258,9 @@ class HypothesisGenerator:
         self,
         query: CPGQuery,
         router: ModelRouter,
-        cheap_provider: AnthropicProvider,
-        mid_provider: AnthropicProvider,
-        strong_provider: AnthropicProvider,
+        cheap_provider: LlmProvider,
+        mid_provider: LlmProvider,
+        strong_provider: LlmProvider,
         language: str,
         nudge_loop: NudgeLoop | None = None,
     ) -> None:

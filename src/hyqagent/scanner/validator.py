@@ -21,7 +21,7 @@ import structlog
 if TYPE_CHECKING:
     from hyqagent.cpg.query import CPGQuery
     from hyqagent.cpg.taint_loader import TaintRuleLoader
-    from hyqagent.models.providers.anthropic_provider import AnthropicProvider
+    from hyqagent.core.protocols import LlmProvider
     from hyqagent.models.router import ModelRouter
     from hyqagent.scanner.hypothesis import Hypothesis
     from hyqagent.scanner.nudge import NudgeLoop
@@ -163,8 +163,8 @@ class Validator:
         query: CPGQuery,
         taint_loader: TaintRuleLoader,
         router: ModelRouter,
-        mid_provider: AnthropicProvider,
-        strong_provider: AnthropicProvider,
+        mid_provider: LlmProvider,
+        strong_provider: LlmProvider,
         language: str,
         nudge_loop: NudgeLoop | None = None,
     ) -> None:

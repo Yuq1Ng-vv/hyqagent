@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
-    from hyqagent.models.providers.anthropic_provider import AnthropicProvider
+    from hyqagent.core.protocols import LlmProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -232,7 +232,7 @@ class CompletenessCritic:
 
     def __init__(
         self,
-        provider: AnthropicProvider,
+        provider: LlmProvider,
         model_id: str,
     ) -> None:
         """Initialize with a MID or STRONG tier provider for quality analysis."""

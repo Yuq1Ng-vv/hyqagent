@@ -218,14 +218,14 @@ class AdversarialReviewer:
 
     def __init__(
         self,
-        provider: Any,  # AnthropicProvider
+        provider: Any,  # LlmProvider
         model: str,
         nudge_loop: Any | None = None,  # NudgeLoop
     ) -> None:
         """Initialize with a STRONG-tier provider for adversarial analysis.
 
         Args:
-            provider: AnthropicProvider (typically strong_provider for deep mode).
+            provider: LlmProvider (typically strong_provider for deep mode).
             model: Model ID string.
             nudge_loop: Optional NudgeLoop to prevent premature LLM termination.
 
