@@ -1967,6 +1967,11 @@ class Orchestrator:
                         cfg.openai_base_url if cfg.cheap_provider == "openai" else cfg.deepseek_base_url,
                     )
                 except Exception:
+                    logger.warning(
+                        "cheap_provider_init_failed",
+                        provider=cfg.cheap_provider,
+                        exc_info=True,
+                    )
                     self._cheap = None
 
             if self._mid is None:
@@ -1977,22 +1982,37 @@ class Orchestrator:
                         cfg.openai_base_url if cfg.mid_provider == "openai" else None,
                     )
                 except Exception:
+                    logger.warning(
+                        "mid_provider_init_failed",
+                        provider=cfg.mid_provider,
+                        exc_info=True,
+                    )
                     self._mid = self._cheap  # Fallback
 
             if self._strong is None:
                 self._strong = self._mid
 
-            if self._router is None and self._cheap is not None:
-                self._router = ModelRouter(
-                    providers={
-                        "deepseek": self._cheap,
-                        "anthropic": self._mid,
-                        "openai": self._mid,
-                    },
-                    cheap_model=cfg.cheap_model,
-                    mid_model=cfg.mid_model,
-                    strong_model=cfg.strong_model,
-                )
+            if self._router is None:
+                if self._cheap is not None:
+                    self._router = ModelRouter(
+                        providers={
+                            "deepseek": self._cheap,
+                            "anthropic": self._mid,
+                            "openai": self._mid,
+                        },
+                        cheap_model=cfg.cheap_model,
+                        mid_model=cfg.mid_model,
+                        strong_model=cfg.strong_model,
+                    )
+                else:
+                    logger.warning(
+                        "llm_unavailable",
+                        message=(
+                            "No LLM provider could be initialised. "
+                            "Check HYQAGENT_*_API_KEY and HYQAGENT_*_PROVIDER settings. "
+                            "All LLM-dependent phases will be skipped."
+                        ),
+                    )
 
         # ── Recall-mode infrastructure ────────────────────────────────────
         _code_retriever: Any = None

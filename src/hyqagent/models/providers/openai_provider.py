@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
 from circuitbreaker import CircuitBreaker
-from openai import APIStatusError, AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI, RateLimitError
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -135,7 +135,11 @@ def _convert_response(resp: Any) -> dict[str, Any]:
         content_blocks.append(
             {
                 "type": "text",
-                "text": message.content if isinstance(message.content, str) else str(message.content),
+                "text": (
+                message.content
+                if isinstance(message.content, str)
+                else str(message.content)
+            ),
                 "input": {},
                 "name": "",
             }
@@ -464,8 +468,9 @@ class OpenAIProvider(LlmProvider):
         """Single Chat Completions call with tenacity retry."""
 
         @retry(
-            retry=retry_if_exception_type((RateLimitError, ConnectionError, TimeoutError))
-            | retry_if_exception_type(APIStatusError),
+            retry=retry_if_exception_type(
+                (RateLimitError, ConnectionError, TimeoutError)
+            ),
             stop=stop_after_attempt(self._max_retries),
             wait=wait_exponential_jitter(initial=1, max=30),
             reraise=True,

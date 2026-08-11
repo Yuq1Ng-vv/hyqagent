@@ -6,6 +6,7 @@ A ``.env`` file in the current working directory is loaded automatically.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 from pydantic import SecretStr
@@ -122,15 +123,26 @@ class HyqAgentConfig(BaseSettings):
 
     @property
     def openai_key(self) -> str:
-        """Reveal the OpenAI API key, falling back to env var."""
+        """Reveal the OpenAI API key, falling back to env var then deepseek_key.
+
+        Many users deploy the OpenAI-compatible endpoint with DeepSeek.
+        When HYQAGENT_OPENAI_API_KEY is not set, we fall back to
+        HYQAGENT_DEEPSEEK_API_KEY so users don't need to duplicate the same
+        API key across two environment variables.
+        """
         key = self.openai_api_key.get_secret_value()
         if not key:
             import os
 
             key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
+            # Fallback: when using OpenAI-compatible DeepSeek endpoint,
+            # reuse the existing DeepSeek key.
+            with contextlib.suppress(ValueError):
+                key = self.deepseek_key
+        if not key:
             raise ValueError(
-                "OpenAI API key not configured. Set HYQAGENT_OPENAI_API_KEY "
-                "or OPENAI_API_KEY in the environment."
+                "OpenAI API key not configured. Set HYQAGENT_OPENAI_API_KEY, "
+                "HYQAGENT_DEEPSEEK_API_KEY, or OPENAI_API_KEY in the environment."
             )
         return key
