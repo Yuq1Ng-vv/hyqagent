@@ -239,8 +239,8 @@ class JavaAdapter(LanguageProvider):
     # ── Call graph ────────────────────────────────────────────────────
 
     @property
-    def call_node_type(self) -> str:
-        return "method_invocation"
+    def call_node_type(self) -> set[str]:
+        return {"method_invocation", "object_creation_expression"}
 
     @property
     def func_def_types(self) -> set[str]:

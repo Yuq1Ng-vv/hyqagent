@@ -199,7 +199,7 @@ class SingleFileCallGraph:
                     self._qualified_function_names.add(qualified)
 
         # Phase 2 — walk every call node and attribute to enclosing function
-        for call_node in traverser.traverse({call_type}):
+        for call_node in traverser.traverse(call_type):
             callee_info = provider.extract_callee_info(call_node)
             if callee_info is None:
                 continue

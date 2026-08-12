@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import signal
 import time
 import uuid
@@ -767,7 +768,12 @@ class Orchestrator:
     # ── Phase implementations ────────────────────────────────────────────
 
     async def _phase_cpg_build(self, state: PipelineState) -> None:
-        """Build CPG graph from source files."""
+        """Build CPG graph from source files.
+
+        Uses :meth:`CPGGraphBuilder.add_directory` for cross-file call
+        resolution when the files share a common project root; falls back
+        to per-file :meth:`~CPGGraphBuilder.add_file` otherwise.
+        """
         file_paths: list[str] = state.phase_states.get("file_paths", [])
         if not file_paths or not self._taint_loader:
             return
@@ -777,9 +783,21 @@ class Orchestrator:
 
         parser = Parser()
         builder = CPGGraphBuilder(parser, taint_loader=self._taint_loader)
-        for fp in file_paths:
-            with contextlib.suppress(Exception):
-                builder.add_file(fp)
+
+        # When all files live under a common directory, use add_directory()
+        # so the CallGraphBuilder can resolve cross-file calls (critical
+        # for inter-procedural taint tracking).
+        try:
+            common_root = os.path.commonpath(file_paths)
+        except (IndexError, ValueError):
+            common_root = None
+
+        if common_root is not None and Path(common_root).is_dir():
+            builder.add_directory(common_root, use_cache=False)
+        else:
+            for fp in file_paths:
+                with contextlib.suppress(Exception):
+                    builder.add_file(fp)
 
         from hyqagent.cpg.query import CPGQuery
 
@@ -1828,9 +1846,20 @@ class Orchestrator:
 
             parser = Parser()
             builder = CPGGraphBuilder(parser, taint_loader=self._taint_loader)
-            for fp in file_paths:
-                with contextlib.suppress(Exception):
-                    builder.add_file(fp)
+
+            # Use add_directory for cross-file call resolution when
+            # scanning a directory tree (same logic as _phase_cpg_build).
+            try:
+                common_root = os.path.commonpath(file_paths)
+            except (IndexError, ValueError):
+                common_root = None
+
+            if common_root is not None and Path(common_root).is_dir():
+                builder.add_directory(common_root, use_cache=False)
+            else:
+                for fp in file_paths:
+                    with contextlib.suppress(Exception):
+                        builder.add_file(fp)
 
             from hyqagent.cpg.query import CPGQuery
 

@@ -148,10 +148,22 @@ class CPGGraphBuilder:
         language = self._parser.get_language(tree)
         provider = self._parser.get_provider(language)
 
+        # ── Helper: unique key per overload ──────────────────────────
+        # BUG 30: Bare function names as dict keys lose overloaded
+        # methods (e.g. AbstractResourceHandler.getResource is both
+        # a concrete method with a body AND an abstract overload).
+        # Using ``name$start_line`` keeps every overload distinct so
+        # def-use chains are built for ALL methods, not just the last
+        # one that happens to be visited.
+        def _fkey(name: str, line: int) -> str:
+            return f"{name}${line}"
+
         # 1 — Index function definitions
         funcs = self._parser.extract_functions(tree, language)
-        func_nodes: dict[str, str] = {}  # func_name → node_id
+        func_nodes: dict[str, str] = {}  # _fkey → node_id
+        _func_start_lines: dict[str, int] = {}  # bare name → start_line (last-wins)
         for fn in funcs:
+            key = _fkey(fn.name, fn.start_line)
             fid = _uid(NODE_FUNCTION, path, fn.name)
             self.graph.add_node(
                 fid,
@@ -164,7 +176,8 @@ class CPGGraphBuilder:
                 class_name=fn.class_name,
                 source=fn.source[:200],
             )
-            func_nodes[fn.name] = fid
+            func_nodes[key] = fid
+            _func_start_lines[fn.name] = fn.start_line  # last-wins for bare-name lookups
 
             # 1.5 — Parameter nodes: for each function parameter, create a
             # NODE_PARAMETER node and DATA_FLOW edge from the function.
@@ -186,15 +199,16 @@ class CPGGraphBuilder:
                 self.graph.add_edge(fid, pid, edge_type=EDGE_DATA_FLOW)
 
         # 2 — Index AST: find function body tree-nodes and call arguments
-        fn_tree_nodes: dict[str, object] = {}  # func_name → tree-sitter Node
+        fn_tree_nodes: dict[str, object] = {}  # _fkey → tree-sitter Node
         # (line, caller_func, callee_bare_name) → list of argument expression texts
         call_args_index: dict[tuple[int, str, str], list[str]] = {}
         for node in Traverser(tree).traverse():
             if node.type in provider.func_def_types:
                 name = provider.extract_function_name(node)
                 if name:
-                    fn_tree_nodes[name] = node
-            elif node.type == "call":
+                    line = node.start_point[0] + 1
+                    fn_tree_nodes[_fkey(name, line)] = node
+            elif node.type in provider.call_node_type:
                 # Extract argument expressions for positional param matching
                 callee_info = provider.extract_callee_info(node)
                 if callee_info is not None:
@@ -238,24 +252,38 @@ class CPGGraphBuilder:
             if cargs:
                 self.graph.nodes[cid]["call_args"] = cargs
             # CALLS edge: caller function → call site
-            caller_fid = func_nodes.get(edge.caller)
+            # BUG 30: edge.caller is a bare name — resolve via last-wins
+            # start-line index (intra-file; overloads are fine because
+            # only one caller contains this particular call line).
+            caller_fid = self._resolve_bare_name(
+                path, edge.caller, func_nodes, _func_start_lines, _fkey
+            )
             if caller_fid:
                 self.graph.add_edge(caller_fid, cid, edge_type=EDGE_CALLS)
             # If resolved locally: call site → callee function
             if edge.is_resolved:
-                callee_fid = func_nodes.get(edge.callee)
+                callee_fid = self._resolve_bare_name(
+                    path, edge.callee, func_nodes, _func_start_lines, _fkey
+                )
                 if callee_fid:
                     self.graph.add_edge(cid, callee_fid, edge_type=EDGE_CALLS)
 
-        # 4 — Build def-use chains and add DATA_FLOW edges
-        for fn_name, tree_node in fn_tree_nodes.items():
+        # 4 — Build def-use chains and add DATA_FLOW edges.
+        # BUG 30: Iterate over the *funcs list* (from extract_functions)
+        # rather than fn_tree_nodes dict, so every overloaded method gets
+        # its def-use chains built — not just the last one with that name.
+        for fn in funcs:
+            tree_key = _fkey(fn.name, fn.start_line)
+            tree_node = fn_tree_nodes.get(tree_key)
+            if tree_node is None:
+                continue
             chains = self._dataflow.build_def_use_chains(
                 tree,
                 tree_node,
                 language,
                 path,  # type: ignore[arg-type]
             )
-            fid = func_nodes.get(fn_name)
+            fid = func_nodes.get(tree_key)
             if fid is None:
                 continue
 
@@ -270,7 +298,7 @@ class CPGGraphBuilder:
                     file_path=path,
                     location=du.def_location,
                     source=du.def_expression[:120],
-                    enclosing_function=fn_name,
+                    enclosing_function=fn.name,
                 )
                 # DATA_FLOW: function → assignment (the function contains this def)
                 self.graph.add_edge(fid, aid, edge_type=EDGE_DATA_FLOW)
@@ -287,7 +315,7 @@ class CPGGraphBuilder:
                         var_name=du.var_name,
                         file_path=path,
                         location=use_loc,
-                        enclosing_function=fn_name,
+                        enclosing_function=fn.name,
                     )
                     # DATA_FLOW: assignment → use, use → use (chain)
                     self.graph.add_edge(prev_node, vid, edge_type=EDGE_DATA_FLOW)
@@ -302,6 +330,43 @@ class CPGGraphBuilder:
             # to line 235 but never "cross over" to the `list` assignment
             # that is the actual sink.  This edge bridges that gap.
             self._add_rhs_to_lhs_edges(path)
+
+        # 4.55 — Connect NODE_PARAMETER → NODE_ASSIGNMENT for the same
+        # (enclosing_function, var_name).  Phase 1.5 of build_def_use_chains
+        # creates NODE_ASSIGNMENT / NODE_VARIABLE_REF chains for parameters,
+        # but NODE_PARAMETER (created in step 1.5) has no outgoing edges to
+        # them.  Without this bridge, cross-function taint edges (caller
+        # var_ref → callee NODE_PARAMETER) lead to a dead end in BFS.
+        for nid, ndata in self.graph.nodes(data=True):
+            if ndata.get("node_type") != NODE_PARAMETER:
+                continue
+            if ndata.get("file_path") != path:
+                continue
+            pname = ndata.get("var_name", "")
+            encl = ndata.get("enclosing_function", "")
+            if not pname:
+                continue
+            # Find the NODE_ASSIGNMENT that Phase 1.5 created for this
+            # parameter (same var_name + enclosing_function + first line
+            # of the function body, i.e. smallest line number match).
+            best_aid: str | None = None
+            best_line: int = 999999
+            for aid, adata in self.graph.nodes(data=True):
+                if adata.get("node_type") != NODE_ASSIGNMENT:
+                    continue
+                if adata.get("file_path") != path:
+                    continue
+                if adata.get("var_name") != pname:
+                    continue
+                if adata.get("enclosing_function") != encl:
+                    continue
+                loc = adata.get("location", "")
+                line = _parse_line(loc)
+                if line is not None and line < best_line:
+                    best_line = line
+                    best_aid = aid
+            if best_aid is not None:
+                self.graph.add_edge(nid, best_aid, edge_type=EDGE_DATA_FLOW)
 
         # 4.6 — Build CFG for each function
         self._build_cfg(tree, fn_tree_nodes, provider, path)
@@ -604,8 +669,11 @@ class CPGGraphBuilder:
 
         cfg = _CFGBuilder(provider)
 
-        for fn_name, tree_node in fn_tree_nodes.items():
-            # Find the function node in our graph
+        for fn_key, tree_node in fn_tree_nodes.items():
+            # fn_key is "funcName$startLine" (BUG 30 overload fix) —
+            # strip the line suffix to get the bare function name for
+            # graph node lookup (NODE_FUNCTION stores bare names).
+            fn_name = fn_key.rsplit("$", 1)[0]
             fid = self._find_func_node_id(path, fn_name)
             if fid is None:
                 continue
@@ -635,6 +703,27 @@ class CPGGraphBuilder:
                     edge_type=EDGE_CTRL_FLOW,
                     ctrl_type=edge.kind,
                 )
+
+    @staticmethod
+    def _resolve_bare_name(
+        file_path: str,
+        bare_name: str,
+        func_nodes: dict[str, str],
+        func_start_lines: dict[str, int],
+        _fkey: object,
+    ) -> str | None:
+        """Resolve a bare function name to a NODE_FUNCTION id.
+
+        Uses the last-wins start-line index (intra-file only).  For
+        overloaded methods the last one wins, which is acceptable for
+        intra-file CALLS edges because the call graph already determined
+        *which* overload is called.
+        """
+        line = func_start_lines.get(bare_name)
+        if line is not None:
+            key = _fkey(bare_name, line)  # type: ignore[operator]
+            return func_nodes.get(key)
+        return None
 
     def _find_func_node_id(self, file_path: str, fn_name: str) -> str | None:
         """Return the graph node ID for a function by file + name."""

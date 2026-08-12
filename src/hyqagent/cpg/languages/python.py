@@ -318,8 +318,8 @@ class PythonAdapter(LanguageProvider):
     # ── Call graph ────────────────────────────────────────────────────
 
     @property
-    def call_node_type(self) -> str:
-        return "call"
+    def call_node_type(self) -> set[str]:
+        return {"call"}
 
     @property
     def func_def_types(self) -> set[str]:

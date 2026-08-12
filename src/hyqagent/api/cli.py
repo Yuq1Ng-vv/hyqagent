@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import sys
 import time
 from pathlib import Path
@@ -837,8 +838,18 @@ def _run_scan(
     parser = Parser()
     builder = CPGGraphBuilder(parser, taint_loader=taint_loader)
 
-    for fp in file_paths:
-        builder.add_file(fp)
+    # Use add_directory() for cross-file call resolution when scanning
+    # a directory tree — critical for inter-procedural taint tracking.
+    try:
+        common_root = os.path.commonpath(file_paths)
+    except (IndexError, ValueError):
+        common_root = None
+
+    if common_root is not None and Path(common_root).is_dir():
+        builder.add_directory(common_root, use_cache=False)
+    else:
+        for fp in file_paths:
+            builder.add_file(fp)
 
     graph = builder.graph
 

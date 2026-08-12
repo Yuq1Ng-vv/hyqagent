@@ -128,12 +128,12 @@ class TestFuncDefTypes:
 
 
 class TestCallNodeType:
-    """call_node_type must be a non-empty string."""
+    """call_node_type must be a non-empty set of strings."""
 
     @pytest.mark.parametrize("lang,prov", _get_providers())
     def test_nonempty(self, lang, prov):
         assert prov.call_node_type
-        assert isinstance(prov.call_node_type, str)
+        assert isinstance(prov.call_node_type, (set, frozenset))
 
 
 # ── Parameter extraction ────────────────────────────────────────────────────

@@ -299,8 +299,8 @@ class JavaScriptAdapter(LanguageProvider):
     # ── Call graph ────────────────────────────────────────────────────
 
     @property
-    def call_node_type(self) -> str:
-        return "call_expression"
+    def call_node_type(self) -> set[str]:
+        return {"call_expression", "new_expression"}
 
     @property
     def func_def_types(self) -> set[str]:

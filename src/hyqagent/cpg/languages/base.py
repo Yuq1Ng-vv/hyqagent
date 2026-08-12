@@ -143,8 +143,11 @@ class LanguageProvider(ABC):
 
     @property
     @abstractmethod
-    def call_node_type(self) -> str:
-        """Tree-sitter node type for a function call, e.g. ``"call"``."""
+    def call_node_type(self) -> set[str]:
+        """Tree-sitter node type(s) for a function/constructor call.
+
+        Java includes both ``method_invocation`` and ``object_creation_expression``
+        so constructor calls are tracked for cross-function taint propagation."""
         ...
 
     @property
