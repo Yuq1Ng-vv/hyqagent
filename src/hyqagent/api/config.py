@@ -94,16 +94,25 @@ class HyqAgentConfig(BaseSettings):
 
     @property
     def anthropic_key(self) -> str:
-        """Reveal the Anthropic API key, falling back to env var."""
+        """Reveal the Anthropic API key, falling back to env var then deepseek_key.
+
+        The default Anthropic-compatible endpoint points to DeepSeek, so when
+        HYQAGENT_ANTHROPIC_API_KEY is not set we fall back to
+        HYQAGENT_DEEPSEEK_API_KEY — users don't need to duplicate the same
+        API key across two environment variables.
+        """
         key = self.anthropic_api_key.get_secret_value()
         if not key:
             import os
 
             key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not key:
+            with contextlib.suppress(ValueError):
+                key = self.deepseek_key
+        if not key:
             raise ValueError(
-                "Anthropic API key not configured. Set HYQAGENT_ANTHROPIC_API_KEY "
-                "or ANTHROPIC_API_KEY in the environment."
+                "Anthropic API key not configured. Set HYQAGENT_ANTHROPIC_API_KEY, "
+                "HYQAGENT_DEEPSEEK_API_KEY, or ANTHROPIC_API_KEY in the environment."
             )
         return key
 
