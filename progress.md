@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.36 完成后 (2026-08-09)
-> 最新: Phase 5 全部完成 — CI/CD + 文档最终化 + 发布准备
+> 上次更新: Session 1.44 完成后 (2026-08-12)
+> 最新: CPG 跨文件污点追踪已打通，但发现精度瓶颈 — [[cpg-taint-precision-problems]]
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -431,3 +431,33 @@ Phase 5 全部 5 项任务已全部完成。
 | [docs/CLAUDE-CODE-DEVELOPMENT-GUIDE.md](docs/CLAUDE-CODE-DEVELOPMENT-GUIDE.md) | 用 Claude Code 开发的实操指南 |
 | [docs/CODE-AUDIT-SKILL-ANALYSIS.md](docs/CODE-AUDIT-SKILL-ANALYSIS.md) | 业界 code-audit skill 方案的深度分析与改进建议 |
 | [docs/AUTOCVE-RESEARCH.md](docs/AUTOCVE-RESEARCH.md) | AutoCVE 架构深度解析 + HyqAgent 横向对比 |
+
+## Session 1.44 — CPG 跨文件污点追踪修复 (2026-08-12)
+
+> 详见 [dev-docs/Session-1.44-CPG跨文件污点追踪修复与真实CVE验证.md](dev-docs/Session-1.44-CPG跨文件污点追踪修复与真实CVE验证.md)
+
+### 产出
+
+三项核心修复打通了 CPG 跨文件污点追踪管道：
+1. NODE_PARAMETER → NODE_ASSIGNMENT 桥接（参数不再成为 BFS 死胡同）
+2. 重载方法 dict 碰撞修复（`name$startLine` key，覆盖所有重载）
+3. Scanner 三入口改用 `add_directory()`（CallGraphBuilder 跨文件调用解析）
+4. `_build_cfg` 兼容修复（fkey 裸名提取）
+
+### 结果
+
+| 指标 | 修复前 | 修复后 |
+|------|:---:|:---:|
+| TAINT-001 (5 目标合计) | 53 | 450 |
+| 真实 CVE 命中 | 0 | 2/5 (spark 路径穿越 + sc-config 路径穿越) |
+| 有效率 | — | ~5% |
+
+### 发现的精度瓶颈
+
+1. **NODE_PARAMETER 过度标记** — 一个参数被标 3-5 个类别
+2. **Sink 匹配太泛** — `toString()`、`I18nUtil.getString` 被当注入点
+3. **非污点 CVE 无覆盖** — xxl-job (硬编码密钥) 和 commons-text (插值注入) 不是 taint 模式
+
+### 下步
+
+[[Session-1.45-plan]] — 精度提升：参数标记修复 + Sink 白名单 + 非污点规则补充
