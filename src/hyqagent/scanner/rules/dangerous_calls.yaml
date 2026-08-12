@@ -464,3 +464,86 @@ rules:
     message: "命令执行扩展 — Commons Exec / JSch 远程命令"
     languages: [java]
     cwe: "CWE-78"
+
+  # ── Path Traversal (Java) ────────────────────────────────────────────
+  - id: DANGER-047
+    patterns:
+      - 'new File('
+      - 'new FileInputStream('
+      - 'new FileOutputStream('
+      - 'new FileReader('
+      - 'new FileWriter('
+      - 'new RandomAccessFile('
+    severity: high
+    message: "文件路径操作 — 使用用户可控的路径可能导致目录遍历 (CWE-22)"
+    languages: [java]
+    cwe: "CWE-22"
+    category: path_traversal
+
+  - id: DANGER-048
+    patterns:
+      - 'Files.read('
+      - 'Files.copy('
+      - 'Files.write('
+      - 'Files.move('
+      - 'Files.newInputStream('
+      - 'Files.newOutputStream('
+      - 'Files.createFile('
+      - 'Files.delete('
+      - 'Files.walk('
+      - 'Files.list('
+      - 'Files.readAllBytes('
+      - 'Files.readString('
+      - 'Files.writeString('
+    severity: high
+    message: "NIO Files 操作 — 用户可控的路径可能导致目录遍历 (CWE-22)"
+    languages: [java]
+    cwe: "CWE-22"
+    category: path_traversal
+
+  - id: DANGER-049
+    patterns:
+      - 'Paths.get('
+      - '.resolve('
+      - '.normalize('
+      - '.toAbsolutePath('
+    severity: medium
+    message: "NIO Path 操作 — 用户可控的路径可能导致路径遍历 (CWE-22)"
+    languages: [java]
+    cwe: "CWE-22"
+    category: path_traversal
+
+  - id: DANGER-050
+    patterns:
+      - 'ClassLoader.getResource('
+      - '.getResource('
+      - '.getResourceAsStream('
+    severity: medium
+    message: "ClassLoader 资源访问 — 用户可控的资源路径 (CWE-22)"
+    languages: [java]
+    cwe: "CWE-22"
+    category: path_traversal
+
+  - id: DANGER-051
+    patterns:
+      - 'ServletContext.getResource('
+      - 'ServletContext.getResourceAsStream('
+      - 'ServletContext.getRealPath('
+      - 'MultipartFile.transferTo('
+    severity: high
+    message: "Web 资源路径操作 — 用户可控的文件路径 (CWE-22)"
+    languages: [java]
+    cwe: "CWE-22"
+    category: path_traversal
+
+  - id: DANGER-052
+    patterns:
+      - 'ZipEntry('
+      - 'ZipFile('
+      - 'TarArchiveEntry('
+      - 'TarArchiveInputStream('
+    severity: medium
+    message: "压缩文件条目 — 用户可控的路径可能导致 Zip Slip (CWE-22)"
+    languages: [java]
+    cwe: "CWE-22"
+    category: path_traversal

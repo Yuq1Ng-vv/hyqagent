@@ -735,13 +735,23 @@ class CPGGraphBuilder:
         # can look up their enclosing function's declaration text
         # (which carries annotation-based source markers like
         # ``@RequestParam`` in Java / Spring).
-        func_source_by_name: dict[str, str] = {}
+        #
+        # IMPORTANT: only the function SIGNATURE (before the opening
+        # brace) is used for parameter matching.  Using the full body
+        # would cause false source tagging — e.g. ``.getParameter()``
+        # in the method body would mark ALL parameters as taint sources
+        # for all 20 categories.
+        func_signature_by_name: dict[str, str] = {}
         for _nid, data in self.graph.nodes(data=True):
             if data.get("file_path") == file_path and data.get("node_type") == NODE_FUNCTION:
                 name = data.get("name", "")
                 src = data.get("source", "")
                 if name and src:
-                    func_source_by_name[name] = src
+                    # Extract signature: everything before the first
+                    # opening brace that starts the method body.
+                    brace_idx = src.find("{")
+                    sig = src[:brace_idx] if brace_idx != -1 else src
+                    func_signature_by_name[name] = sig
 
         for _nid, data in self.graph.nodes(data=True):
             if data.get("file_path") != file_path:
@@ -760,8 +770,9 @@ class CPGGraphBuilder:
             elif node_type == NODE_PARAMETER:
                 # Java / Spring parameters (``@RequestParam String x``)
                 # carry source annotations on the enclosing function.
+                # Use signature only (not body) to avoid false matches.
                 encl_func = data.get("enclosing_function", "")
-                source_text = func_source_by_name.get(encl_func, "")
+                source_text = func_signature_by_name.get(encl_func, "")
             else:
                 continue
 

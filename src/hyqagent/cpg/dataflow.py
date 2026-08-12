@@ -112,6 +112,28 @@ class DataFlowBuilder:
                         )
                     )
 
+        # Phase 1.5 — collect parameter definitions (implicit assignments at
+        # function entry).  This is critical for taint tracking: annotations
+        # like ``@RequestParam`` mark parameters as sources, and data flow
+        # must connect them to their uses in the function body.
+        params_node = func_node.child_by_field_name("parameters")
+        if params_node is not None:
+            param_names = provider.extract_parameters(func_node)
+            param_children = [c for c in params_node.children if c.is_named]
+            func_def_line = func_node.start_point[0] + 1
+            for i, pname in enumerate(param_names):
+                # Parameter source text: the full declaration including
+                # annotations (e.g. ``@RequestParam String fileName``).
+                ptext = _source(param_children[i]) if i < len(param_children) else pname
+                assignments.append(
+                    _Assign(
+                        var_name=pname,
+                        node=func_node,
+                        source=ptext,
+                        line=func_def_line,
+                    )
+                )
+
         # Phase 2 — single pass: collect all variable uses, then associate with defs
         # Build a map from var_name → list of use locations in one tree traversal
         var_uses: dict[str, list[str]] = {}
