@@ -304,10 +304,142 @@ IMPACT_TEMPLATES: dict[str, str] = {
     ),
 }
 
+# ── English impact descriptions ──
+IMPACT_TEMPLATES_EN: dict[str, str] = {
+    "sql_injection": (
+        "An attacker can:\n"
+        "- Read/modify/delete arbitrary data in the database\n"
+        "- Extract password hashes, PII, session tokens, and other sensitive data\n"
+        "- Cross-table read via UNION injection\n"
+        "- Execute arbitrary SQL (e.g., DROP TABLE) when stacked queries are supported\n"
+        "- Write a webshell via INTO OUTFILE under specific configurations"
+    ),
+    "command_injection": (
+        "An attacker can:\n"
+        "- Execute arbitrary system commands on the server\n"
+        "- Read arbitrary files from the filesystem\n"
+        "- Download and execute malicious programs\n"
+        "- Pivot laterally to other hosts on the internal network\n"
+        "- Establish persistent backdoors"
+    ),
+    "xss": (
+        "An attacker can:\n"
+        "- Execute arbitrary JavaScript in the victim's browser\n"
+        "- Steal session cookies and hijack user sessions\n"
+        "- Redirect users to phishing pages\n"
+        "- Deface page content for social engineering attacks\n"
+        "- Chain with CSRF to perform sensitive operations"
+    ),
+    "ssrf": (
+        "An attacker can:\n"
+        "- Force the server to make requests to the internal network\n"
+        "- Access cloud metadata services (AWS IMDSv1/GCP metadata) to steal credentials\n"
+        "- Scan internal network topology and open ports\n"
+        "- Attack unhardened internal services\n"
+        "- Bypass firewall and ACL restrictions"
+    ),
+    "path_traversal": (
+        "An attacker can:\n"
+        "- Read arbitrary files on the server (/etc/passwd, source code, config files)\n"
+        "- Obtain database credentials, API keys, and other sensitive configuration\n"
+        "- Write files under specific conditions (log poisoning → RCE)\n"
+        "- Read application source code to discover further vulnerabilities"
+    ),
+    "code_injection": (
+        "An attacker can:\n"
+        "- Execute arbitrary code on the server\n"
+        "- Gain full control of the application server\n"
+        "- Read/modify/delete arbitrary data on the filesystem\n"
+        "- Execute system commands with the application process privileges"
+    ),
+    "ssti": (
+        "An attacker can:\n"
+        "- Execute arbitrary code in the server-side template context\n"
+        "- Read sensitive files from the server filesystem\n"
+        "- Achieve Remote Code Execution (RCE)\n"
+        "- Gain full control of the application server"
+    ),
+    "deserialization": (
+        "An attacker can:\n"
+        "- Achieve remote code execution via crafted serialized payloads\n"
+        "- Instantiate arbitrary classes and trigger gadget chains\n"
+        "- Gain full control of the application server\n"
+        "- Bypass all application-layer security controls"
+    ),
+    "xxe": (
+        "An attacker can:\n"
+        "- Read local files on the server (/etc/passwd, configuration, etc.)\n"
+        "- Launch SSRF attacks to access internal services\n"
+        "- Cause denial of service via Billion Laughs attack\n"
+        "- Achieve remote code execution in rare cases"
+    ),
+    "auth_bypass": (
+        "An attacker can:\n"
+        "- Bypass authentication mechanisms\n"
+        "- Access protected functionality as any user\n"
+        "- Reach administrative interfaces and sensitive operations\n"
+        "- Perform privileged operations without authorization"
+    ),
+    "idor": (
+        "An attacker can:\n"
+        "- Access other users' data by modifying resource IDs\n"
+        "- View/modify/delete resources not owned by the attacker\n"
+        "- Enumerate all user data (horizontal privilege escalation)\n"
+        "- Access admin-only functionality (vertical privilege escalation)"
+    ),
+    "csrf": (
+        "An attacker can:\n"
+        "- Trick authenticated users into performing unintended actions\n"
+        "- Change user passwords/email/security settings\n"
+        "- Initiate financial operations (transfers, orders)\n"
+        "- Execute arbitrary application functions as the victim"
+    ),
+    "open_redirect": (
+        "An attacker can:\n"
+        "- Redirect users to phishing sites\n"
+        "- Steal OAuth authorization codes or access tokens\n"
+        "- Bypass link whitelist checks\n"
+        "- Chain with XSS for more sophisticated attacks"
+    ),
+    "crypto_weakness": (
+        "An attacker can:\n"
+        "- Brute-force weak hashes (e.g., MD5/SHA1 cracked in seconds on GPU)\n"
+        "- Decrypt data protected by weak encryption algorithms\n"
+        "- Forge digital signatures\n"
+        "- Derive hardcoded keys and decrypt sensitive communications"
+    ),
+    "info_disclosure": (
+        "An attacker can:\n"
+        "- Obtain internal implementation details (stack traces, debug info)\n"
+        "- Enumerate users/resources via differential response analysis\n"
+        "- Discover hidden API endpoints\n"
+        "- Gather intelligence for more severe attacks"
+    ),
+    "race_condition": (
+        "An attacker can:\n"
+        "- Bypass business limits under high-concurrency scenarios\n"
+        "- Redeem the same coupon/voucher multiple times\n"
+        "- Overdraw or double-transfer funds\n"
+        "- Bypass rate limiting and CAPTCHA"
+    ),
+    "business_logic": (
+        "An attacker can:\n"
+        "- Exploit design flaws in business processes\n"
+        "- Manipulate price/quantity/discount parameters\n"
+        "- Bypass payment flows\n"
+        "- Obtain unauthorized privileges or resources"
+    ),
+}
+
 # ── Default fallback ──
 _DEFAULT_IMPACT = (
     "攻击者可利用此漏洞绕过安全控制，对应用系统的"
     "机密性、完整性或可用性造成损害。"
+)
+_DEFAULT_IMPACT_EN = (
+    "An attacker can exploit this vulnerability to bypass security controls, "
+    "compromising the confidentiality, integrity, or availability of the "
+    "application system."
 )
 
 
@@ -348,6 +480,43 @@ CWE_NAMES: dict[str, str] = {
     "CWE-384": "会话固定",
     "CWE-613": "会话未过期",
     "CWE-614": "未设置 Secure Cookie 标志",
+}
+
+# ── English CWE names ──
+CWE_NAMES_EN: dict[str, str] = {
+    "CWE-89": "SQL Injection",
+    "CWE-79": "Cross-Site Scripting (XSS)",
+    "CWE-78": "Command Injection",
+    "CWE-918": "Server-Side Request Forgery (SSRF)",
+    "CWE-22": "Path Traversal",
+    "CWE-94": "Code Injection",
+    "CWE-1336": "Server-Side Template Injection (SSTI)",
+    "CWE-502": "Insecure Deserialization",
+    "CWE-611": "XML External Entity Injection (XXE)",
+    "CWE-287": "Authentication Bypass",
+    "CWE-639": "Insecure Direct Object Reference (IDOR)",
+    "CWE-352": "Cross-Site Request Forgery (CSRF)",
+    "CWE-601": "Open Redirect",
+    "CWE-200": "Information Disclosure",
+    "CWE-327": "Weak Encryption Algorithm",
+    "CWE-916": "Weak Password Hashing",
+    "CWE-798": "Hardcoded Credentials",
+    "CWE-862": "Missing Authorization Check",
+    "CWE-434": "Unrestricted File Upload",
+    "CWE-400": "Uncontrolled Resource Consumption",
+    "CWE-362": "Race Condition",
+    "CWE-470": "Unsafe Reflection",
+    "CWE-95": "Eval Injection",
+    "CWE-77": "Command Injection (Generic)",
+    "CWE-209": "Information Exposure Through Error Messages",
+    "CWE-732": "Incorrect Permission Assignment",
+    "CWE-284": "Improper Access Control",
+    "CWE-840": "Business Logic Error",
+    "CWE-269": "Improper Privilege Management",
+    "CWE-306": "Missing Authentication for Critical Function",
+    "CWE-384": "Session Fixation",
+    "CWE-613": "Insufficient Session Expiration",
+    "CWE-614": "Missing Secure Cookie Flag",
 }
 
 
@@ -546,11 +715,105 @@ PREREQUISITES_TEMPLATES: dict[str, str] = {
     ),
 }
 
+# ── English prerequisites ──
+PREREQUISITES_TEMPLATES_EN: dict[str, str] = {
+    "sql_injection": (
+        "- The application builds SQL queries using string concatenation or templating\n"
+        "- User-controllable input reaches SQL statements without filtering or parameterization\n"
+        "- The attacker can reach the affected functional endpoint"
+    ),
+    "command_injection": (
+        "- The application passes user-controllable parameters to system commands\n"
+        "- Input is not filtered or escaped, allowing command separators (`;`, `|`, `&&`)\n"
+        "- The application process has sufficient privileges to execute injected commands"
+    ),
+    "code_injection": (
+        "- The application dynamically executes code (eval, exec) with user input\n"
+        "- Input is not filtered or sandboxed\n"
+        "- The attacker can reach the affected functional endpoint"
+    ),
+    "xss": (
+        "- The application embeds user input directly into HTML without output encoding\n"
+        "- The victim visits a page containing malicious input or clicks a malicious link\n"
+        "- The application does not set an effective Content-Security-Policy (CSP) header"
+    ),
+    "ssrf": (
+        "- The application accepts user-supplied URLs and makes server-side requests\n"
+        "- Target addresses are not validated against a whitelist or DNS resolution\n"
+        "- The application server can reach internal networks or cloud metadata services"
+    ),
+    "ssti": (
+        "- The application renders user-controllable input through a template engine\n"
+        "- The template engine does not use sandbox mode or input is unfiltered\n"
+        "- The attacker can reach the affected functional endpoint"
+    ),
+    "path_traversal": (
+        "- The application constructs filesystem paths from user input\n"
+        "- Paths are not normalized or restricted to allowed directory boundaries\n"
+        "- The application process has permissions to read the target file"
+    ),
+    "file_inclusion": (
+        "- The application dynamically includes files using a user-controllable path\n"
+        "- The set of includable files is not restricted (e.g., via whitelist)\n"
+        "- The attacker can upload or control the content of a remote file"
+    ),
+    "open_redirect": (
+        "- The application uses a user-supplied URL for redirection\n"
+        "- The redirect target is not validated against a whitelist\n"
+        "- The victim must click a link containing the malicious redirect"
+    ),
+    "deserialization": (
+        "- The application deserializes data from an untrusted source\n"
+        "- An exploitable gadget chain exists on the classpath\n"
+        "- The attacker can submit malicious data to the deserialization entry point"
+    ),
+    "xxe": (
+        "- The application parses user-supplied XML documents\n"
+        "- The XML parser has not disabled external entity (DTD) processing\n"
+        "- The attacker can submit malicious XML to the XML parsing endpoint"
+    ),
+    "auth_bypass": (
+        "- The application's authentication logic contains flaws\n"
+        "- Authentication checks can be bypassed via parameter tampering or header manipulation\n"
+        "- The attacker can reach protected functional endpoints"
+    ),
+    "idor": (
+        "- The application uses predictable resource identifiers (e.g., numeric IDs)\n"
+        "- No check verifies whether the current user is authorized to access the resource\n"
+        "- The attacker holds a valid user session"
+    ),
+    "csrf": (
+        "- Critical operations (password changes, transfers) do not require a CSRF token\n"
+        "- Cookies lack a SameSite attribute or it is set to None\n"
+        "- The victim must visit a malicious page controlled by the attacker"
+    ),
+    "crypto_weakness": (
+        "- The application uses known-weak cryptographic algorithms (MD5/SHA1/DES/RC4)\n"
+        "- The attacker can obtain encrypted or hashed data\n"
+        "- The key space is insufficient to resist brute-force attacks"
+    ),
+    "info_disclosure": (
+        "- The application exposes internal implementation details in errors or responses\n"
+        "- Debug mode, stack traces, or configuration information are publicly visible\n"
+        "- The attacker can reach endpoints that trigger errors"
+    ),
+    "business_logic": (
+        "- The application's business process design contains logic flaws\n"
+        "- Server-side state validation or transaction controls are missing\n"
+        "- The attacker can exploit process flaws through normal functional interactions"
+    ),
+}
+
 # Default fallback prerequisites
 _DEFAULT_PREREQUISITES = (
     "- 攻击者可以访问受影响的功能端点\n"
     "- 应用未对用户输入进行充分的验证和过滤\n"
     "- 相关安全控制机制缺失或配置不当"
+)
+_DEFAULT_PREREQUISITES_EN = (
+    "- The attacker can reach the affected functional endpoint\n"
+    "- The application does not sufficiently validate and filter user input\n"
+    "- Relevant security controls are missing or misconfigured"
 )
 
 
@@ -641,9 +904,124 @@ PROOF_OF_IMPACT_TEMPLATES: dict[str, str] = {
     ),
 }
 
+# ── English proof of impact ──
+PROOF_OF_IMPACT_TEMPLATES_EN: dict[str, str] = {
+    "sql_injection": (
+        "Upon successful exploitation, an attacker can read password hashes, "
+        "email addresses, and personal information for all users in the database "
+        "without any authentication. Using UNION injection techniques, the attacker "
+        "can extract sensitive data across tables. If the database user holds FILE "
+        "privileges, the attacker can also write a webshell and gain full server control."
+    ),
+    "command_injection": (
+        "Upon successful exploitation, an attacker can execute arbitrary system "
+        "commands as the application process. The attacker can read /etc/passwd, "
+        "download malicious programs, establish a reverse shell, and pivot laterally "
+        "to other hosts on the internal network. This vulnerability can lead to "
+        "complete server compromise."
+    ),
+    "code_injection": (
+        "Upon successful exploitation, an attacker can execute arbitrary code on "
+        "the application server. The attacker can read database credentials and API "
+        "keys from configuration files, modify or delete business data, and implant "
+        "persistent backdoors. In the worst case, the attacker gains full control "
+        "of the server."
+    ),
+    "xss": (
+        "Upon successful exploitation, an attacker can steal session cookies from "
+        "authenticated users and perform arbitrary actions as the victim. The attacker "
+        "can also redirect users to phishing pages to harvest credentials, or deface "
+        "page content for social engineering attacks. When chained with other "
+        "vulnerabilities, XSS can lead to full account takeover."
+    ),
+    "ssrf": (
+        "Upon successful exploitation, an attacker can force the server to make "
+        "requests to the AWS metadata service (169.254.169.254) and obtain IAM "
+        "temporary credentials. The attacker can also scan internal network topology, "
+        "attack unhardened internal services, and bypass firewall and ACL restrictions. "
+        "If cloud credentials are obtained, the attacker can further control cloud resources."
+    ),
+    "ssti": (
+        "Upon successful exploitation, an attacker can execute arbitrary code in "
+        "the server-side template context, read arbitrary files on the server, obtain "
+        "sensitive credentials from environment variables, and establish a reverse "
+        "shell. This vulnerability typically leads to full application server compromise."
+    ),
+    "path_traversal": (
+        "Upon successful exploitation, an attacker can read arbitrary files on the "
+        "server, including /etc/passwd, database credentials in application config "
+        "files, and hardcoded keys in source code. Under specific conditions (e.g., "
+        "log poisoning), path traversal can be escalated to remote code execution."
+    ),
+    "deserialization": (
+        "Upon successful exploitation, an attacker can trigger a gadget chain via "
+        "crafted serialized data, achieving remote code execution on the server. "
+        "The attacker can fully control the application server, including reading, "
+        "modifying, and deleting arbitrary data, and establishing persistent backdoors."
+    ),
+    "xxe": (
+        "Upon successful exploitation, an attacker can read sensitive files on the "
+        "server (e.g., /etc/passwd, configuration files), launch SSRF attacks against "
+        "internal services, or cause denial of service via Billion Laughs attack. "
+        "This vulnerability can lead to severe data exposure and server compromise."
+    ),
+    "auth_bypass": (
+        "Upon successful exploitation, an attacker can access administrative panels "
+        "without any authentication. The attacker can view all user data, modify "
+        "system configuration, delete business data, and perform arbitrary operations "
+        "with administrator privileges. This vulnerability can lead to complete loss "
+        "of data integrity and confidentiality across the application."
+    ),
+    "idor": (
+        "Upon successful exploitation, an attacker can enumerate resource IDs "
+        "(e.g., user_id=1,2,3...) to batch-retrieve personal information, order "
+        "records, and private data for all users. The attacker can also modify or "
+        "delete other users' resources, causing severe data breaches and business loss."
+    ),
+    "open_redirect": (
+        "Upon successful exploitation, an attacker can craft links that appear to "
+        "point to the legitimate domain but actually redirect users to a carefully "
+        "prepared phishing page. In OAuth flows, open redirects can be used to steal "
+        "authorization codes and access tokens, leading to account takeover."
+    ),
+    "crypto_weakness": (
+        "Upon successful exploitation, an attacker can recover the original input "
+        "of weak hash algorithms in seconds using rainbow tables or GPU brute-force. "
+        "If an encryption key is derived, the attacker can decrypt all historical "
+        "encrypted communications. The confidentiality of sensitive credentials and "
+        "user data is completely lost."
+    ),
+    "info_disclosure": (
+        "Upon successful exploitation, an attacker can gather intelligence about the "
+        "application's technology stack, internal path structure, and framework "
+        "versions. While the direct risk is lower, this information can be used to "
+        "plan more precise attacks, significantly lowering the barrier to exploit "
+        "other, more severe vulnerabilities."
+    ),
+    "csrf": (
+        "Upon successful exploitation, an attacker can trick authenticated users "
+        "into performing unintended actions (password changes, fund transfers, email "
+        "modifications). CSRF attacks execute arbitrary application functions as the "
+        "victim without their knowledge, leading to account takeover and financial loss."
+    ),
+    "business_logic": (
+        "Upon successful exploitation, an attacker can bypass normal business process "
+        "restrictions — for example, reusing coupons, placing orders at negative "
+        "prices, or bypassing payment verification. Such flaws directly harm business "
+        "revenue and data integrity, and are difficult for traditional security "
+        "tools to detect."
+    ),
+}
+
 _DEFAULT_PROOF_OF_IMPACT = (
     "成功利用此漏洞后，攻击者可以绕过安全控制机制，对应用系统的机密性、完整性"
     "或可用性造成不同程度的损害。具体影响取决于漏洞所处上下文和攻击者的利用能力。"
+)
+_DEFAULT_PROOF_OF_IMPACT_EN = (
+    "Upon successful exploitation, an attacker can bypass security controls, "
+    "causing varying degrees of damage to the confidentiality, integrity, or "
+    "availability of the application. The exact impact depends on the "
+    "vulnerability's context and the attacker's exploit capability."
 )
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -693,29 +1071,35 @@ def _severity_fallback_cvss(severity: str) -> tuple[float, str]:
     }.get(severity, (5.0, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"))
 
 
-def lookup_impact(vuln_type: str) -> str:
+def lookup_impact(vuln_type: str, lang: str = "cn") -> str:
     """Look up business impact description for a vulnerability type.
 
     Args:
         vuln_type: e.g. ``"sql_injection"``.
+        lang: ``"cn"`` for Chinese, ``"en"`` for English.
 
     Returns:
         Human readable impact description with bullet points.
 
     """
+    if lang == "en":
+        return IMPACT_TEMPLATES_EN.get(vuln_type, _DEFAULT_IMPACT_EN)
     return IMPACT_TEMPLATES.get(vuln_type, _DEFAULT_IMPACT)
 
 
-def lookup_cwe_name(cwe_id: str) -> str:
+def lookup_cwe_name(cwe_id: str, lang: str = "cn") -> str:
     """Look up a human-readable CWE name.
 
     Args:
         cwe_id: e.g. ``"CWE-89"``.
+        lang: ``"cn"`` for Chinese, ``"en"`` for English.
 
     Returns:
-        Chinese CWE name, or empty string if not found.
+        CWE name in the requested language, or empty string if not found.
 
     """
+    if lang == "en":
+        return CWE_NAMES_EN.get(cwe_id, "")
     return CWE_NAMES.get(cwe_id, "")
 
 
@@ -758,29 +1142,35 @@ def lookup_owasp_category(vuln_type: str) -> tuple[str, str, str]:
     )
 
 
-def lookup_prerequisites(vuln_type: str) -> str:
+def lookup_prerequisites(vuln_type: str, lang: str = "cn") -> str:
     """Look up exploitability prerequisites for a vulnerability type.
 
     Args:
         vuln_type: e.g. ``"sql_injection"``.
+        lang: ``"cn"`` for Chinese, ``"en"`` for English.
 
     Returns:
         Human-readable prerequisites description, or a default fallback.
 
     """
+    if lang == "en":
+        return PREREQUISITES_TEMPLATES_EN.get(vuln_type, _DEFAULT_PREREQUISITES_EN)
     return PREREQUISITES_TEMPLATES.get(vuln_type, _DEFAULT_PREREQUISITES)
 
 
-def lookup_proof_of_impact(vuln_type: str) -> str:
+def lookup_proof_of_impact(vuln_type: str, lang: str = "cn") -> str:
     """Look up a scenario-based proof of impact for a vulnerability type.
 
     Args:
         vuln_type: e.g. ``"sql_injection"``.
+        lang: ``"cn"`` for Chinese, ``"en"`` for English.
 
     Returns:
         Human-readable proof-of-impact narrative, or a default fallback.
 
     """
+    if lang == "en":
+        return PROOF_OF_IMPACT_TEMPLATES_EN.get(vuln_type, _DEFAULT_PROOF_OF_IMPACT_EN)
     return PROOF_OF_IMPACT_TEMPLATES.get(vuln_type, _DEFAULT_PROOF_OF_IMPACT)
 
 

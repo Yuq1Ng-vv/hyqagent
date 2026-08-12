@@ -629,7 +629,9 @@ class ReportGenerator:
             mode_label = "deep (LLM enhanced)" if is_deep else "quick (zero-LLM deterministic)"
 
         # Enrich findings with deep audit cross-reference data
-        enriched: list[Any] = self._enrich_findings(list(findings), deep_ctx)
+        enriched: list[Any] = self._enrich_findings(
+            list(findings), deep_ctx, lang=lang,
+        )
 
         # ── Title ──
         lines: list[str] = [
@@ -897,7 +899,7 @@ class ReportGenerator:
         sev_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(sev, "⚪")
         cwe_label = ""
         if cwe_id:
-            cwe_name = lookup_cwe_name(cwe_id)
+            cwe_name = lookup_cwe_name(cwe_id, lang=lang)
             cwe_label = f"{cwe_id}: {cwe_name}" if cwe_name else cwe_id
         cvss_label = ""
         if cvss_score > 0:
@@ -990,7 +992,7 @@ class ReportGenerator:
         # ── Prerequisites ──
         lines.append(f"**{labels['prerequisites']}:**")
         lines.append("")
-        prereqs = lookup_prerequisites(primary_vuln) if primary_vuln else ""
+        prereqs = lookup_prerequisites(primary_vuln, lang=lang) if primary_vuln else ""
         if prereqs:
             lines.append(prereqs)
         else:
@@ -1027,7 +1029,7 @@ class ReportGenerator:
         # ── Proof of Impact ──
         lines.append(f"**{labels['proof_of_impact']}:**")
         lines.append("")
-        poi = lookup_proof_of_impact(primary_vuln) if primary_vuln else ""
+        poi = lookup_proof_of_impact(primary_vuln, lang=lang) if primary_vuln else ""
         if poi:
             lines.append(poi)
         else:
@@ -1593,6 +1595,7 @@ class ReportGenerator:
     def _enrich_findings(
         findings: list[Any],
         deep_ctx: dict[str, Any] | None,
+        lang: str = "cn",
     ) -> list[Any]:
         """Cross-reference findings with deep audit context.
 
@@ -1700,7 +1703,7 @@ class ReportGenerator:
                 if vt:
                     from hyqagent.report.templates import lookup_impact
 
-                    f.impact = lookup_impact(vt)
+                    f.impact = lookup_impact(vt, lang=lang)
 
         return findings
 
