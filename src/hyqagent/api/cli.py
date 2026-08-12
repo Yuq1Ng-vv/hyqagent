@@ -255,7 +255,13 @@ def scan(
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
     # ── Generate report ─────────────────────────────────────────────
-    generator = ReportGenerator()
+    # LLM-powered PoC enrichment for deep audit mode
+    poc_llm = _create_poc_llm(config) if use_deep else None
+    generator = ReportGenerator(poc_llm=poc_llm)
+    if poc_llm is not None:
+        findings = getattr(result, "findings", [])
+        if findings:
+            asyncio.run(generator.enrich_findings_pocs(findings, language))
 
     # Normalize format name
     fmt = report_format
@@ -287,7 +293,7 @@ def scan(
         **deep_kwargs,
     )
 
-    Path(output).write_text(report_text, encoding="utf-8")
+    output_paths = _write_report_files(report_text, Path(output), fmt)
 
     # ── Summary ─────────────────────────────────────────────────────
     n_findings = len(getattr(result, "findings", []))
@@ -305,7 +311,8 @@ def scan(
         click.echo(f"   Findings:    {n_findings}")
         if n_hypotheses:
             click.echo(f"   Hypotheses:  {n_hypotheses} (LLM-generated, needs review)")
-        click.echo(f"   Report:      {output} ({fmt})")
+        for p in output_paths:
+            click.echo(f"   Report:      {p} ({fmt})")
 
         # Per-severity breakdown
         if n_findings > 0:
@@ -433,6 +440,7 @@ def resume(
         quiet,
         report_format=report_format,
         output_path=Path(output) if output else None,
+        config=ctx.obj["config"],
     )
 
 
@@ -565,6 +573,7 @@ def _output_report(
     quiet: bool = False,
     report_format: str = "json",
     output_path: Path | None = None,
+    config: HyqAgentConfig | None = None,
 ) -> None:
     """Generate and write the audit report file, and print a summary."""
     from hyqagent.report.generator import ReportGenerator
@@ -593,7 +602,13 @@ def _output_report(
     if fmt == "md":
         fmt = "markdown"
 
-    generator = ReportGenerator()
+    # ── LLM-powered PoC enrichment (deep audit only) ──
+    poc_llm = _create_poc_llm(config) if config else None
+    generator = ReportGenerator(poc_llm=poc_llm)
+    if poc_llm is not None and result.findings:
+        import asyncio as _asyncio
+        _asyncio.run(generator.enrich_findings_pocs(result.findings, language))
+
     report_text = generator.generate(
         result=result,
         fmt=fmt,
@@ -614,7 +629,8 @@ def _output_report(
         ext = ".json" if fmt == "json" else ".md" if fmt == "markdown" else ".sarif"
         base_dir = target if target.is_dir() else target.parent
         output_path = base_dir / f"report{ext}"
-    output_path.write_text(report_text, encoding="utf-8")
+
+    output_paths = _write_report_files(report_text, output_path, fmt)
 
     n_findings = len(getattr(result, "findings", []))
     n_hypotheses = len(getattr(result, "hypotheses", []))
@@ -625,7 +641,8 @@ def _output_report(
         click.echo(f"   Findings:    {n_findings}")
         if n_hypotheses:
             click.echo(f"   Hypotheses:  {n_hypotheses} (LLM-generated)")
-        click.echo(f"   Report:      {output_path} ({fmt})")
+        for p in output_paths:
+            click.echo(f"   Report:      {p} ({fmt})")
 
         if n_findings > 0:
             from collections import Counter
@@ -867,3 +884,105 @@ def _run_scan(
     )
 
     return scanner.scan_all(file_paths, language)
+
+
+# ── Report file writer ───────────────────────────────────────────────────
+
+
+def _write_report_files(
+    report_text: str,
+    output_path: Path,
+    fmt: str,
+) -> list[Path]:
+    """Write report text to file(s), splitting bilingual Markdown if present.
+
+    For Markdown format, the report text contains both Chinese and English
+    versions separated by ``<!-- BILINGUAL_SPLIT -->``.  This function splits
+    them into ``<stem>_cn.<ext>`` and ``<stem>_en.<ext>``.
+
+    For JSON/SARIF formats, writes to a single file (no split).
+
+    Returns:
+        List of written file paths (for display).
+
+    """
+    from hyqagent.report.generator import BILINGUAL_SPLIT
+
+    if fmt not in ("markdown", "md") or BILINGUAL_SPLIT not in report_text:
+        # Single-file output (JSON, SARIF, or non-bilingual)
+        output_path.write_text(report_text, encoding="utf-8")
+        return [output_path]
+
+    # Bilingual Markdown — split into CN + EN files
+    cn_text, en_text = report_text.split(BILINGUAL_SPLIT, 1)
+
+    stem = output_path.stem
+    ext = output_path.suffix or ".md"
+    parent = output_path.parent
+
+    cn_path = parent / f"{stem}_cn{ext}"
+    en_path = parent / f"{stem}_en{ext}"
+
+    cn_path.write_text(cn_text.strip(), encoding="utf-8")
+    en_path.write_text(en_text.strip(), encoding="utf-8")
+
+    return [cn_path, en_path]
+
+
+def _create_poc_llm(config: HyqAgentConfig) -> Any | None:
+    """Create a ``poc_llm`` callable for LLM-powered PoC enhancement.
+
+    Returns an async callable ``(system_prompt, user_prompt) -> str`` or
+    ``None`` when no API keys are configured (quick-scan / offline).
+    """
+    provider_type = config.cheap_provider
+    model = config.cheap_model
+
+    # Resolve provider and API key based on provider type
+    if provider_type == "openai":
+        api_key = config.openai_key
+        if not api_key:
+            return None
+        try:
+            from hyqagent.models.providers import openai_provider as _openai
+        except ImportError:
+            return None
+        provider: Any = _openai.OpenAIProvider(
+            _openai.ProviderConfig(
+                api_key=api_key,
+                base_url=config.openai_base_url or None,
+            ),
+            max_retries=2,
+            timeout_seconds=30,
+        )
+    else:
+        # "anthropic" (default) — DeepSeek via Anthropic-compatible endpoint
+        api_key = config.deepseek_key
+        if not api_key:
+            return None
+        try:
+            from hyqagent.models.providers import anthropic_provider as _anthropic
+        except ImportError:
+            return None
+        provider = _anthropic.AnthropicProvider(
+            _anthropic.ProviderConfig(
+                api_key=api_key,
+                base_url=config.deepseek_base_url,
+            ),
+            max_retries=2,
+            timeout_seconds=30,
+        )
+
+    async def _call_llm(system_prompt: str, user_prompt: str) -> str:
+        response: dict[str, Any] = await provider.generate(
+            messages=[{"role": "user", "content": user_prompt}],
+            model=model,
+            system=system_prompt,
+            max_tokens=2048,
+        )
+        for block in response.get("content", []):
+            if block.get("type") == "text":
+                return str(block.get("text", ""))
+        return ""
+
+    return _call_llm
