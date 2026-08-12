@@ -12,9 +12,10 @@ for premature-termination detection and quality enforcement.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Any
+
+import structlog
 
 from hyqagent.scanner.nudge import (
     _CONTINUE_NUDGE,
@@ -22,7 +23,7 @@ from hyqagent.scanner.nudge import (
     _detect_continue_intent,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ── Data model ───────────────────────────────────────────────────────────────
 
