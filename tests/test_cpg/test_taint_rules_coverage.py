@@ -264,3 +264,36 @@ class TestTaintEdgeCases:
         sanitizer_patterns = ["json.loads"]
         for sp in sanitizer_patterns:
             assert sp not in sinks, f"{sp!r} is a sanitizer, not a sink"
+
+
+class TestSinkExcludes:
+    """sink_excludes whitelist — generic utility methods must not be sinks."""
+
+    def test_java_has_sink_excludes(self, loader):
+        excludes = loader.sink_excludes("java")
+        assert excludes, "java should define sink_excludes patterns"
+
+    def test_excludes_compile_as_regex(self, loader):
+        import re
+
+        for pat in loader.sink_excludes("java"):
+            re.compile(pat)  # must not raise
+
+    def test_missing_language_returns_empty(self, loader):
+        assert loader.sink_excludes("rust") == []
+
+    def test_excludes_match_known_false_positives(self, loader):
+        from hyqagent.cpg.graph import _matches_sink_exclude
+
+        excludes = loader.sink_excludes("java")
+        assert _matches_sink_exclude("String s = x.toString();", excludes)
+        assert _matches_sink_exclude('String s = I18nUtil.getString("k");', excludes)
+        assert _matches_sink_exclude("String s = e.getMessage();", excludes)
+        assert _matches_sink_exclude("String s = resp.getResponseBodyAsString();", excludes)
+
+    def test_excludes_do_not_match_real_sinks(self, loader):
+        from hyqagent.cpg.graph import _matches_sink_exclude
+
+        excludes = loader.sink_excludes("java")
+        assert not _matches_sink_exclude("jdbcTemplate.queryForList(sql);", excludes)
+        assert not _matches_sink_exclude("stmt.executeQuery(sql);", excludes)

@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from hyqagent.cpg.graph import NODE_ASSIGNMENT, NODE_CALL_SITE, NODE_FUNCTION, CPGGraphBuilder
+from hyqagent.cpg.graph import (
+    NODE_ASSIGNMENT,
+    NODE_CALL_SITE,
+    NODE_FUNCTION,
+    NODE_PARAMETER,
+    CPGGraphBuilder,
+    _classify_parameter_source,
+)
 from hyqagent.cpg.parser import Parser
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -122,3 +129,77 @@ class TestMixedLanguageDirectory:
             import shutil
 
             shutil.rmtree(d, ignore_errors=True)
+
+
+class TestParameterSourceClassification:
+    """NODE_PARAMETER over-labeling fix — one annotation → one category."""
+
+    def test_path_variable_maps_to_path_traversal(self):
+        sig = 'public byte[] download(@PathVariable("name") String name, @RequestParam String type)'
+        assert _classify_parameter_source(sig, 0) == ["path_traversal"]
+
+    def test_request_param_maps_to_generic_injection(self):
+        sig = 'public byte[] download(@PathVariable("name") String name, @RequestParam String type)'
+        assert _classify_parameter_source(sig, 1) == ["injection_general"]
+
+    def test_sibling_parameter_does_not_leak_annotation(self):
+        # A plain parameter must not inherit its sibling's @PathVariable.
+        sig = "public String getUser(@PathVariable int id, String name)"
+        assert _classify_parameter_source(sig, 1) == []
+
+    def test_request_body(self):
+        sig = "public String createUser(@RequestBody String body)"
+        assert _classify_parameter_source(sig, 0) == ["injection_general"]
+
+    def test_request_header(self):
+        assert _classify_parameter_source(
+            'public String auth(@RequestHeader("Authorization") String token)', 0
+        ) == ["header_injection"]
+
+    def test_plain_parameter_is_not_a_source(self):
+        assert _classify_parameter_source("public void download(String name)", 0) == []
+
+    def test_http_servlet_request_parameter(self):
+        assert _classify_parameter_source("public void handler(HttpServletRequest req)", 0) == [
+            "injection_general"
+        ]
+
+    def test_fully_qualified_annotation(self):
+        sig = 'public Response get(@javax.ws.rs.PathParam("id") long id)'
+        assert _classify_parameter_source(sig, 0) == ["path_traversal"]
+
+    def test_generic_return_type_and_throws(self):
+        sig = "public ResponseEntity<byte[]> download(@PathVariable String name) throws IOException"
+        assert _classify_parameter_source(sig, 0) == ["path_traversal"]
+
+    def test_no_parameters(self):
+        assert _classify_parameter_source("public void baz()", 0) == []
+
+
+class TestParameterNodeLabeling:
+    """End-to-end: NODE_PARAMETER nodes get precise (not exploded) labels."""
+
+    @pytest.fixture(scope="module")
+    def spring_builder(self, parser):
+        from hyqagent.cpg.taint_loader import TaintRuleLoader
+
+        b = CPGGraphBuilder(parser, taint_loader=TaintRuleLoader())
+        b.add_file(str(FIXTURES / "spring_sample.java"))
+        return b
+
+    def _param_labels(self, builder, func_name, var_name):
+        for _nid, data in builder.graph.nodes(data=True):
+            if data.get("node_type") != NODE_PARAMETER:
+                continue
+            if data.get("enclosing_function") == func_name and data.get("var_name") == var_name:
+                return data.get("taint_source", "")
+        return None
+
+    def test_path_variable_param_is_only_path_traversal(self, spring_builder):
+        assert self._param_labels(spring_builder, "getUser", "id") == "path_traversal"
+
+    def test_request_param_param_is_only_generic(self, spring_builder):
+        assert self._param_labels(spring_builder, "getUser", "name") == "injection_general"
+
+    def test_request_body_param_is_only_generic(self, spring_builder):
+        assert self._param_labels(spring_builder, "createUser", "body") == "injection_general"

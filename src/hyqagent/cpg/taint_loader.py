@@ -15,7 +15,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _VALID_LANGUAGES = {"python", "javascript", "java"}
-_VALID_SECTIONS = {"sources", "sinks", "sanitizers"}
+_VALID_SECTIONS = {"sources", "sinks", "sanitizers", "sink_excludes"}
 
 
 @dataclass
@@ -152,6 +152,18 @@ class TaintRuleLoader:
         for cat in rules.categories.values():
             result.extend(cat.sinks)
         return sorted(set(result))
+
+    def sink_excludes(self, language: str) -> list[str]:
+        """Return sink-exclusion regex patterns for *language*.
+
+        These are generic utility methods (``toString()``, ``I18nUtil.getString``,
+        exception ``getMessage()`` …) that contain a sink substring but are not
+        injection points.  Callers match them against a candidate sink's source
+        text and drop the sink label when they match.
+        """
+        lang_data = self._data.get(language, {})
+        excludes = lang_data.get("sink_excludes", [])
+        return list(excludes) if isinstance(excludes, list) else []
 
     def match_source(self, language: str, text: str) -> str | None:
         """Return the most specific category matching *text*, else None.

@@ -688,7 +688,6 @@ python:
     - cmark.
     - commonmark.
     - dash.dcc.
-    - dash.html.
     - dicttoxml.dicttoxml(
     - django.shortcuts.render(
     - django.template.loader.render_to_string(
@@ -700,7 +699,6 @@ python:
     - json_script(
     - jsonp
     - lxml.etree.tostring(
-    - lxml.html.tostring(
     - mail_admins(
     - mail_managers(
     - mako.lookup.TemplateLookup(
@@ -1147,7 +1145,6 @@ python:
     - lxml.etree.fromstring(
     - lxml.etree.iterparse(
     - lxml.etree.parse(
-    - lxml.html.parse(
     - lxml.objectify.XML(
     - lxml.objectify.fromstring(
     - lxml.objectify.parse(
@@ -2189,7 +2186,6 @@ javascript:
     - .after(
     - .append(
     - .before(
-    - .html(
     - .innerHTML =
     - .innerHTML=
     - .outerHTML =
@@ -3314,6 +3310,12 @@ javascript:
     - tls.createSecureContext(.*TLSv1_2
     - tls.createSecureContext(.*TLSv1_3
 java:
+  sink_excludes:
+  - '\.toString\s*\('
+  - 'I18nUtil\s*\.\s*getString'
+  - 'getResponseBodyAsString\s*\('
+  - '\.getMessage\s*\('
+  - 'MessageFormat\s*\.\s*format\s*\([^)]*getString'
   sources:
     sql_injection:
     - .getParameter(
@@ -3855,82 +3857,30 @@ java:
     - (java.sql.PreparedStatement $STMT) = ...;
     - String.format($VAR, ...)
     - PreparedQuery(
-    - Cursor;:1,2,3,4,6(
-    - '- API reference:('
     - Cursor(
     - PreparedStatementCreator(
-    - jpa-137156.html(
     - BatchSql(
-    - String;:0,1,2,3,4(
     - List(
-    - RowCallbackHandler;)V(
-    - List;)V(
     - Query(
     - SqlRowSet(
-    - String;)[I(
-    - Cursor;:1,2,3,4,6,8(
     - ResultSet(
     - TypedQuery(
-    - Cursor;:0,1,2,3,5(
     - String;I)I:2,4(
-    - List;[I)[I(
-    - String;)Z(
-    - index.html#slick.jdbc.SQLActionBuilder(
-    - String;:0,1,3(
-    - String;[I)J(
-    - index.html(
-    - Cursor;:0,1,2,4,6(
     - Object(
     - String(
-    - Object;[I)J(
-    - Connection;)I(
-    - --SQLiteQueryBuilder(
     - Vector(
-    - String;)I:1,3(
-    - sql.html(
     - PreparedStatement(
-    - String;)V(
-    - ParameterizedPreparedStatementSetter;)[[I(
     - ScalaAnorm(
     - Future(
-    - String;)I(
-    - String;:0,1,2,3,4,6(
-    - Object;)I(
     - String;I)I(
-    - CharSequence;)V(
-    - String;I)Z(
     - SQLQuery(
-    - BatchPreparedStatementSetter;)[I(
-    - String;:0,1,2,3,5(
-    - List;)[I(
-    - String;[I)I(
-    - --ContentProvider(
-    - PreparedStatementSetter;)I(
-    - Cursor;:1,3(
-    - String;[I)V(
-    - Connection;)Z(
     - SQLiteStatement(
     - Criterion(
-    - --DatabaseUtils(
     - String;I)J(
-    - Object;)J(
-    - String;)J(
-    - Cursor;:0,1,2,3,5,7(
-    - Cursor;:0,2(
-    - -JdbcTemplate is implementing JdbcOperations(
     - CallableStatement(
-    - Object;[I)I(
-    - SetParameter;)V(
-    - package-summary.html(
-    - String;:0,1,2(
     - SqlQueryResult(
-    - String;[I)Z(
-    - String;)I:1,2(
     - SqlConnection(
-    - Object;)V(
     - ParcelFileDescriptor(
-    - Cursor;:0,1,2,4(
-    - --SQLiteDatabase(
     command_injection:
     - Runtime.exec(
     - Runtime.getRuntime().exec(
@@ -3965,15 +3915,7 @@ java:
     - (ProcessBuilder $PB) = ...;
     - (HttpServletRequest $REQ).getSession().$FUNC($NAME, $VALUE);
     - (ProcessBuilder $PB).command(...).$ADD(...);
-    - String;)V(
-    - -stringToProcess is call when the bang operator (
-    - ProcessBuilder;:0,1(
-    - Process;:0,1(
-    - Process;:1,2(
-    - ProcessBuilder;:0,2(
-    - List;)V(
     - Process(
-    - Seq;:0,1(
     xss:
     - .getWriter(
     - .getOutputStream(
@@ -4019,13 +3961,9 @@ java:
     - new ResponseEntity<$ERROR>($PAYLOAD, ...)
     - (ServletOutputStream $WRITER).$WRITE(...)
     - (java.io.OutputStream $WRITER).$WRITE(...)
-    - String;)V(
     - tag.ForHtmlTag.doTag(
-    - '- API reference:('
-    - '- Inherits from java.io.Writer('
     - io.PrintWriter.write(
     - PrintWriter(
-    - PrintWriter;:0,1(
     - Result(
     - jsp.JspWriter.print(
     - Html(
@@ -4033,9 +3971,6 @@ java:
     - io.PrintWriter.println(
     - io.PrintWriter.print(
     - ScalaTemplates(
-    - '- Sinks from javax.servlet.jsp.JspWriter('
-    - Object;)V(
-    - String;II)V(
     - jsp.JspWriter.println(
     path_traversal:
     - new FileInputStream(
@@ -4108,22 +4043,9 @@ java:
     - FileUtils.openOutputStream($FILE, ...)
     - (java.io.FileOutputStream $FOS) =
     - (java.io.File $FILE) =
-    - String;)V(
-    - URI;)V(
-    - ServletResponse;)V(
     - BufferedSource(
-    - Path;:1,2(
-    - String;)V:0,1(
     - File(
-    - File;:0,1,2(
-    - Path;:0,1(
-    - Map;)V(
-    - String;ZZ)V(
-    - File;:3,4(
-    - Object;)V(
     - Path(
-    - String;Z)V(
-    - File;:0,1(
     ssrf:
     - new URL(
     - URL.openConnection(
@@ -4195,9 +4117,7 @@ java:
     - String.format($VAR, ...)
     - InputStream(
     - URLConnection(
-    - URLConnection;:0,1(
     - Future(
-    - Future;:1,2(
     - Object(
     deserialization:
     - ObjectInputStream.readObject(
@@ -4325,8 +4245,6 @@ java:
     - Class.forName(
     - .getMethod(
     - Object(
-    - Object;)V(
-    - Map;)V(
     auth_bypass:
     - SecurityContext.getAuthentication(
     - SecurityContextHolder.getContext(
@@ -4458,7 +4376,6 @@ java:
     - Jade4J.render(
     - JspServlet
     - MethodExpression(
-    - Object;)V(
     - ValueExpression(
     - Expression(
     crypto_weakness:
@@ -4491,88 +4408,49 @@ java:
     - SecureRandom.setSeed(
     - SecretKeySpec
     xpath_injection:
-    - (javax.xml.xpath.XPath $XP).compile(...).evaluate(...)
-    - (javax.xml.xpath.XPath $XP).evaluate(...)
-    - NodeIterator(
-    - XObject(
-    - Node;)Z(
-    - NodeList(
-    - Object(
-    - XPathExpression(
-    - Node(
-    - String(
+    - XPathExpression.evaluate(
+    - XPathFactory.newXPath(
+    - .evaluate(
+    - .compile(
     ldap_injection:
-    - (javax.naming.directory.DirContext $CTX).search($Y, "...", ...)
-    - (javax.naming.directory.InitialDirContext $IDC).search(...)
-    - (javax.naming.directory.InitialDirContext $IDC).search($Y, "...", ...)
-    - (javax.naming.directory.DirContext $CTX).search(...)
-    - String;)V(
-    - NameClassPairCallbackHandler;)V:2,3(
-    - NameClassPairCallbackHandler;)V:3,4(
-    - NameClassPairCallbackHandler;)V:1,2(
-    - List(
-    - List;:3,4(
-    - NamingEnumeration;:2,3(
-    - NamingEnumeration;:1,2(
-    - NameClassPairCallbackHandler;)V(
-    - SearchResult;:1,3(
-    - DirContextProcessor;)V:3,4(
-    - Object(
-    - List;:2,3(
-    - NamingEnumeration(
-    - List;:1,2(
+    - DirContext.search(
+    - InitialLdapContext(
+    - InitialDirContext(
+    - .search(
     info_disclosure:
-    - Object;)V(
-    - Result(
+    - .printStackTrace(
+    - .getStackTrace(
+    - System.err.print(
+    - System.err.println(
     format_string:
-    - PrintStream(
-    - Formatter(
-    - String(
+    - String.format(
+    - MessageFormat.format(
+    - .printf(
+    - StringFormatter.format(
+    - Formatter.format(
     header_injection:
-    - String;)V(
-    - String;)V:0,1(
+    - .setHeader(
+    - .addHeader(
+    - .setIntHeader(
+    - .addIntHeader(
+    - .setDateHeader(
+    - .addDateHeader(
+    - .header(
     injection_general:
-    - Object;:(
-    - Collection(
-    - String;)Z(
-    - List;:0,1,2,3(
-    - Map;Ljava.util.Collection;Ljava.util.Collection;)V:(
-    - String;)V(
-    - String;Z)Z(
-    - -- Struts2 and Ognl API(
-    - String;)Ljava.beans.PropertyDescriptor(
-    - Object;Z)V(
-    - Map;Z)V(
-    - Object;)[Ljava.beans.PropertyDescriptor;:(
-    - --compileAndExecute method are private(
-    - Boolean;)V(
-    - SelectRequest(
-    - String;:(
-    - Object;)V(
-    - Map;:(
-    - Field(
-    - Map;)V(
-    - Object(
-    - Method(
-    - String(
+    - Class.forName(
+    - .newInstance(
+    - .invoke(
+    - .getMethod(
+    - .getDeclaredMethod(
+    - .loadClass(
     log_injection:
-    - String;)V(
-    - Object;)V:0,1,2(
-    - Throwable;)V:1,2,3(
-    - Object;)V:0,1(
-    - Object;)V:0,1,2,3(
-    - Object;)V:0,1,3,4(
-    - Supplier;)V(
-    - Supplier;)V:2,3(
-    - Throwable;)V:1,2(
-    - String;)V:0,2,3(
-    - String;)V:0,1,2(
-    - Throwable;)V:1,3,4(
-    - String;)V:0,1(
-    - Object;)V(
-    - Throwable;)V(
-    - Throwable;)V:1,3(
-    - Supplier;)V:1,2(
+    - .info(
+    - .debug(
+    - .warn(
+    - .error(
+    - .trace(
+    - .fatal(
+    - .log(
   sanitizers:
     sql_injection:
     - .setString(

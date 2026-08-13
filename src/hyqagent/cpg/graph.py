@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import pickle
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -71,6 +72,160 @@ def _parse_line(location: str) -> int | None:
         return int(parts[1])
     except ValueError:
         return None
+
+
+# ─── Parameter source classification ───────────────────────────────────────
+#
+# A Java method parameter is a taint source when it is annotated with a
+# web-framework input annotation (Spring ``@RequestParam``, JAX-RS
+# ``@PathParam``, ...) or is typed as the raw ``HttpServletRequest``.  Each
+# annotation maps to exactly ONE taint category — the vulnerability class it
+# most commonly feeds — instead of the ~18 categories a naive signature
+# substring match would produce (see Session 1.45, NODE_PARAMETER 过度标记).
+
+_PARAM_ANNOTATION_TO_CATEGORY: dict[str, str] = {
+    "RequestParam": "injection_general",
+    "RequestBody": "injection_general",
+    "PathVariable": "path_traversal",
+    "PathParam": "path_traversal",
+    "RequestHeader": "header_injection",
+    "HeaderParam": "header_injection",
+    "CookieValue": "injection_general",
+    "CookieParam": "injection_general",
+    "ModelAttribute": "injection_general",
+    "SessionAttribute": "injection_general",
+    "RequestPart": "deserialization",
+    "QueryParam": "injection_general",
+    "FormParam": "injection_general",
+    "MatrixParam": "injection_general",
+    "BeanParam": "injection_general",
+    "QueryValue": "injection_general",
+    "Body": "injection_general",
+}
+
+# Raw request objects that carry arbitrary user input, mapped to the generic
+# injection category when a parameter has no more specific annotation.
+_REQUEST_PARAM_TYPE_HINTS: tuple[str, ...] = (
+    "HttpServletRequest",
+    "ServletRequest",
+)
+
+
+def _find_param_list(signature: str) -> tuple[int, int] | None:
+    """Return ``(open_idx, close_idx)`` of a method's parameter list.
+
+    Walks backward from the last ``)`` to its balanced ``(`` so that
+    annotation arguments (``@PathVariable("name")``) and generic types do
+    not confuse the search.
+    """
+    close_idx = signature.rfind(")")
+    if close_idx == -1:
+        return None
+    depth = 0
+    for i in range(close_idx, -1, -1):
+        if signature[i] == ")":
+            depth += 1
+        elif signature[i] == "(":
+            depth -= 1
+            if depth == 0:
+                return i, close_idx
+    return None
+
+
+def _split_top_level(text: str, delim: str) -> list[str]:
+    """Split *text* on *delim* ignoring delimiters nested in ``()``/``<>``/``[]``/strings."""
+    parts: list[str] = []
+    depth = 0
+    quote: str | None = None
+    current: list[str] = []
+    for ch in text:
+        if quote is not None:
+            current.append(ch)
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+            current.append(ch)
+        elif ch in "([<{":
+            depth += 1
+            current.append(ch)
+        elif ch in ")]>}":
+            depth -= 1
+            current.append(ch)
+        elif ch == delim and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current).strip())
+    return parts
+
+
+def _classify_parameter_source(signature: str, param_index: int) -> list[str]:
+    """Return taint categories for the parameter at *param_index*.
+
+    Only annotations on that specific parameter (or its raw request-object
+    type) are considered — never the enclosing function body.  Returns an
+    empty list when the parameter is not a recognised input source.
+    """
+    pair = _find_param_list(signature)
+    if pair is None:
+        return []
+    open_idx, close_idx = pair
+    params_text = signature[open_idx + 1 : close_idx].strip()
+    if not params_text:
+        return []
+    segments = _split_top_level(params_text, ",")
+    if param_index >= len(segments):
+        return []
+    segment = segments[param_index]
+
+    categories: list[str] = []
+    for match in re.finditer(r"@([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)", segment):
+        simple_name = match.group(1).rsplit(".", 1)[-1]
+        cat = _PARAM_ANNOTATION_TO_CATEGORY.get(simple_name)
+        if cat and cat not in categories:
+            categories.append(cat)
+
+    # Fall back to a raw request-object parameter (e.g. HttpServletRequest).
+    if not categories and any(hint in segment for hint in _REQUEST_PARAM_TYPE_HINTS):
+        categories.append("injection_general")
+
+    return categories
+
+
+def _extract_signature(fn_node: object, source: str) -> str:
+    """Return a method's signature — everything before its body block.
+
+    Uses tree-sitter's ``body`` field to locate the body precisely.  A naive
+    ``source.find("{")`` would stop at a ``{`` inside an annotation string
+    argument (``@GetMapping("/users/{id}")``) and truncate the signature
+    before the parameter list.
+    """
+    body = fn_node.child_by_field_name("body")  # type: ignore[attr-defined]
+    if body is not None:
+        body_start = getattr(body, "start_byte", None)
+        node_start = getattr(fn_node, "start_byte", None)
+        if body_start is not None and node_start is not None and body_start >= node_start:
+            return source[: body_start - node_start].rstrip()
+    # Fallback: strip at the first brace (best effort).
+    brace_idx = source.find("{")
+    return source[:brace_idx].rstrip() if brace_idx != -1 else source
+
+
+def _matches_sink_exclude(text: str, patterns: list[str]) -> bool:
+    """Return True if *text* matches any sink-exclusion regex *pattern*.
+
+    Exclusion patterns are user-supplied regexes (from ``sink_excludes`` in
+    taint_rules.yaml).  Invalid patterns are skipped rather than raising.
+    """
+    for pat in patterns:
+        try:
+            if re.search(pat, text):
+                return True
+        except re.error:
+            continue
+    return False
 
 
 # ─── CPG Graph Builder ───────────────────────────────────────────────────────
@@ -230,6 +385,19 @@ class CPGGraphBuilder:
                                     break
                             if encl:
                                 call_args_index[(line, encl, bare_name)] = args
+
+        # 2.5 — Store each function's full signature (text before the body
+        # block) on its NODE_FUNCTION.  The tree-sitter ``body`` field gives a
+        # precise cut — a naive ``source.find("{")`` would stop at a ``{``
+        # inside an annotation string like ``@GetMapping("/users/{id}")``.
+        # NODE_PARAMETER source labeling reads this signature back later.
+        for fn in funcs:
+            tree_key = _fkey(fn.name, fn.start_line)
+            tree_node = fn_tree_nodes.get(tree_key)
+            func_id = func_nodes.get(tree_key)
+            if tree_node is None or func_id is None:
+                continue
+            self.graph.nodes[func_id]["signature"] = _extract_signature(tree_node, fn.source)
 
         # 3 — Build intra-file call graph and index call edges
         # BUG 15: Reuse already-parsed tree instead of re-parsing
@@ -820,26 +988,24 @@ class CPGGraphBuilder:
         if self._taint_loader is None:
             return
 
-        # Pre-build function-source lookup so NODE_PARAMETER nodes
-        # can look up their enclosing function's declaration text
-        # (which carries annotation-based source markers like
-        # ``@RequestParam`` in Java / Spring).
+        # Pre-build function-signature lookup so NODE_PARAMETER nodes can
+        # look up their enclosing function's declaration text (which carries
+        # annotation-based source markers like ``@RequestParam`` in Spring).
         #
-        # IMPORTANT: only the function SIGNATURE (before the opening
-        # brace) is used for parameter matching.  Using the full body
-        # would cause false source tagging — e.g. ``.getParameter()``
-        # in the method body would mark ALL parameters as taint sources
-        # for all 20 categories.
+        # Only the function SIGNATURE (before the opening brace) is used.
+        # Prefer the full ``signature`` attribute (stored at build time);
+        # fall back to deriving it from ``source`` for graphs loaded from a
+        # cache written before the ``signature`` attribute existed.
         func_signature_by_name: dict[str, str] = {}
         for _nid, data in self.graph.nodes(data=True):
             if data.get("file_path") == file_path and data.get("node_type") == NODE_FUNCTION:
                 name = data.get("name", "")
-                src = data.get("source", "")
-                if name and src:
-                    # Extract signature: everything before the first
-                    # opening brace that starts the method body.
+                sig = data.get("signature", "")
+                if not sig:
+                    src = data.get("source", "")
                     brace_idx = src.find("{")
                     sig = src[:brace_idx] if brace_idx != -1 else src
+                if name and sig:
                     func_signature_by_name[name] = sig
 
         for _nid, data in self.graph.nodes(data=True):
@@ -857,11 +1023,22 @@ class CPGGraphBuilder:
                 # ``expression`` attribute which stores the call text.
                 source_text = data.get("expression", "")
             elif node_type == NODE_PARAMETER:
-                # Java / Spring parameters (``@RequestParam String x``)
-                # carry source annotations on the enclosing function.
-                # Use signature only (not body) to avoid false matches.
+                # Java / Spring parameters (``@RequestParam String x``) carry
+                # source annotations.  Classify THIS parameter's own
+                # annotation (not the whole signature) into a precise
+                # category — this is what stops one ``@PathVariable`` from
+                # tagging every sibling parameter, and stops the ~18-category
+                # explosion that comes from substring-matching the signature.
                 encl_func = data.get("enclosing_function", "")
-                source_text = func_signature_by_name.get(encl_func, "")
+                signature = func_signature_by_name.get(encl_func, "")
+                if not signature:
+                    continue
+                param_index = data.get("param_index", 0)
+                param_cats = _classify_parameter_source(signature, param_index)
+                if param_cats:
+                    data["taint_source"] = ",".join(param_cats)
+                    data["taint_category"] = ",".join(param_cats)
+                continue
             else:
                 continue
 
@@ -877,6 +1054,14 @@ class CPGGraphBuilder:
 
             sink_cats = self._taint_loader.match_all_sinks(language, source_text)
             if sink_cats:
+                # Sink exclusion whitelist: generic utility methods
+                # (``toString()``, ``I18nUtil.getString``, exception
+                # ``getMessage()`` …) contain sink substrings but are not
+                # injection points — drop them before labeling.
+                excludes = getattr(self._taint_loader, "sink_excludes", None)
+                exclude_patterns = excludes(language) if callable(excludes) else []
+                if exclude_patterns and _matches_sink_exclude(source_text, exclude_patterns):
+                    continue
                 data["taint_sink"] = ",".join(sink_cats)
                 data["taint_category"] = ",".join(sink_cats)
 

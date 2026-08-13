@@ -1,7 +1,7 @@
 # HyqAgent 开发进度
 
-> 上次更新: Session 1.44 完成后 (2026-08-12)
-> 最新: CPG 跨文件污点追踪已打通，但发现精度瓶颈 — [[cpg-taint-precision-problems]]
+> 上次更新: Session 1.45 进行中 (2026-08-13)
+> 最新: CPG TAINT 精度提升 — 参数标记修复 + Sink 白名单已完成，剩非污点 CVE 规则 + 回归验证
 
 ## Phase 1: CPG Foundation — ✅ 完成
 
@@ -461,3 +461,25 @@ Phase 5 全部 5 项任务已全部完成。
 ### 下步
 
 [[Session-1.45-plan]] — 精度提升：参数标记修复 + Sink 白名单 + 非污点规则补充
+
+## Session 1.45 — CPG TAINT 精度提升 (2026-08-13, 进行中)
+
+> 详见 [dev-docs/Session-1.45-plan.md](dev-docs/Session-1.45-plan.md) · 目标 5 CVE ≥3 命中、有效率 ≥20%
+
+### 已完成（前两项）
+
+1. **NODE_PARAMETER 过度标记修复** ✅
+   - `graph.py` 新增 `_classify_parameter_source()` + `_PARAM_ANNOTATION_TO_CATEGORY` 注解→类别精确映射
+   - `@PathVariable`→path_traversal、`@RequestParam`→injection_general、无注解参数→[]、HttpServletRequest→injection_general
+   - tree-sitter `body` field 精确提取方法签名（修复 `@GetMapping("/users/{id}")` 里 `{` 截断 bug）
+2. **Sink 排除白名单 + 垃圾模式大清理** ✅
+   - `taint_loader.py` 新增 `sink_excludes()`；`taint_rules.yaml` 加 5 条 exclude 正则；`graph.py` 新增 `_matches_sink_exclude()`
+   - 删除 132+ 条垃圾 sink（字节码签名 / 注释 / html 引用 / 裸类型名 `String(`、`Object(`、`Collection(` 等）
+   - 修复清理导致的 `header_injection`/`log_injection` 空类别 → None 崩溃，补回合法 sink（header→`.setHeader`/`.addHeader`/`.header` 等；log→`.info`/`.debug`/`.warn`/`.error` 等）
+   - 补齐其余垃圾类别真实 sink：`injection_general`(反射)、`format_string`(`String.format`/`MessageFormat.format`)、`info_disclosure`(`printStackTrace`)、`xpath_injection`/`ldap_injection`(去 `$VAR` 死模式)
+   - **20 个 java 类别 sink 全部非空；cpg+scanner 1300 tests 全绿**
+
+### 待办（明天）
+
+3. **非污点 CVE 规则** ❌ — commons-text StringSubstitutor + xxl-job JWT 硬编码密钥
+4. **回归验证 + 质量门禁 + Session 文档** ⏳ — 5 CVE 重扫测精度、ruff/mypy、写 `dev-docs/Session-1.45-*.md`
