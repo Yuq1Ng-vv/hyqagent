@@ -569,6 +569,101 @@ class TestDeterministicScannerRegexScans:
         finally:
             Path(fpath).unlink()
 
+    def test_scan_dangerous_calls_detects_stringsubstitutor(self):
+        """DANGER-053 should flag Apache Commons Text interpolation (CVE-2022-42889)."""
+        scanner = self._make_scanner()
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".java",
+            delete=False,
+            encoding="utf-8",
+        ) as f:
+            f.write("String out = StringSubstitutor.createInterpolator().replace(input);\n")
+            f.flush()
+            fpath = f.name
+
+        try:
+            findings = scanner.scan_dangerous_calls([fpath], "java")
+            ss_findings = [f for f in findings if f.rule_id == "DANGER-053"]
+            assert len(ss_findings) >= 1
+            assert ss_findings[0].cwe_id == "CWE-94"
+        finally:
+            Path(fpath).unlink()
+
+    def test_scan_config_issues_detects_xxljob_access_token(self):
+        """CONFIG-042 should flag xxl-job default accessToken (CVE-2020-29204)."""
+        scanner = self._make_scanner()
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".java",
+            delete=False,
+            encoding="utf-8",
+        ) as f:
+            f.write('    @Value("${xxl.job.accessToken}")\n')
+            f.write("    private String accessToken;\n")
+            f.flush()
+            fpath = f.name
+
+        try:
+            findings = scanner.scan_config_issues([fpath], "java")
+            xxl_findings = [f for f in findings if f.rule_id == "CONFIG-042"]
+            assert len(xxl_findings) >= 1
+            assert xxl_findings[0].cwe_id == "CWE-306"
+        finally:
+            Path(fpath).unlink()
+
+    def test_scan_dangerous_calls_skips_comment_lines(self):
+        """Comment lines mentioning a dangerous API must not be flagged."""
+        scanner = self._make_scanner()
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".java",
+            delete=False,
+            encoding="utf-8",
+        ) as f:
+            # javadoc continuation + line comment — both must be ignored
+            f.write(" * StringSubstitutor.createInterpolator().replace(input);\n")
+            f.write("// StringSubstitutor.createInterpolator().replace(input);\n")
+            f.write("String out = StringSubstitutor.createInterpolator().replace(input);\n")
+            f.flush()
+            fpath = f.name
+
+        try:
+            findings = scanner.scan_dangerous_calls([fpath], "java")
+            ss_findings = [f for f in findings if f.rule_id == "DANGER-053"]
+            # only the executable line (3) is reported, not the two comments
+            assert len(ss_findings) == 1
+            assert ss_findings[0].line == 3
+        finally:
+            Path(fpath).unlink()
+
+    def test_scan_dangerous_calls_skips_test_directory(self):
+        """Files under a test/ directory must not be scanned."""
+        scanner = self._make_scanner()
+        tmpdir = Path(tempfile.mkdtemp())
+        try:
+            src_file = tmpdir / "src" / "main" / "Foo.java"
+            src_file.parent.mkdir(parents=True)
+            src_file.write_text(
+                "String out = StringSubstitutor.createInterpolator().replace(input);\n",
+                encoding="utf-8",
+            )
+            test_file = tmpdir / "src" / "test" / "FooTest.java"
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text(
+                "String out = StringSubstitutor.createInterpolator().replace(input);\n",
+                encoding="utf-8",
+            )
+
+            findings = scanner.scan_dangerous_calls([str(src_file), str(test_file)], "java")
+            ss_findings = [f for f in findings if f.rule_id == "DANGER-053"]
+            assert len(ss_findings) == 1
+            assert ss_findings[0].file_path == str(src_file)
+        finally:
+            import shutil
+
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
 
 class TestDeterministicScannerCoverage:
     """Tests for scan_all() integration with coverage tracker."""

@@ -4115,10 +4115,6 @@ java:
     - StringBuilder $SB = new StringBuilder("$URLSTR");
     - String.format("$URLSTR", "...", ...)
     - String.format($VAR, ...)
-    - InputStream(
-    - URLConnection(
-    - Future(
-    - Object(
     deserialization:
     - ObjectInputStream.readObject(
     - ObjectInputStream.readUnshared(

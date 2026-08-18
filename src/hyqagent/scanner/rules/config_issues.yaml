@@ -374,3 +374,14 @@ rules:
     message: "JMX 已启用/无认证 — 可远程执行管理操作"
     languages: [java]
     cwe: "CWE-862"
+
+  # ── xxl-job default access token ────────────────────────────────────
+  - id: CONFIG-042
+    patterns:
+      - '@Value\("\$\{xxl\.job\.accessToken\}"\)'
+      - 'xxl\.job\.accessToken\s*[:=]\s*$'
+      - 'xxl\.job\.accessToken\s*[:=]\s*default_token'
+    severity: high
+    message: "xxl-job accessToken 未配置默认值/为空 — 未认证可访问 admin API 并触发未授权 RCE (CVE-2020-29204)"
+    languages: [java]
+    cwe: "CWE-306"

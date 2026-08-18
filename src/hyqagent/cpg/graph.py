@@ -228,6 +228,19 @@ def _matches_sink_exclude(text: str, patterns: list[str]) -> bool:
     return False
 
 
+def _word_in_text(name: str, text: str) -> bool:
+    """Return True if *name* appears in *text* as a whole identifier.
+
+    Uses explicit lookarounds (not a regex word-boundary assertion) so
+    ``$``-containing Java identifiers and digits are handled correctly —
+    ``id`` must not match ``uid`` or ``grid``.
+    """
+    if not name or not text:
+        return False
+    pattern = rf"(?<![A-Za-z0-9_$]){re.escape(name)}(?![A-Za-z0-9_$])"
+    return re.search(pattern, text) is not None
+
+
 # ─── CPG Graph Builder ───────────────────────────────────────────────────────
 
 
@@ -498,6 +511,15 @@ class CPGGraphBuilder:
             # to line 235 but never "cross over" to the `list` assignment
             # that is the actual sink.  This edge bridges that gap.
             self._add_rhs_to_lhs_edges(path)
+
+            # 4.5b — variable_ref → call_site edges for bare-call sinks.
+            #
+            # `jdbcTemplate.query(sql)` is an expression statement, not an
+            # assignment, so step 4.5 never bridges its argument variable
+            # (`sql`) to the call_site node.  Without this edge a taint BFS
+            # from the argument's variable-ref dead-ends before reaching the
+            # call_site sink.  This edge bridges that gap.
+            self._add_varref_to_callsite_edges(path)
 
         # 4.55 — Connect NODE_PARAMETER → NODE_ASSIGNMENT for the same
         # (enclosing_function, var_name).  Phase 1.5 of build_def_use_chains
@@ -963,6 +985,41 @@ class CPGGraphBuilder:
                             aid,
                             edge_type=EDGE_DATA_FLOW,
                         )
+
+    def _add_varref_to_callsite_edges(self, file_path: str) -> None:
+        """Create DATA_FLOW edges from variable-refs to call-site nodes that use them.
+
+        Bare-call sinks (``jdbcTemplate.query(sql)``, ``new FileInputStream(p)``)
+        are expression statements, not assignments, so
+        :meth:`_add_rhs_to_lhs_edges` never connects their argument variables
+        to the call-site node.  This method bridges variable-refs to matching
+        call-site nodes so a taint BFS can reach expression-statement sinks.
+        """
+        call_sites_by_loc: dict[str, list[str]] = {}
+        for nid, data in self.graph.nodes(data=True):
+            if data.get("node_type") != NODE_CALL_SITE:
+                continue
+            if data.get("file_path") != file_path:
+                continue
+            line = data.get("line", 0)
+            call_sites_by_loc.setdefault(f"{file_path}:{line}", []).append(nid)
+
+        if not call_sites_by_loc:
+            return
+
+        for nid, data in self.graph.nodes(data=True):
+            if data.get("node_type") != NODE_VARIABLE_REF:
+                continue
+            if data.get("file_path") != file_path:
+                continue
+            vname = data.get("var_name", "")
+            if not vname:
+                continue
+            loc = data.get("location", "")
+            for csid in call_sites_by_loc.get(loc, []):
+                expr = self.graph.nodes[csid].get("expression", "")
+                if _word_in_text(vname, expr):
+                    self.graph.add_edge(nid, csid, edge_type=EDGE_DATA_FLOW)
 
     # ── Taint node labeling ────────────────────────────────────────────────
 

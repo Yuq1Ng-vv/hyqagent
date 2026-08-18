@@ -547,3 +547,15 @@ rules:
     languages: [java]
     cwe: "CWE-22"
     category: path_traversal
+
+  # ── Template / expression interpolation injection ───────────────────
+  - id: DANGER-053
+    patterns:
+      - 'StringSubstitutor.createInterpolator('
+      - 'interpolatorStringLookup('
+      - 'ScriptStringLookup'
+      - 'scriptStringLookup('
+    severity: critical
+    message: "Apache Commons Text 插值注入 — StringSubstitutor 默认 interpolator 包含 script/dns/url lookup，用户可控文本可导致 RCE (CVE-2022-42889 / Text4Shell)"
+    languages: [java]
+    cwe: "CWE-94"

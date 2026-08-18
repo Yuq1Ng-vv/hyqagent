@@ -249,6 +249,11 @@ class JavaAdapter(LanguageProvider):
     def extract_callee_info(self, node: Node) -> tuple[str, str, bool] | None:
         name_node = node.child_by_field_name("name")
         if name_node is None or not name_node.text:
+            # object_creation_expression: the constructed type lives in the
+            # ``type`` field (``new FileInputStream(...)`` → callee
+            # ``FileInputStream``), not the ``name`` field.
+            name_node = node.child_by_field_name("type")
+        if name_node is None or not name_node.text:
             return None
 
         bare = name_node.text.decode("utf-8")

@@ -145,21 +145,19 @@ class PathAnnotator:
         """
         annotated: list[AnnotatedPath] = []
 
-        # 1. Confirmed-taint paths for every known category
-        categories = self._get_known_categories(language)
-        for cat in categories:
-            paths = self._query.find_path(
-                cat, cat, max_depth=20, taint_loader=self._taint_loader, language=language
-            )
-            for path in paths:
-                label = self._label_path(path, language)
-                annotated.append(
-                    AnnotatedPath(
-                        path=path,
-                        label=label,
-                        sanitizer_status=self._verify_sanitizer_dominance(path, language),
-                    )
+        # 1. Confirmed-taint paths — source 不限类别, 漏洞类型由 sink 决定.
+        #    (对齐 Session 1.45 参数标记语义: @RequestParam 等参数保守标记为
+        #    injection_general, 精确类别由 sink 决定. 若仍按 find_path(cat,cat)
+        #    把源/sink 绑死同一类别, injection_general 源永远匹配不到具体 sink.)
+        for path in self._query.find_taint_paths(max_depth=20):
+            label = self._label_path(path, language)
+            annotated.append(
+                AnnotatedPath(
+                    path=path,
+                    label=label,
+                    sanitizer_status=self._verify_sanitizer_dominance(path, language),
                 )
+            )
 
         # 2. Heuristic sinks
         heuristic = self._sink_discoverer.discover_heuristic_sinks(language)

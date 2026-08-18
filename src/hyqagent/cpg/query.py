@@ -129,6 +129,51 @@ class CPGQuery:
         paths.sort(key=len)
         return paths
 
+    def find_taint_paths(
+        self,
+        max_depth: int = 20,
+        max_paths: int = 200,
+    ) -> list[GraphPath]:
+        """Find taint paths from ANY ``taint_source`` node to ANY ``taint_sink`` node.
+
+        Unlike :meth:`find_path` — which requires the source and sink to share
+        the same YAML category (``find_path(cat, cat)``) — this enumerates every
+        ``taint_source``-labeled node and forward-BFSes to any ``taint_sink``
+        node along ``DATA_FLOW`` / ``CALLS`` edges.  The precise vulnerability
+        category is determined by the sink, not the source (Session 1.45
+        semantics: a conservative ``injection_general`` source such as
+        ``@RequestParam`` only marks "user input"; the sink decides the real
+        category).
+
+        Each source is BFS-ed independently (no shared visited set) so a large
+        early traversal cannot starve later sources.  Paths are deduplicated by
+        their ``(first, last)`` node pair and returned shortest-first, up to
+        *max_paths* in total.
+        """
+        source_ids = sorted(n for n, d in self._graph.nodes(data=True) if d.get("taint_source"))
+        sink_set = {n for n, d in self._graph.nodes(data=True) if d.get("taint_sink")}
+        if not source_ids or not sink_set:
+            return []
+
+        paths: list[GraphPath] = []
+        seen: set[tuple[str, str]] = set()
+        for src_id in source_ids:
+            if len(paths) >= max_paths:
+                break
+            for path in self._bfs_paths(src_id, sink_set, max_depth):
+                if not path.nodes or len(path.nodes) < 2:
+                    continue
+                key = (path.nodes[0].node_id, path.nodes[-1].node_id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                paths.append(path)
+                if len(paths) >= max_paths:
+                    break
+
+        paths.sort(key=len)
+        return paths
+
     def find_sources(self, sink_pattern: str, max_depth: int = 15) -> list[GraphNode]:
         """Trace backwards from *sink_pattern* to find all upstream sources.
 

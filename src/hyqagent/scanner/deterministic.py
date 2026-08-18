@@ -30,6 +30,37 @@ if TYPE_CHECKING:
     from hyqagent.scanner.annotator import AnnotatedPath, PathAnnotator
 
 
+# ── Comment detection ──────────────────────────────────────────────────────
+
+_COMMENT_PREFIXES = ("//", "/*", "*", "#", "<!--")
+
+_TEST_DIR_NAMES = ("test", "tests", "testing", "__tests__")
+
+
+def _is_comment_line(line: str) -> bool:
+    """Return True if *line* is a pure comment line (no executable code).
+
+    Covers Java (``//``, ``/* ... */`` and javadoc ``*`` continuations),
+    Python (``#``), and JavaScript (``//``, ``/* ... */``).  Filtering these
+    out of regex rule scans avoids flagging example calls in doc comments —
+    a major false-positive source for library code like commons-text.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return stripped.startswith(_COMMENT_PREFIXES)
+
+
+def _is_test_path(file_path: str) -> bool:
+    """Return True if *file_path* lives under a test directory.
+
+    Excludes ``src/test/java/...`` (Java), ``tests/...`` (Python) and
+    ``__tests__/...`` (JavaScript) so that rule scans report production
+    findings rather than test-suite usage of the same dangerous APIs.
+    """
+    return any(part in _TEST_DIR_NAMES for part in Path(file_path).parts)
+
+
 # ── Finding dataclass ──────────────────────────────────────────────────────
 
 
@@ -333,6 +364,8 @@ class DeterministicScanner:
                     compiled.append((pat, None))
 
             for file_path in file_paths:
+                if _is_test_path(file_path):
+                    continue
                 try:
                     lines = (
                         Path(file_path).read_text(encoding="utf-8", errors="replace").splitlines()
@@ -341,6 +374,8 @@ class DeterministicScanner:
                     continue
 
                 for lineno, line in enumerate(lines, start=1):
+                    if _is_comment_line(line):
+                        continue
                     for pat, regex in compiled:
                         matched = False
                         if regex is not None:
@@ -363,6 +398,7 @@ class DeterministicScanner:
                                     line=lineno,
                                     code_snippet=line.strip()[:200],
                                     category=rule.get("category", default_category),
+                                    cwe_id=rule.get("cwe", ""),
                                     remediation="",
                                     metadata={
                                         "pattern": pat,
@@ -396,16 +432,17 @@ class DeterministicScanner:
             sink_node = path.nodes[-1]
 
             # ── Resolve actual vulnerability category from path nodes ──
-            # Collect taint_category from all nodes on the path; prefer the
-            # intersection of source and sink categories (most specific).
-            src_cats = set(src_node.taint_category.split(",")) if src_node.taint_category else set()
+            # 漏洞类型由 sink 决定(对齐 Session 1.45 参数标记语义): 源侧
+            # injection_general 只是"有用户输入"的保守标记, 精确类别由 sink
+            # 侧的具体类别决定. 当 sink 有具体类别时丢弃 injection_general,
+            # 避免 primary_vuln 取到兜底类别.
             sink_cats = (
                 set(sink_node.taint_category.split(",")) if sink_node.taint_category else set()
             )
-            vuln_cats = src_cats & sink_cats
+            src_cats = set(src_node.taint_category.split(",")) if src_node.taint_category else set()
+            vuln_cats = {c for c in sink_cats if c and c != "injection_general"} or sink_cats
             if not vuln_cats:
-                # Fall back to union if intersection is empty
-                vuln_cats = src_cats | sink_cats
+                vuln_cats = {c for c in src_cats if c and c != "injection_general"} or src_cats
             vuln_category = ",".join(sorted(vuln_cats)) if vuln_cats else "confirmed_taint"
 
             severity = "medium"
